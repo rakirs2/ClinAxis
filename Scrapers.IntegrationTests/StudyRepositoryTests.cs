@@ -1,9 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
-using Scrapers.Tests.Helpers;
+using Scrapers.IntegrationTests.Helpers;
 
-namespace Scrapers.Tests;
+namespace Scrapers.IntegrationTests;
 
 [TestClass]
 public sealed class StudyRepositoryTests
@@ -55,5 +55,4 @@ public sealed class StudyRepositoryTests
         var summary = new StudySummary(nctId, title, status);
         return new ClinicalTrialRecord(summary, investigators);
     }
-
 }

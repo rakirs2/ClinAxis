@@ -30,7 +30,7 @@ This repository has strict expectations for automated or human agents contributi
 - Connection string must be provided via `POSTGRES_CONNECTION_STRING` (both locally and in CI). The default expectation is a database named `clinical_trial_data` with sufficient privileges to create tables.
 - The repository ensures the `studies` and `investigators` tables exist (`CREATE TABLE IF NOT EXISTS`). Do not add schema drift elsewhere—update the repository if schema changes are required.
 - Schema changes are managed via Entity Framework Core migrations located under `Scrapers/Persistence/Migrations`. Always add/update migrations instead of writing SQL by hand.
-- Database integration tests must connect to the configured PostgreSQL instance and run as part of every `dotnet test` invocation. GitHub Actions uses the postgres service container defined in `.github/workflows/dotnet.yml`.
+- Database integration tests live under `Scrapers.IntegrationTests` and must connect to the configured PostgreSQL instance (see `POSTGRES_CONNECTION_STRING`). GitHub Actions uses the postgres service container defined in `.github/workflows/dotnet.yml` and automatically runs both unit and integration suites.
 - Tests require a **fresh ingestion**: they truncate `studies`/`investigators` and insert the first five live studies before each integration test, so do not depend on manual DB state.
 
 ## GitHub Actions
