@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Npgsql;
+using Scrapers.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Scrapers.Tests.Helpers;
 
@@ -10,10 +11,11 @@ internal static class PostgresTestHelper
 
     internal static async Task ClearDatabaseAsync()
     {
-        await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        const string sql = "TRUNCATE TABLE investigators RESTART IDENTITY CASCADE; TRUNCATE TABLE studies RESTART IDENTITY CASCADE;";
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        var options = new DbContextOptionsBuilder<ClinicalTrialsContext>().UseNpgsql(ConnectionString).Options;
+        await using var context = new ClinicalTrialsContext(options);
+        await context.Database.MigrateAsync();
+        context.Investigators.RemoveRange(context.Investigators);
+        context.Studies.RemoveRange(context.Studies);
+        await context.SaveChangesAsync();
     }
 }
