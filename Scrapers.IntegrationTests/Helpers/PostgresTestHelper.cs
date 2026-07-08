@@ -6,10 +6,10 @@ namespace Scrapers.IntegrationTests.Helpers;
 
 internal static class PostgresTestHelper
 {
-internal static string ConnectionString =>
+    internal static string ConnectionString =>
         Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
         ?? LoadFromFile()
-        ?? throw new AssertInconclusiveException("Set POSTGRES_CONNECTION_STRING or create Scrapers.IntegrationTests/.integrationtests.env");
+        ?? BuildDefaultConnectionString();
 
     private static string? LoadFromFile()
     {
@@ -29,6 +29,12 @@ internal static string ConnectionString =>
         }
 
         return null;
+    }
+
+    private static string BuildDefaultConnectionString()
+    {
+        var user = Environment.UserName;
+        return $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={user}";
     }
 
     internal static DbContextOptions<ClinicalTrialsContext> CreateOptions()
