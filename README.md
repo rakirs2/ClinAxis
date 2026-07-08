@@ -50,7 +50,7 @@ Run unit tests (no Postgres dependency):
 dotnet test Scrapers.Tests/Scrapers.Tests.csproj
 ```
 
-Run integration tests (requires local Postgres + live ClinicalTrials.gov access):
+Run integration tests (requires local Postgres + live ClinicalTrials.gov access). If `POSTGRES_CONNECTION_STRING` is not set the tests fall back to `Host=localhost;Port=5432;Database=clinical_trial_data;Username=<your user>`:
 
 ```bash
 POSTGRES_CONNECTION_STRING=... dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
