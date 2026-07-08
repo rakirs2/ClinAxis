@@ -23,7 +23,7 @@ namespace Scrapers.Tests.Utilities
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "createdb",
-                    Arguments = DatabaseName,
+                    Arguments = $"--host localhost --port 5432 {DatabaseName}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -48,7 +48,7 @@ namespace Scrapers.Tests.Utilities
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "dropdb",
-                    Arguments = DatabaseName,
+                    Arguments = $"--host localhost --port 5432 {DatabaseName}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
