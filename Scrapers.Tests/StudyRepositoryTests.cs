@@ -6,14 +6,14 @@ using Scrapers.Tests.Helpers;
 namespace Scrapers.Tests;
 
 [TestClass]
-public sealed class PostgresStudyRepositoryTests
+public sealed class StudyRepositoryTests
 {
-    private PostgresStudyRepository _repository = null!;
+    private StudyRepository _repository = null!;
 
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _repository = new PostgresStudyRepository(PostgresTestHelper.ConnectionString);
+        _repository = new StudyRepository(PostgresTestHelper.ConnectionString);
         await _repository.EnsureSchemaAsync();
         await PostgresTestHelper.ClearDatabaseAsync();
     }

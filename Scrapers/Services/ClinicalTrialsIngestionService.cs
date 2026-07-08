@@ -6,9 +6,9 @@ namespace Scrapers.Services;
 public class ClinicalTrialsIngestionService
 {
     private readonly ClinicalTrialsGov _client;
-    private readonly PostgresStudyRepository _repository;
+    private readonly StudyRepository _repository;
 
-    public ClinicalTrialsIngestionService(ClinicalTrialsGov client, PostgresStudyRepository repository)
+    public ClinicalTrialsIngestionService(ClinicalTrialsGov client, StudyRepository repository)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
