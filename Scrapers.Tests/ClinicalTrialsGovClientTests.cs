@@ -50,6 +50,20 @@ public sealed class ClinicalTrialsGovClientTests
     }
 
     [TestMethod]
+    public async Task GetTrialRecordsAsync_ReturnsInvestigators()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+
+        var client = CreateClient(handler);
+        var records = await client.GetTrialRecordsAsync(count: 1);
+
+        Assert.AreEqual(1, records.Count);
+        Assert.IsTrue(records[0].Investigators.Count > 0, "Expected investigators to be parsed from fixture.");
+        Assert.AreEqual("David R Jacoby, MD, PhD", records[0].Investigators[0].Name);
+    }
+
+    [TestMethod]
     public void SchemaGuard_RequiredFieldsRemainPresent()
     {
         var json = FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json");
