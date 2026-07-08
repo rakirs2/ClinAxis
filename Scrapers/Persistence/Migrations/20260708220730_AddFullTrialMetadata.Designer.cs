@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Scrapers.Persistence;
@@ -11,9 +12,11 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    partial class ClinicalTrialsContextModelSnapshot : ModelSnapshot
+    [Migration("20260708220730_AddFullTrialMetadata")]
+    partial class AddFullTrialMetadata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -56,58 +59,6 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("investigators", (string)null);
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineRunEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text")
-                        .HasColumnName("error_message");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("started_at");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<int?>("TotalAuthors")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_authors");
-
-                    b.Property<int?>("TotalInvestigators")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_investigators");
-
-                    b.Property<int?>("TotalKeywords")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_keywords");
-
-                    b.Property<int?>("TotalPubmedPapers")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_pubmed_papers");
-
-                    b.Property<int?>("TotalStudies")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_studies");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("pipeline_runs", (string)null);
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -116,10 +67,6 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Abstract")
-                        .HasColumnType("text")
-                        .HasColumnName("abstract");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")

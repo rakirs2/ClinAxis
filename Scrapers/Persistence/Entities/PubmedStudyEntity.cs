@@ -1,16 +1,25 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Scrapers.Persistence.Entities
 {
     public class PubmedStudyEntity
     {
+        [Key]
         public int Id { get; set; }
-        public int InvestigatorId { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public string? Url { get; set; }
-        public string? Keywords { get; set; }
+        public string StudyNctId { get; set; } = string.Empty;
+        public string Pmid { get; set; } = string.Empty;
+        public string? Doi { get; set; }
+        public string? Title { get; set; }
+        public string? Journal { get; set; }
+        public DateTime? PublicationDate { get; set; }
+        public string? Abstract { get; set; }
+        public bool IsNonEnglish { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public InvestigatorEntity? Investigator { get; set; }
+        [ForeignKey(nameof(StudyNctId))]
+        public StudyEntity? Study { get; set; }
     }
 }

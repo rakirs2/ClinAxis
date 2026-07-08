@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260708191631_InitialCreate")]
+    [Migration("20260708214051_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -29,35 +29,32 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Affiliation")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("LastSuccessfulPubmedCrawl")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("text")
+                        .HasColumnName("affiliation");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("NcbiId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("OrcidId")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("name");
 
                     b.Property<string>("Role")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("role");
 
-                    b.Property<int>("StudyId")
-                        .HasColumnType("integer");
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StudyId");
+                    b.HasIndex("StudyNctId");
 
                     b.ToTable("investigators", (string)null);
                 });
@@ -66,64 +63,79 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AuthorsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("authors_json");
+
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("NOW() AT TIME ZONE 'UTC'");
+                        .HasColumnName("created_at");
 
-                    b.Property<int>("InvestigatorId")
-                        .HasColumnType("integer");
+                    b.Property<string>("Doi")
+                        .HasColumnType("text")
+                        .HasColumnName("doi");
 
-                    b.Property<string>("Keywords")
-                        .HasColumnType("text");
+                    b.Property<string>("Journal")
+                        .HasColumnType("text")
+                        .HasColumnName("journal");
+
+                    b.Property<string>("Pmid")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pmid");
+
+                    b.Property<DateTime?>("PublicationDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("publication_date");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
 
                     b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Url")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("title");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("InvestigatorId");
+                    b.HasIndex("StudyNctId", "Pmid")
+                        .IsUnique();
 
                     b.ToTable("pubmed_studies", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("NctId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("nct_id");
 
                     b.Property<string>("BriefTitle")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("brief_title");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("NOW() AT TIME ZONE 'UTC'");
+                        .HasColumnName("created_at");
 
-                    b.Property<string>("NctId")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsIncomplete")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_incomplete");
 
                     b.Property<string>("OverallStatus")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("overall_status");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("NctId")
-                        .IsUnique();
+                    b.HasKey("NctId");
 
                     b.ToTable("studies", (string)null);
                 });
@@ -132,7 +144,7 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("Investigators")
-                        .HasForeignKey("StudyId")
+                        .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -141,23 +153,20 @@ namespace Scrapers.Persistence.Migrations
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
                 {
-                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorEntity", "Investigator")
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("PubmedStudies")
-                        .HasForeignKey("InvestigatorId")
+                        .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Investigator");
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorEntity", b =>
-                {
-                    b.Navigation("PubmedStudies");
+                    b.Navigation("Study");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
                 {
                     b.Navigation("Investigators");
+
+                    b.Navigation("PubmedStudies");
                 });
 #pragma warning restore 612, 618
         }

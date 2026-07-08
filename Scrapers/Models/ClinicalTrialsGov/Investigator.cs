@@ -1,6 +1,9 @@
-namespace Scrapers.Models.ClinicalTrialsGov;
-
-public sealed record Investigator(string? Name, string? Affiliation, string? Role)
+namespace Scrapers.Models.ClinicalTrialsGov
 {
-    public bool HasName => !string.IsNullOrWhiteSpace(Name);
+    public class Investigator
+    {
+        public string? Name { get; set; }
+        public string? Role { get; set; }
+        public string? Affiliation { get; set; }
+    }
 }

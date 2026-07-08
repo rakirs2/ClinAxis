@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Scrapers.Persistence;
 using Scrapers.Services;
 
 namespace Scrapers.Coordinators

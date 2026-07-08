@@ -57,7 +57,7 @@ public class ClinicalTrialsGov
         while (collected.Count < count)
         {
             var response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
-            var studies = response.Studies ?? Array.Empty<StudyListResponse.StudyPayload>();
+            var studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
 
             foreach (var studyPayload in studies)
             {
