@@ -6,8 +6,30 @@ namespace Scrapers.IntegrationTests.Helpers;
 
 internal static class PostgresTestHelper
 {
-    internal static string ConnectionString => Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
-        ?? throw new AssertFailedException("POSTGRES_CONNECTION_STRING environment variable must be set for integration tests.");
+internal static string ConnectionString =>
+        Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
+        ?? LoadFromFile()
+        ?? throw new AssertInconclusiveException("Set POSTGRES_CONNECTION_STRING or create Scrapers.IntegrationTests/.integrationtests.env");
+
+    private static string? LoadFromFile()
+    {
+        var envPath = Path.Combine(AppContext.BaseDirectory, ".integrationtests.env");
+        if (!File.Exists(envPath))
+        {
+            return null;
+        }
+
+        foreach (var line in File.ReadAllLines(envPath))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("POSTGRES_CONNECTION_STRING=", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed[("POSTGRES_CONNECTION_STRING=".Length)..];
+            }
+        }
+
+        return null;
+    }
 
     internal static DbContextOptions<ClinicalTrialsContext> CreateOptions()
         => new DbContextOptionsBuilder<ClinicalTrialsContext>().UseNpgsql(ConnectionString).Options;

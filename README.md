@@ -57,3 +57,4 @@ POSTGRES_CONNECTION_STRING=... dotnet test Scrapers.IntegrationTests/Scrapers.In
 ```
 
 The integration suite truncates the database between runs, runs migrations automatically, and verifies that live API calls persist data.
+When running from an IDE (Rider, VS, etc.) you can drop a `Scrapers.IntegrationTests/.integrationtests.env` file containing `POSTGRES_CONNECTION_STRING=...` so the tests pick up the connection string automatically.

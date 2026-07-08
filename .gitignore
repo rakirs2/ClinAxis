@@ -9,6 +9,7 @@
 
 .DS_Store
 .idea
+*.DotSettings.user
 
 # Build results
 [Dd]ebug/
@@ -41,6 +42,7 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+.integrationtests.env
 
 # Others
 ~$*
