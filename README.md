@@ -18,13 +18,18 @@ Export the connection string (use your local user/password as needed):
 export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_data;Username=$USER"
 ```
 
-## Ingest the First 5 Studies
+## Programmatic Ingestion
 
-```bash
-POSTGRES_CONNECTION_STRING=... dotnet run --project IngestionApp -- 5
+Ingestion is exposed as composable services so future cron jobs (or your own console app) can orchestrate them. Example:
+
+```csharp
+var client = new ClinicalTrialsGov();
+var repository = new PostgresStudyRepository(Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")!);
+var coordinator = new ClinicalTrialsIngestionService(client, repository);
+await coordinator.IngestAsync(count: 5);
 ```
 
-The command fetches the first *n* (default 5) studies from the `/studies` endpoint, persists them into `studies` / `investigators` tables, and prints the total persisted count.
+This fetches the first five studies from the `/studies` endpoint and persists them into the `studies` and `investigators` tables.
 
 Verify the rows with `psql`:
 
