@@ -8,7 +8,6 @@ public class ClinicalTrialsGov
 {
     private const string BaseUrl = "https://clinicaltrials.gov/api/v2/";
     private const string StudiesPath = "studies";
-    private const string DefaultQuery = "*";
     private const int MaxPageSize = 100;
     private const int MaxRetryAttempts = 3;
     private static readonly TimeSpan InitialBackoff = TimeSpan.FromSeconds(1);
@@ -129,7 +128,7 @@ public class ClinicalTrialsGov
 
     private string BuildRequestUri(string? pageToken)
     {
-        var query = $"?format=json&pageSize={_pageSize}&query.term={Uri.EscapeDataString(DefaultQuery)}";
+        var query = $"?format=json&pageSize={_pageSize}";
         if (!string.IsNullOrWhiteSpace(pageToken))
         {
             query += $"&pageToken={Uri.EscapeDataString(pageToken)}";
