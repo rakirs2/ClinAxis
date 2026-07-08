@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -27,33 +27,39 @@ namespace Scrapers.Persistence
 
         public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
         {
-            if (records == null || !records.Any())
+            var recordList = records?.ToList();
+            if (recordList == null || recordList.Count == 0)
             {
                 return 0;
             }
 
-            var recordList = records.ToList();
-
-            await using var context = CreateContext();
-            foreach (var record in recordList)
+            await using ClinicalTrialsContext context = CreateContext();
+            foreach (ClinicalTrialRecord? record in recordList)
             {
-                if (record == null) throw new ArgumentNullException(nameof(record), "Record is null.");
-                if (string.IsNullOrWhiteSpace(record.NctId)) throw new ArgumentException("Record NctId is null or whitespace.");
+                if (record == null)
+                {
+                    throw new ArgumentNullException(nameof(records), "StudyRepository.UpdateStudiesWithClinicalTrialsAsync: record in list is null.");
+                }
 
-                bool incomplete = false;
-                var officials = record.OverallOfficials;
+                if (string.IsNullOrWhiteSpace(record.NctId))
+                {
+                    throw new ArgumentException("Record NctId is null or whitespace.");
+                }
+
+                var incomplete = false;
+                List<Investigator>? officials = record.OverallOfficials;
                 if (officials == null || officials.Count == 0 || officials.Any(i => i == null || string.IsNullOrWhiteSpace(i.Name)))
                 {
                     incomplete = true;
                 }
 
-                var entity = await context.Studies
+                StudyEntity? entity = await context.Studies
                     .Include(s => s.Investigators)
                     .Include(s => s.Keywords)
                     .Include(s => s.Conditions)
@@ -80,7 +86,7 @@ namespace Scrapers.Persistence
                 if (!incomplete)
                 {
                     entity.Investigators!.Clear();
-                    foreach (var investigator in officials!)
+                    foreach (Investigator investigator in officials!)
                     {
                         entity.Investigators.Add(new InvestigatorEntity
                         {
@@ -97,7 +103,9 @@ namespace Scrapers.Persistence
                         foreach (var kw in record.Keywords)
                         {
                             if (!string.IsNullOrWhiteSpace(kw))
+                            {
                                 entity.Keywords.Add(new StudyKeywordEntity { StudyNctId = record.NctId!, Keyword = kw.Trim() });
+                            }
                         }
                     }
 
@@ -107,7 +115,9 @@ namespace Scrapers.Persistence
                         foreach (var cond in record.Conditions)
                         {
                             if (!string.IsNullOrWhiteSpace(cond))
+                            {
                                 entity.Conditions!.Add(new StudyConditionEntity { StudyNctId = record.NctId!, Condition = cond.Trim() });
+                            }
                         }
                     }
 
@@ -117,7 +127,9 @@ namespace Scrapers.Persistence
                         foreach (var phase in record.Phases)
                         {
                             if (!string.IsNullOrWhiteSpace(phase))
+                            {
                                 entity.Phases!.Add(new StudyPhaseEntity { StudyNctId = record.NctId!, Phase = phase.Trim() });
+                            }
                         }
                     }
                 }
@@ -149,37 +161,39 @@ namespace Scrapers.Persistence
 
         public async Task<int> CountStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.Studies.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.Investigators.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountPubmedStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedStudies.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountKeywordsAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.StudyKeywords.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountAuthorsAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.StudyAuthors.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            ArgumentNullException.ThrowIfNull(run);
+
+            await using ClinicalTrialsContext context = CreateContext();
             context.PipelineRuns.Add(run);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return run.Id;
@@ -189,8 +203,8 @@ namespace Scrapers.Persistence
             int? pubmedPapers = null, int? keywords = null, int? authors = null, string? errorMessage = null,
             CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
-            var run = await context.PipelineRuns.FindAsync(new object[] { runId }, cancellationToken).ConfigureAwait(false);
+            await using ClinicalTrialsContext context = CreateContext();
+            PipelineRunEntity? run = await context.PipelineRuns.FindAsync(new object[] { runId }, cancellationToken).ConfigureAwait(false);
             if (run != null)
             {
                 run.CompletedAt = DateTime.UtcNow;
@@ -207,7 +221,7 @@ namespace Scrapers.Persistence
 
         public async Task<List<PipelineRunEntity>> GetPipelineRunsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.PipelineRuns
                 .OrderByDescending(r => r.StartedAt)
                 .Skip((page - 1) * pageSize)
@@ -217,7 +231,7 @@ namespace Scrapers.Persistence
 
         public async Task ClearAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             context.StudyAuthors.RemoveRange(context.StudyAuthors);
             context.StudyKeywords.RemoveRange(context.StudyKeywords);
             context.StudyConditions.RemoveRange(context.StudyConditions);
@@ -230,7 +244,7 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<StudyEntity>> GetStudiesWithInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
                 .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
@@ -241,16 +255,19 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedStudies.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<int>> GetInvestigatorIdsAsync(CancellationToken cancellationToken = default)
         {
-            await using var context = CreateContext();
+            await using ClinicalTrialsContext context = CreateContext();
             return await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        private ClinicalTrialsContext CreateContext() => new(_options);
+        private ClinicalTrialsContext CreateContext()
+        {
+            return new(_options);
+        }
     }
 }

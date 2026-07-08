@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
@@ -279,18 +279,20 @@ namespace Scrapers.Models.ClinicalTrialsGov
     {
         internal static string? ConvertHealthyVolunteers(System.Text.Json.JsonElement element)
         {
-            if (element.ValueKind == System.Text.Json.JsonValueKind.String)
-                return element.GetString();
-            if (element.ValueKind == System.Text.Json.JsonValueKind.True)
-                return "true";
-            if (element.ValueKind == System.Text.Json.JsonValueKind.False)
-                return "false";
-            return null;
+            return element.ValueKind == System.Text.Json.JsonValueKind.String
+                ? element.GetString()
+                : element.ValueKind == System.Text.Json.JsonValueKind.True
+                    ? "true"
+                    : element.ValueKind == System.Text.Json.JsonValueKind.False ? "false" : null;
         }
 
         private static DateOnly? ParseDateStruct(StudyListResponse.DateStruct? ds)
         {
-            if (ds?.Date == null) return null;
+            if (ds?.Date == null)
+            {
+                return null;
+            }
+
             var parts = ds.Date.Split('-');
             if (parts.Length >= 1 && int.TryParse(parts[0], out var year))
             {
@@ -303,7 +305,7 @@ namespace Scrapers.Models.ClinicalTrialsGov
 
         internal static StudySummary ToSummary(this StudyListResponse.StudyPayload payload)
         {
-            var ps = payload.ProtocolSection;
+            StudyListResponse.ProtocolSection? ps = payload.ProtocolSection;
             return new StudySummary
             {
                 NctId = ps?.IdentificationModule?.NctId,
@@ -315,44 +317,44 @@ namespace Scrapers.Models.ClinicalTrialsGov
 
         internal static ClinicalTrialRecord ToRecord(this StudyListResponse.StudyPayload payload)
         {
-            var ps = payload.ProtocolSection;
-            if (ps == null) return new ClinicalTrialRecord();
-
-            return new ClinicalTrialRecord
-            {
-                NctId = ps.IdentificationModule?.NctId,
-                BriefTitle = ps.IdentificationModule?.BriefTitle,
-                OfficialTitle = ps.IdentificationModule?.OfficialTitle,
-                OverallStatus = ps.StatusModule?.OverallStatus,
-                BriefSummary = ps.DescriptionModule?.BriefSummary,
-                StudyType = ps.DesignModule?.StudyType,
-                Phases = ps.DesignModule?.Phases,
-                Conditions = ps.ConditionsModule?.Conditions,
-                Keywords = ps.ConditionsModule?.Keywords,
-                LeadSponsorName = ps.SponsorCollaboratorsModule?.LeadSponsor?.Name,
-                CollaboratorNames = ps.SponsorCollaboratorsModule?.Collaborators?.Select(c => c.Name!).ToList(),
-                EligibilityCriteria = ps.EligibilityModule?.EligibilityCriteria,
-                Sex = ps.EligibilityModule?.Sex,
-                MinimumAge = ps.EligibilityModule?.MinimumAge,
-                MaximumAge = ps.EligibilityModule?.MaximumAge,
-                HealthyVolunteers = StudyPayloadExtensions.ConvertHealthyVolunteers(ps.EligibilityModule?.HealthyVolunteers ?? default),
-                PrimaryPurpose = ps.DesignModule?.DesignInfo?.PrimaryPurpose,
-                InterventionModel = ps.DesignModule?.DesignInfo?.InterventionModel,
-                Allocation = ps.DesignModule?.DesignInfo?.Allocation,
-                EnrollmentCount = ps.DesignModule?.EnrollmentInfo?.Count,
-                StartDate = ParseDateStruct(ps.StatusModule?.StartDateStruct),
-                CompletionDate = ParseDateStruct(ps.StatusModule?.CompletionDateStruct),
-                StudyFirstPostDate = ParseDateStruct(ps.StatusModule?.StudyFirstPostDateStruct),
-                OverallOfficials = ps.ContactsLocationsModule?.OverallOfficials?
-                    .Select(o => new Investigator { Name = o.Name, Role = o.Role, Affiliation = o.Affiliation }).ToList(),
-                Locations = ps.ContactsLocationsModule?.Locations,
-                References = ps.ReferencesModule?.References?.Select(r => new ClinicalTrialRecord.Reference
+            StudyListResponse.ProtocolSection? ps = payload.ProtocolSection;
+            return ps == null
+                ? new ClinicalTrialRecord()
+                : new ClinicalTrialRecord
                 {
-                    Pmid = r.Pmid,
-                    Citation = r.Citation,
-                    Type = r.Type
-                }).ToList()
-            };
+                    NctId = ps.IdentificationModule?.NctId,
+                    BriefTitle = ps.IdentificationModule?.BriefTitle,
+                    OfficialTitle = ps.IdentificationModule?.OfficialTitle,
+                    OverallStatus = ps.StatusModule?.OverallStatus,
+                    BriefSummary = ps.DescriptionModule?.BriefSummary,
+                    StudyType = ps.DesignModule?.StudyType,
+                    Phases = ps.DesignModule?.Phases,
+                    Conditions = ps.ConditionsModule?.Conditions,
+                    Keywords = ps.ConditionsModule?.Keywords,
+                    LeadSponsorName = ps.SponsorCollaboratorsModule?.LeadSponsor?.Name,
+                    CollaboratorNames = ps.SponsorCollaboratorsModule?.Collaborators?.Select(c => c.Name!).ToList(),
+                    EligibilityCriteria = ps.EligibilityModule?.EligibilityCriteria,
+                    Sex = ps.EligibilityModule?.Sex,
+                    MinimumAge = ps.EligibilityModule?.MinimumAge,
+                    MaximumAge = ps.EligibilityModule?.MaximumAge,
+                    HealthyVolunteers = StudyPayloadExtensions.ConvertHealthyVolunteers(ps.EligibilityModule?.HealthyVolunteers ?? default),
+                    PrimaryPurpose = ps.DesignModule?.DesignInfo?.PrimaryPurpose,
+                    InterventionModel = ps.DesignModule?.DesignInfo?.InterventionModel,
+                    Allocation = ps.DesignModule?.DesignInfo?.Allocation,
+                    EnrollmentCount = ps.DesignModule?.EnrollmentInfo?.Count,
+                    StartDate = ParseDateStruct(ps.StatusModule?.StartDateStruct),
+                    CompletionDate = ParseDateStruct(ps.StatusModule?.CompletionDateStruct),
+                    StudyFirstPostDate = ParseDateStruct(ps.StatusModule?.StudyFirstPostDateStruct),
+                    OverallOfficials = ps.ContactsLocationsModule?.OverallOfficials?
+                    .Select(o => new Investigator { Name = o.Name, Role = o.Role, Affiliation = o.Affiliation }).ToList(),
+                    Locations = ps.ContactsLocationsModule?.Locations,
+                    References = ps.ReferencesModule?.References?.Select(r => new ClinicalTrialRecord.Reference
+                    {
+                        Pmid = r.Pmid,
+                        Citation = r.Citation,
+                        Type = r.Type
+                    }).ToList()
+                };
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Tests.Helpers;
@@ -25,8 +25,8 @@ public sealed class ClinicalTrialsGovClientTests
         handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
         handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page2.json"));
 
-        var client = CreateClient(handler);
-        var results = await client.GetTrialsAsync(count: 3);
+        ClinicalTrialsGov client = CreateClient(handler);
+        IReadOnlyList<StudySummary> results = await client.GetTrialsAsync(count: 3);
 
         Assert.AreEqual(3, results.Count, "Should return exactly three studies.");
         CollectionAssert.AreEqual(
@@ -41,8 +41,8 @@ public sealed class ClinicalTrialsGovClientTests
         var handler = new FakeHttpMessageHandler();
         handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
 
-        var client = CreateClient(handler);
-        var results = await client.GetTrialsAsync(count: 1);
+        ClinicalTrialsGov client = CreateClient(handler);
+        IReadOnlyList<StudySummary> results = await client.GetTrialsAsync(count: 1);
 
         Assert.AreEqual(1, results.Count);
         Assert.AreEqual("NCT00660335", results[0].NctId);
@@ -55,8 +55,8 @@ public sealed class ClinicalTrialsGovClientTests
         var handler = new FakeHttpMessageHandler();
         handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
 
-        var client = CreateClient(handler);
-        var records = await client.GetTrialRecordsAsync(count: 1);
+        ClinicalTrialsGov client = CreateClient(handler);
+        IReadOnlyList<ClinicalTrialRecord> records = await client.GetTrialRecordsAsync(count: 1);
 
         Assert.AreEqual(1, records.Count);
         Assert.IsTrue(records[0]!.OverallOfficials!.Count > 0, "Expected investigators to be parsed from fixture.");
@@ -69,15 +69,15 @@ public sealed class ClinicalTrialsGovClientTests
         var json = FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json");
 
         using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-        var studies = GetProperty(root, "studies");
+        JsonElement root = document.RootElement;
+        JsonElement studies = GetProperty(root, "studies");
         Assert.AreNotEqual(0, studies.GetArrayLength(), "Expected at least one study in fixture.");
 
-        foreach (var study in studies.EnumerateArray())
+        foreach (JsonElement study in studies.EnumerateArray())
         {
-            var protocolSection = GetProperty(study, "protocolSection");
-            var identification = GetProperty(protocolSection, "identificationModule");
-            var status = GetProperty(protocolSection, "statusModule");
+            JsonElement protocolSection = GetProperty(study, "protocolSection");
+            JsonElement identification = GetProperty(protocolSection, "identificationModule");
+            JsonElement status = GetProperty(protocolSection, "statusModule");
 
             _ = GetProperty(identification, "nctId").GetString();
             _ = GetProperty(identification, "briefTitle").GetString();
@@ -87,7 +87,7 @@ public sealed class ClinicalTrialsGovClientTests
 
     private static JsonElement GetProperty(JsonElement source, string name)
     {
-        if (!source.TryGetProperty(name, out var value))
+        if (!source.TryGetProperty(name, out JsonElement value))
         {
             Assert.Fail($"Schema mismatch: missing '{name}'.");
         }

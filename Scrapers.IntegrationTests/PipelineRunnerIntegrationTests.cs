@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
 using System.Threading.Tasks;
 
@@ -19,15 +19,19 @@ namespace Scrapers.IntegrationTests
         public void Cleanup()
         {
             if (_originalConnectionString != null)
+            {
                 Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", _originalConnectionString);
+            }
             else
+            {
                 Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", null);
+            }
         }
 
         [TestMethod]
         public async Task RunPipeline_WithLiveApis_VerifiesRecordCounts()
         {
-            var result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
+            PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
 
             Assert.AreEqual(5, result.StudyCount, "Expected exactly 5 studies to be ingested.");
             Assert.IsTrue(result.InvestigatorCount > 0, "Expected at least one investigator across the ingested studies.");

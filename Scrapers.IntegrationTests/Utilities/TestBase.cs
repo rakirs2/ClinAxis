@@ -1,9 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
-using System;
-using System.Threading.Tasks;
 
 namespace Scrapers.IntegrationTests.Utilities
 {
@@ -17,7 +15,7 @@ namespace Scrapers.IntegrationTests.Utilities
         public async Task InitializeAsync()
         {
             DbContextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING") ?? $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={Environment.UserName}")
+                .UseNpgsql(ConnectionStringProvider.Default)
                 .Options;
             Context = new ClinicalTrialsContext(DbContextOptions);
             await Context.Database.MigrateAsync();
