@@ -1,0 +1,34 @@
+# Agent Guidelines
+
+This repository has strict expectations for automated or human agents contributing changes. Read this document before making edits.
+
+## Verification Policy
+- **Never** merge or deploy changes that have not been verified locally. See `AI_CONTEXT`.
+- Minimum verification for any PR: `dotnet build` and `dotnet test` (or equivalent commands for all affected projects).
+
+## Testing Conventions
+1. **Test Framework**: use MSTest only (`Microsoft.NET.Test.Sdk`, `MSTest.TestAdapter`, `MSTest.TestFramework`). Do not introduce xUnit/NUnit/etc.
+2. **Per-API Coverage**:
+   - For every external API we call, add:
+     - A unit test class that uses fake HTTP handlers with real captured payloads.
+     - A live smoke test class that exercises the actual API endpoint (kept separate from unit tests).
+   - Place future fixtures and handlers alongside existing ones under `Scrapers.Tests`.
+3. **Fake Handlers & Real Data**:
+   - Use deterministic fake `HttpMessageHandler` implementations that dequeue `HttpResponseMessage` instances created from *real* JSON responses captured from the API.
+   - Store JSON fixtures in `Scrapers.Tests/Data/<ServiceName>/` and keep them unmodified except for truncating unrelated sections.
+4. **Schema Change Alerts**:
+   - Each API must include a schema guard test that fails when required fields disappear or change names. Implement this by inspecting the JSON fixtures (e.g., via `JsonDocument`).
+5. **Live Smoke Tests**:
+   - Keep them in separate files (e.g., `*LiveTests.cs`).
+   - Mark them with MSTest attributes (`[TestCategory("Live")]`) and skip by default unless an environment variable explicitly enables them.
+6. **Future APIs**:
+   - When a new API is introduced, immediately add the corresponding unit tests, live tests, fixtures, and schema guard before merging.
+
+## GitHub Actions
+- CI must run `dotnet build` and `dotnet test` on every push and pull request.
+- Live smoke tests remain skipped in CI unless the workflow is configured with the proper environment variable, to avoid flaky builds.
+
+## Pull Request Expectations
+- Summaries must mention how the change was tested.
+- Include instructions if special setup was required.
+- Ensure schema fixtures stay synchronized with real responses.
