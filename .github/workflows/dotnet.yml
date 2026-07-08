@@ -40,5 +40,8 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --configuration Release --no-build
+      - name: Unit Tests
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
+
+      - name: Integration Tests
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build

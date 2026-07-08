@@ -44,10 +44,16 @@ psql $POSTGRES_CONNECTION_STRING -c "SELECT COUNT(*) FROM investigators;"
 
 ## Tests
 
-All tests (unit + integration) must pass locally before opening a PR:
+Run unit tests (no Postgres dependency):
 
 ```bash
-POSTGRES_CONNECTION_STRING=... dotnet test
+dotnet test Scrapers.Tests/Scrapers.Tests.csproj
 ```
 
-The PostgreSQL-backed tests rely on the connection string above and will create the `studies` and `investigators` tables if they do not already exist.
+Run integration tests (requires local Postgres + live ClinicalTrials.gov access):
+
+```bash
+POSTGRES_CONNECTION_STRING=... dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
+```
+
+The integration suite truncates the database between runs, runs migrations automatically, and verifies that live API calls persist data.
