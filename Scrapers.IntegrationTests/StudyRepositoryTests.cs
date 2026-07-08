@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 using Scrapers.IntegrationTests.Helpers;
@@ -21,7 +21,7 @@ public sealed class StudyRepositoryTests
     [TestMethod]
     public async Task UpsertStudiesAsync_PersistsStudiesAndInvestigators()
     {
-        var records = new[]
+        ClinicalTrialRecord[] records = new[]
         {
             CreateRecord("NCT00000001", "Study One", "RECRUITING",
                 new Investigator { Name = "Alice Smith", Affiliation = "Acme Research", Role = "PRINCIPAL_INVESTIGATOR" },
@@ -40,7 +40,7 @@ public sealed class StudyRepositoryTests
     [TestMethod]
     public async Task UpsertStudiesAsync_IsIdempotent()
     {
-        var record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
+        ClinicalTrialRecord record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
             new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" });
 
         await _repository.UpdateStudiesWithClinicalTrialsAsync(new[] { record });

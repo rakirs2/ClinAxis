@@ -1,4 +1,4 @@
-namespace Scrapers.Tests.Helpers;
+﻿namespace Scrapers.Tests.Helpers;
 
 internal static class FixtureLoader
 {
@@ -6,11 +6,6 @@ internal static class FixtureLoader
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Data", "ClinicalTrialsGov", fileName);
 
-        if (!File.Exists(path))
-        {
-            throw new FileNotFoundException($"Fixture not found: {path}");
-        }
-
-        return File.ReadAllText(path);
+        return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
     }
 }

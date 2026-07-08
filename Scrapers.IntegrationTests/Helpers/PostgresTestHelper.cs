@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
 
@@ -9,7 +9,7 @@ internal static class PostgresTestHelper
     internal static string ConnectionString =>
         Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
         ?? LoadFromFile()
-        ?? BuildDefaultConnectionString();
+        ?? ConnectionStringProvider.Default;
 
     private static string? LoadFromFile()
     {
@@ -31,14 +31,10 @@ internal static class PostgresTestHelper
         return null;
     }
 
-    private static string BuildDefaultConnectionString()
-    {
-        var user = Environment.UserName;
-        return $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={user}";
-    }
-
     internal static DbContextOptions<ClinicalTrialsContext> CreateOptions()
-        => new DbContextOptionsBuilder<ClinicalTrialsContext>().UseNpgsql(ConnectionString).Options;
+    {
+        return new DbContextOptionsBuilder<ClinicalTrialsContext>().UseNpgsql(ConnectionString).Options;
+    }
 
     internal static async Task ClearDatabaseAsync()
     {

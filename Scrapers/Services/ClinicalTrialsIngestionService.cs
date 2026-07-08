@@ -1,4 +1,4 @@
-using Scrapers.Models.ClinicalTrialsGov;
+﻿using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 
 namespace Scrapers.Services;
@@ -23,7 +23,7 @@ public class ClinicalTrialsIngestionService
 
         await _repository.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 
-        var records = await _client.GetTrialRecordsAsync(count, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<ClinicalTrialRecord> records = await _client.GetTrialRecordsAsync(count, cancellationToken).ConfigureAwait(false);
         return await _repository.UpdateStudiesWithClinicalTrialsAsync(records, cancellationToken).ConfigureAwait(false);
     }
 }

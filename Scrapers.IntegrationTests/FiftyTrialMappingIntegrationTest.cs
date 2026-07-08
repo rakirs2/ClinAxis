@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
 using Scrapers.IntegrationTests.Utilities;
+using Scrapers.Persistence.Entities;
 using System;
 using System.Linq;
 
@@ -17,7 +18,7 @@ public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
         Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", ConnectionString);
         try
         {
-            var result = await PipelineRunner.RunAsync(clinicalTrialsCount: 50);
+            PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 50);
 
             Console.WriteLine("=== 50-Trial Mapping Results ===");
             Console.WriteLine($"Studies: {result.StudyCount}");
@@ -29,7 +30,7 @@ public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
             Console.WriteLine($"Authors (flattened): {await Context.StudyAuthors.CountAsync()}");
             Console.WriteLine($"Authors with ORCID: {await Context.StudyAuthors.CountAsync(a => a.Orcid != null)}");
 
-            var studies = await Context.Studies
+            List<StudyEntity> studies = await Context.Studies
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -38,7 +39,7 @@ public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
                 .ToListAsync();
             Console.WriteLine();
             Console.WriteLine("First 5 studies with full metadata:");
-            foreach (var s in studies)
+            foreach (StudyEntity? s in studies)
             {
                 Console.WriteLine($"--- {s.NctId} ---");
                 Console.WriteLine($"  BriefTitle:     {s.BriefTitle}");
@@ -63,8 +64,8 @@ public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
             Console.WriteLine("Sample authors from study_authors (first 15):");
             Console.WriteLine($"{"Id",-5} {"StudyNctId",-16} {"Pmid",-10} {"LastName",-25} {"ForeName",-25} {"Orcid",-25}");
             Console.WriteLine(new string('-', 106));
-            var authors = await Context.StudyAuthors.OrderBy(a => a.StudyNctId).Take(15).ToListAsync();
-            foreach (var a in authors)
+            List<StudyAuthorEntity> authors = await Context.StudyAuthors.OrderBy(a => a.StudyNctId).Take(15).ToListAsync();
+            foreach (StudyAuthorEntity? a in authors)
             {
                 Console.WriteLine($"{a.Id,-5} {a.StudyNctId,-16} {a.Pmid,-10} {a.LastName,-25} {a.ForeName,-25} {a.Orcid,-25}");
             }
@@ -73,7 +74,7 @@ public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
             if (result.Errors != null)
             {
                 Console.WriteLine($"Validation errors ({result.Errors.Count}):");
-                foreach (var err in result.Errors)
+                foreach (ValidationError err in result.Errors)
                 {
                     Console.WriteLine($"  [{err.Entity}] {err.Detail}");
                 }

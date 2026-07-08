@@ -1,4 +1,4 @@
-namespace Scrapers.Models.ClinicalTrialsGov
+﻿namespace Scrapers.Models.ClinicalTrialsGov
 {
     public class Investigator
     {

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace Scrapers.Persistence;
@@ -8,9 +8,7 @@ public class ClinicalTrialsContextFactory : IDesignTimeDbContextFactory<Clinical
     public ClinicalTrialsContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
-        var connectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
-            ?? $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={Environment.UserName}";
-        optionsBuilder.UseNpgsql(connectionString);
+        optionsBuilder.UseNpgsql(ConnectionStringProvider.Default);
         return new ClinicalTrialsContext(optionsBuilder.Options);
     }
 }

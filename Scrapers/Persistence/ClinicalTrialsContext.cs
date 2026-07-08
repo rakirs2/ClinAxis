@@ -1,3 +1,4 @@
+﻿using System;
 using Microsoft.EntityFrameworkCore;
 using Scrapers.Persistence.Entities;
 
@@ -20,6 +21,8 @@ namespace Scrapers.Persistence
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            ArgumentNullException.ThrowIfNull(modelBuilder);
+
             modelBuilder.Entity<StudyEntity>(entity =>
             {
                 entity.ToTable("studies");

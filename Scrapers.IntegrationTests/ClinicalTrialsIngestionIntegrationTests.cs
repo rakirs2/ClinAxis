@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
 using Scrapers.Services;
 using Scrapers.IntegrationTests.Helpers;
