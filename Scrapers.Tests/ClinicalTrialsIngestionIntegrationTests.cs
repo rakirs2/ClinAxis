@@ -11,6 +11,7 @@ public sealed class ClinicalTrialsIngestionIntegrationTests
     private ClinicalTrialsIngestionService _service = null!;
     private PostgresStudyRepository _repository = null!;
     private int _saved;
+    private int _investigatorCount;
 
     [TestInitialize]
     public async Task InitializeAsync()
@@ -21,6 +22,7 @@ public sealed class ClinicalTrialsIngestionIntegrationTests
         await _repository.EnsureSchemaAsync();
         await PostgresTestHelper.ClearDatabaseAsync();
         _saved = await _service.IngestAsync(5);
+        _investigatorCount = await _repository.CountInvestigatorsAsync();
     }
 
     [TestMethod]
@@ -29,6 +31,7 @@ public sealed class ClinicalTrialsIngestionIntegrationTests
     {
         Assert.AreEqual(5, _saved, "Ingestion should report five persisted studies.");
         Assert.AreEqual(5, await _repository.CountStudiesAsync(), "Database should contain five studies after ingestion.");
+        Assert.IsTrue(_investigatorCount > 0, "Investigators table should have at least one row after ingestion.");
     }
 
     [TestMethod]
@@ -38,5 +41,6 @@ public sealed class ClinicalTrialsIngestionIntegrationTests
         var savedAgain = await _service.IngestAsync(5);
         Assert.AreEqual(5, savedAgain, "Re-ingestion should still process five studies.");
         Assert.AreEqual(5, await _repository.CountStudiesAsync(), "Re-ingestion should not duplicate studies.");
+        Assert.AreEqual(_investigatorCount, await _repository.CountInvestigatorsAsync(), "Investigator count should remain stable after re-ingestion.");
     }
 }

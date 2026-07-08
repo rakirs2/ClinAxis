@@ -4,8 +4,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scrapers", "Scrapers\Scrape
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scrapers.Tests", "Scrapers.Tests\Scrapers.Tests.csproj", "{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IngestionApp", "IngestionApp\IngestionApp.csproj", "{65E5F77A-8E94-4A65-A6BD-6D58C237FC3B}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,9 +18,5 @@ Global
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Release|Any CPU.Build.0 = Release|Any CPU
-		{65E5F77A-8E94-4A65-A6BD-6D58C237FC3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{65E5F77A-8E94-4A65-A6BD-6D58C237FC3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{65E5F77A-8E94-4A65-A6BD-6D58C237FC3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{65E5F77A-8E94-4A65-A6BD-6D58C237FC3B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
