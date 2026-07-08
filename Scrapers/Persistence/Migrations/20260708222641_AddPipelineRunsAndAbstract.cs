@@ -34,10 +34,7 @@ namespace Scrapers.Persistence.Migrations
                     total_authors = table.Column<int>(type: "integer", nullable: true),
                     error_message = table.Column<string>(type: "text", nullable: true)
                 },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_pipeline_runs", x => x.id);
-                });
+                constraints: table => table.PrimaryKey("PK_pipeline_runs", x => x.id));
         }
 
         /// <inheritdoc />

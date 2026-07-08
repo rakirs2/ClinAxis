@@ -22,10 +22,7 @@ namespace Scrapers.Persistence.Migrations
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     is_incomplete = table.Column<bool>(type: "boolean", nullable: false)
                 },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_studies", x => x.nct_id);
-                });
+                constraints: table => table.PrimaryKey("PK_studies", x => x.nct_id));
 
             migrationBuilder.CreateTable(
                 name: "investigators",

@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.IntegrationTests.Utilities;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
@@ -56,7 +56,7 @@ namespace Scrapers.IntegrationTests
             var scraper = new PubMedScraperService(ConnectionString);
             var count = await scraper.IngestPubMedPapersAsync();
 
-            var papers = await Context.PubmedStudies
+            List<PubmedStudyEntity> papers = await Context.PubmedStudies
                 .Where(p => p.StudyNctId == study.NctId)
                 .ToListAsync();
             Assert.AreEqual(1, papers.Count);

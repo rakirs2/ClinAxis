@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -12,20 +12,7 @@ namespace Scrapers.IntegrationTests.Utilities
 
         public EphemeralPostgresDatabase()
         {
-            var envConnectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-
-            string host, port, username, password;
-            if (!string.IsNullOrWhiteSpace(envConnectionString))
-            {
-                (host, port, username, password) = ParseConnectionString(envConnectionString);
-            }
-            else
-            {
-                host = "localhost";
-                port = "5432";
-                username = Environment.UserName;
-                password = "";
-            }
+            (var host, var port, var username, var password) = ParseConnectionString(ConnectionStringProvider.DefaultNoPooling);
 
             DatabaseName = "clinical_trial_data_test_" + Guid.NewGuid().ToString("N").ToLowerInvariant();
             ConnectionString = $"Host={host};Port={port};Database={DatabaseName};Username={username};Pooling=false;{(password != "" ? $"Password={password};" : "")}";
@@ -43,7 +30,7 @@ namespace Scrapers.IntegrationTests.Utilities
 
         private static string? ExtractValue(string connStr, string key)
         {
-            var match = Regex.Match(connStr, $@"{key}\s*=\s*([^;]+)", RegexOptions.IgnoreCase);
+            Match match = Regex.Match(connStr, $@"{key}\s*=\s*([^;]+)", RegexOptions.IgnoreCase);
             return match.Success ? match.Groups[1].Value.Trim() : null;
         }
 
@@ -73,26 +60,14 @@ namespace Scrapers.IntegrationTests.Utilities
 
             if (createProcess.ExitCode != 0)
             {
-                string error = await createProcess.StandardError.ReadToEndAsync();
+                var error = await createProcess.StandardError.ReadToEndAsync();
                 throw new InvalidOperationException($"Failed to create database {DatabaseName}: {error}");
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            var connStr = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-            string host, port, username, password;
-            if (!string.IsNullOrWhiteSpace(connStr))
-            {
-                (host, port, username, password) = ParseConnectionString(connStr);
-            }
-            else
-            {
-                host = "localhost";
-                port = "5432";
-                username = Environment.UserName;
-                password = "";
-            }
+            (var host, var port, var username, var password) = ParseConnectionString(ConnectionStringProvider.DefaultNoPooling);
 
             var args = $"--host {host} --port {port} --username {username} {DatabaseName}";
             var dropProcess = new Process
@@ -109,14 +84,16 @@ namespace Scrapers.IntegrationTests.Utilities
             };
 
             if (!string.IsNullOrWhiteSpace(password))
+            {
                 dropProcess.StartInfo.EnvironmentVariables["PGPASSWORD"] = password;
+            }
 
             dropProcess.Start();
             await dropProcess.WaitForExitAsync();
 
             if (dropProcess.ExitCode != 0)
             {
-                string error = await dropProcess.StandardError.ReadToEndAsync();
+                var error = await dropProcess.StandardError.ReadToEndAsync();
                 throw new InvalidOperationException($"Failed to drop database {DatabaseName}: {error}");
             }
         }

@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
 using Scrapers.IntegrationTests.Utilities;
 using Scrapers.Persistence;
@@ -7,6 +7,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Scrapers.Persistence.Entities;
 
 namespace Scrapers.IntegrationTests
 {
@@ -20,7 +21,7 @@ namespace Scrapers.IntegrationTests
             Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", ConnectionString);
             try
             {
-                var result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
+                PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
                 Assert.AreEqual(5, result.StudyCount);
                 Assert.IsTrue(result.InvestigatorCount > 0);
                 Assert.IsNull(result.Errors);
@@ -40,13 +41,17 @@ namespace Scrapers.IntegrationTests
 
             await clinicalTrialsIngestionService.IngestAsync(5);
 
-            foreach (var study in await Context.Studies.Include(s => s.Investigators).ToListAsync())
+            foreach (StudyEntity? study in await Context.Studies.Include(s => s.Investigators).ToListAsync())
             {
                 Assert.IsNotNull(study.NctId);
                 Assert.IsFalse(string.IsNullOrWhiteSpace(study.BriefTitle));
 
-                if (study.Investigators is null) continue;
-                foreach (var investigator in study.Investigators)
+                if (study.Investigators is null)
+                {
+                    continue;
+                }
+
+                foreach (InvestigatorEntity investigator in study.Investigators)
                 {
                     Assert.AreEqual(study.NctId, investigator.StudyNctId);
                 }

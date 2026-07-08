@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 
@@ -25,11 +25,8 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     {
         _requests.Add(request.RequestUri ?? new Uri("http://localhost"));
 
-        if (!_responses.TryDequeue(out var response))
-        {
-            throw new InvalidOperationException("No fake responses remaining for ClinicalTrials.gov request.");
-        }
-
-        return Task.FromResult(response);
+        return !_responses.TryDequeue(out HttpResponseMessage? response)
+            ? throw new InvalidOperationException("No fake responses remaining for ClinicalTrials.gov request.")
+            : Task.FromResult(response);
     }
 }
