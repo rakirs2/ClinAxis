@@ -72,3 +72,8 @@ dotnet_diagnostic.CA1861.severity = none
 
 [Scrapers/Persistence/Migrations/*.Designer.cs]
 generated_code = true
+
+# Rider false positive: private class properties used via object initializer
+[Scrapers/Services/PubMedScraperService.cs]
+dotnet_diagnostic.IDE0051.severity = none
+dotnet_diagnostic.IDE0052.severity = none
