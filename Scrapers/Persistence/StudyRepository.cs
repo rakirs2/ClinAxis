@@ -46,7 +46,7 @@ public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<Clinical
 
                 bool incomplete = false;
 
-                if (record.Investigators == null || record.Investigators.Any(i => i == null || string.IsNullOrWhiteSpace(i?.Name)))
+                if (record.Investigators == null || record.Investigators.Count == 0 || record.Investigators.Any(i => i == null || string.IsNullOrWhiteSpace(i?.Name)))
                 {
                     incomplete = true;
                 }
