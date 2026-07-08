@@ -31,7 +31,7 @@ namespace Scrapers.IntegrationTests
 
             Assert.AreEqual(5, result.StudyCount, "Expected exactly 5 studies to be ingested.");
             Assert.IsTrue(result.InvestigatorCount > 0, "Expected at least one investigator across the ingested studies.");
-            Assert.IsTrue(result.PubmedStudyCount >= 0, $"PubMed crawl returned {result.PubmedStudyCount} papers (expected >= 0).");
+            Assert.IsTrue(result.PubmedStudyCount > 0, $"PubMed crawl returned {result.PubmedStudyCount} papers (expected > 0).");
             Assert.IsNull(result.Errors, "No validation errors expected. Errors: " +
                 (result.Errors != null ? string.Join("; ", result.Errors) : "none"));
         }
