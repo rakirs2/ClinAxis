@@ -31,6 +31,10 @@ await coordinator.IngestAsync(count: 5);
 
 This fetches the first five studies from the `/studies` endpoint and persists them into the `studies` and `investigators` tables.
 
+### Schema & Migrations
+
+Entity Framework Core manages the schema (see `Scrapers/Persistence/Migrations`). When you change the schema, add a migration via `dotnet ef migrations add <Name> --project Scrapers` and run `dotnet ef database update` (or rely on the ingestion service/tests calling `Database.Migrate`).
+
 Verify the rows with `psql`:
 
 ```bash
