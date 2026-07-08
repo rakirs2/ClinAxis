@@ -36,6 +36,10 @@ This repository has strict expectations for automated or human agents contributi
 ## GitHub Actions
 - CI must run `dotnet build` and `dotnet test` on every push and pull request, covering unit, API integration, and PostgreSQL integration tests.
 
+## Branching Workflow
+- Always create new branches off `origin/main` (`git fetch origin main && git checkout origin/main -b feature/<name>`), not your local stale `main`. This ensures you start from the latest merged state.
+- After branching, run `dotnet restore` and `dotnet build` once before making any changes to confirm the base compiles cleanly.
+
 ## Pull Request Expectations
 - Summaries must mention how the change was tested.
 - Include instructions if special setup was required.
