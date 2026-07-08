@@ -1,9 +1,7 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
-using System;
-using System.Threading.Tasks;
 
 namespace Scrapers.IntegrationTests.Utilities
 {

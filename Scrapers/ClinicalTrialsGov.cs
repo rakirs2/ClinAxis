@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using Scrapers.Models.ClinicalTrialsGov;
 
@@ -10,8 +10,8 @@ public class ClinicalTrialsGov
     private const string StudiesPath = "studies";
     private const int MaxPageSize = 100;
     private const int MaxRetryAttempts = 3;
-    private static readonly TimeSpan InitialBackoff = TimeSpan.FromSeconds(1);
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly TimeSpan _initialBackoff = TimeSpan.FromSeconds(1);
+    private static readonly JsonSerializerOptions _serializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
@@ -29,20 +29,21 @@ public class ClinicalTrialsGov
         }
 
         _httpClient = httpClient ?? new HttpClient();
-        if (_httpClient.BaseAddress is null)
-        {
-            _httpClient.BaseAddress = new Uri(BaseUrl);
-        }
+        _httpClient.BaseAddress ??= new Uri(BaseUrl);
 
         _pageSize = pageSize;
         _log = log;
     }
 
     public async Task<IReadOnlyList<StudySummary>> GetTrialsAsync(int count = 500, CancellationToken cancellationToken = default)
-        => await GetTrialsInternalAsync(count, payload => payload.ToSummary(), cancellationToken).ConfigureAwait(false);
+    {
+        return await GetTrialsInternalAsync(count, payload => payload.ToSummary(), cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<IReadOnlyList<ClinicalTrialRecord>> GetTrialRecordsAsync(int count = 500, CancellationToken cancellationToken = default)
-        => await GetTrialsInternalAsync(count, payload => payload.ToRecord(), cancellationToken).ConfigureAwait(false);
+    {
+        return await GetTrialsInternalAsync(count, payload => payload.ToRecord(), cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task<IReadOnlyList<T>> GetTrialsInternalAsync<T>(int count, Func<StudyListResponse.StudyPayload, T?> projector, CancellationToken cancellationToken)
     {
@@ -56,12 +57,12 @@ public class ClinicalTrialsGov
 
         while (collected.Count < count)
         {
-            var response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
-            var studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
+            StudyListResponse response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
+            List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
 
-            foreach (var studyPayload in studies)
+            foreach (StudyListResponse.StudyPayload studyPayload in studies)
             {
-                var item = projector(studyPayload);
+                T? item = projector(studyPayload);
                 if (item is null)
                 {
                     continue;
@@ -88,7 +89,7 @@ public class ClinicalTrialsGov
     private async Task<StudyListResponse> FetchPageAsync(string? pageToken, CancellationToken cancellationToken)
     {
         var requestUri = BuildRequestUri(pageToken);
-        var delay = InitialBackoff;
+        TimeSpan delay = _initialBackoff;
 
         for (var attempt = 1; attempt <= MaxRetryAttempts; attempt++)
         {
@@ -102,8 +103,8 @@ public class ClinicalTrialsGov
 
                 if (response.IsSuccessStatusCode)
                 {
-                    await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-                    var payload = await JsonSerializer.DeserializeAsync<StudyListResponse>(stream, SerializerOptions, cancellationToken)
+                    await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                    StudyListResponse? payload = await JsonSerializer.DeserializeAsync<StudyListResponse>(stream, _serializerOptions, cancellationToken)
                         .ConfigureAwait(false);
                     return payload ?? new StudyListResponse();
                 }
@@ -143,20 +144,18 @@ public class ClinicalTrialsGov
         return $"{StudiesPath}{query}";
     }
 
-    private static bool IsTransientStatus(HttpStatusCode statusCode) => statusCode is HttpStatusCode.RequestTimeout
+    private static bool IsTransientStatus(HttpStatusCode statusCode)
+    {
+        return statusCode is HttpStatusCode.RequestTimeout
         or (HttpStatusCode)429
         or HttpStatusCode.InternalServerError
         or HttpStatusCode.BadGateway
         or HttpStatusCode.ServiceUnavailable
         or HttpStatusCode.GatewayTimeout;
+    }
 
     private static bool IsTransientException(Exception exception, CancellationToken cancellationToken)
     {
-        if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-
-        return exception is HttpRequestException or TimeoutException or TaskCanceledException or OperationCanceledException;
+        return (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && exception is HttpRequestException or TimeoutException or TaskCanceledException or OperationCanceledException;
     }
 }
