@@ -9,14 +9,14 @@ namespace Scrapers.Tests;
 public sealed class ClinicalTrialsIngestionIntegrationTests
 {
     private ClinicalTrialsIngestionService _service = null!;
-    private PostgresStudyRepository _repository = null!;
+    private StudyRepository _repository = null!;
     private int _saved;
     private int _investigatorCount;
 
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _repository = new PostgresStudyRepository(PostgresTestHelper.ConnectionString);
+        _repository = new StudyRepository(PostgresTestHelper.ConnectionString);
         _service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repository);
 
         await _repository.EnsureSchemaAsync();

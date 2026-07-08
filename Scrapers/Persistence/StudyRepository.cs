@@ -6,11 +6,11 @@ using Scrapers.Persistence.Entities;
 
 namespace Scrapers.Persistence;
 
-public class PostgresStudyRepository
+public class StudyRepository
 {
     private readonly DbContextOptions<ClinicalTrialsContext> _options;
 
-    public PostgresStudyRepository(string connectionString)
+    public StudyRepository(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {

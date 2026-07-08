@@ -24,7 +24,7 @@ Ingestion is exposed as composable services so future cron jobs (or your own con
 
 ```csharp
 var client = new ClinicalTrialsGov();
-var repository = new PostgresStudyRepository(Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")!);
+var repository = new StudyRepository(Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")!);
 var coordinator = new ClinicalTrialsIngestionService(client, repository);
 await coordinator.IngestAsync(count: 5);
 ```
