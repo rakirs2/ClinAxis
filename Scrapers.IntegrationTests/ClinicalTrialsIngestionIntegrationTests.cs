@@ -1,9 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
 using Scrapers.Services;
-using Scrapers.Tests.Helpers;
+using Scrapers.IntegrationTests.Helpers;
 
-namespace Scrapers.Tests;
+namespace Scrapers.IntegrationTests;
 
 [TestClass]
 public sealed class ClinicalTrialsIngestionIntegrationTests

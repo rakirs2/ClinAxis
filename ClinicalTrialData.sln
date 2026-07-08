@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scrapers", "Scrapers\Scrape
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scrapers.Tests", "Scrapers.Tests\Scrapers.Tests.csproj", "{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scrapers.IntegrationTests", "Scrapers.IntegrationTests\Scrapers.IntegrationTests.csproj", "{B1E4051A-4C46-4CA6-9190-67ABA1989688}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5D35D56-7F2A-48A0-AE1D-2FDF5EC2BC58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1E4051A-4C46-4CA6-9190-67ABA1989688}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1E4051A-4C46-4CA6-9190-67ABA1989688}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1E4051A-4C46-4CA6-9190-67ABA1989688}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1E4051A-4C46-4CA6-9190-67ABA1989688}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
