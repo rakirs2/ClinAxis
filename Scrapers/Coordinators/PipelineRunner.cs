@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using Scrapers.Persistence;
+using Scrapers.Persistence.Entities;
 using Scrapers.Services;
 
 namespace Scrapers.Coordinators
@@ -22,75 +21,86 @@ namespace Scrapers.Coordinators
 
             var studyRepo = new StudyRepository(connectionString);
 
+            var run = new PipelineRunEntity
+            {
+                StartedAt = DateTime.UtcNow,
+                Status = "Running"
+            };
+            var runId = await studyRepo.AddPipelineRunAsync(run, cancellationToken);
+
             await studyRepo.EnsureSchemaAsync(cancellationToken);
             await studyRepo.ClearAsync(cancellationToken);
+
+            try
+            {
 
             var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 100);
             var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
             await clinicalTrialsIngestionService.IngestAsync(clinicalTrialsCount, cancellationToken);
 
-            var contextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(connectionString)
-                .Options;
+            var pubMedScraperService = new PubMedScraperService(connectionString);
+            await pubMedScraperService.IngestPubMedPapersAsync(cancellationToken);
 
-            await using (var context = new ClinicalTrialsContext(contextOptions))
+            var studyCount = await studyRepo.CountStudiesAsync(cancellationToken);
+            var investigatorCount = await studyRepo.CountInvestigatorsAsync(cancellationToken);
+            var pubmedStudyCount = await studyRepo.CountPubmedStudiesAsync(cancellationToken);
+            var keywordCount = await studyRepo.CountKeywordsAsync(cancellationToken);
+            var authorCount = await studyRepo.CountAuthorsAsync(cancellationToken);
+
+            var errors = new List<ValidationError>();
+
+            if (studyCount < clinicalTrialsCount)
             {
-                var pubMedClient = new PubMedClient(new HttpClient());
-                var pubMedScraperService = new PubMedScraperService(context, pubMedClient);
-                await pubMedScraperService.IngestPubMedPapersAsync(cancellationToken);
+                errors.Add(new ValidationError("Studies",
+                    $"Expected at least {clinicalTrialsCount} studies, found {studyCount}."));
             }
 
-            await using (var context = new ClinicalTrialsContext(contextOptions))
+            if (investigatorCount == 0 && studyCount > 0)
             {
-                var studyCount = await context.Studies.CountAsync(cancellationToken);
-                var investigatorCount = await context.Investigators.CountAsync(cancellationToken);
-                var pubmedStudyCount = await context.PubmedStudies.CountAsync(cancellationToken);
+                errors.Add(new ValidationError("Investigators",
+                    "No investigators found despite having studies."));
+            }
 
-                var errors = new List<ValidationError>();
+            var studies = await studyRepo.GetStudiesWithInvestigatorsAsync(cancellationToken);
 
-                if (studyCount < clinicalTrialsCount)
+            foreach (var study in studies)
+            {
+                if (!study.IsIncomplete && (study.Investigators == null || study.Investigators.Count == 0))
                 {
-                    errors.Add(new ValidationError("Studies",
-                        $"Expected at least {clinicalTrialsCount} studies, found {studyCount}."));
+                    errors.Add(new ValidationError("StudyIntegrity",
+                        $"Study {study.NctId} is not marked incomplete but has no investigators."));
                 }
+            }
 
-                if (investigatorCount == 0 && studyCount > 0)
+            var pubmedStudies = await studyRepo.GetPubmedStudiesAsync(cancellationToken);
+            var studyIds = studies.Select(s => s.NctId).ToHashSet();
+
+            foreach (var pubmed in pubmedStudies)
+            {
+                if (!studyIds.Contains(pubmed.StudyNctId))
                 {
-                    errors.Add(new ValidationError("Investigators",
-                        "No investigators found despite having studies."));
+                    errors.Add(new ValidationError("PubmedStudyIntegrity",
+                        $"PubMed study PMID {pubmed.Pmid} references non-existent study NCT ID {pubmed.StudyNctId}."));
                 }
+            }
 
-                var studies = await context.Studies
-                    .Include(s => s.Investigators)
-                    .ToListAsync(cancellationToken);
+            var hasErrors = errors.Count > 0;
+            await studyRepo.CompletePipelineRunAsync(runId, hasErrors ? "CompletedWithErrors" : "Completed",
+                studyCount, investigatorCount, pubmedStudyCount, keywordCount, authorCount,
+                cancellationToken: cancellationToken);
 
-                foreach (var study in studies)
-                {
-                    if (!study.IsIncomplete && (study.Investigators == null || study.Investigators.Count == 0))
-                    {
-                        errors.Add(new ValidationError("StudyIntegrity",
-                            $"Study {study.NctId} is not marked incomplete but has no investigators."));
-                    }
-                }
-
-                var pubmedStudies = await context.PubmedStudies.ToListAsync(cancellationToken);
-                var investigatorIds = await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken);
-
-                foreach (var pubmed in pubmedStudies)
-                {
-                    if (!investigatorIds.Contains(pubmed.InvestigatorId))
-                    {
-                        errors.Add(new ValidationError("PubmedStudyIntegrity",
-                            $"PubMed study '{pubmed.Title}' references non-existent investigator ID {pubmed.InvestigatorId}."));
-                    }
-                }
-
-                return new PipelineResult(
-                    studyCount,
-                    investigatorCount,
-                    pubmedStudyCount,
-                    errors.Count > 0 ? errors.AsReadOnly() : null
-                );
+            return new PipelineResult(
+                studyCount,
+                investigatorCount,
+                pubmedStudyCount,
+                hasErrors ? errors.AsReadOnly() : null
+            );
+            }
+            catch (Exception ex)
+            {
+                await studyRepo.CompletePipelineRunAsync(runId, "Failed",
+                    errorMessage: ex.Message, cancellationToken: cancellationToken);
+                throw;
             }
         }
     }

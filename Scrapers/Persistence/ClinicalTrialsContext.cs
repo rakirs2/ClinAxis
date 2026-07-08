@@ -1,57 +1,175 @@
 using Microsoft.EntityFrameworkCore;
 using Scrapers.Persistence.Entities;
 
-namespace Scrapers.Persistence;
-
-public class ClinicalTrialsContext : DbContext
+namespace Scrapers.Persistence
 {
-    public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options) {}
-
-    public DbSet<StudyEntity> Studies => Set<StudyEntity>();
-    public DbSet<InvestigatorEntity> Investigators => Set<InvestigatorEntity>();
-    public DbSet<PubmedStudyEntity> PubmedStudies => Set<PubmedStudyEntity>();
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    public class ClinicalTrialsContext : DbContext
     {
-        base.OnModelCreating(modelBuilder);
+        public DbSet<StudyEntity> Studies => Set<StudyEntity>();
+        public DbSet<InvestigatorEntity> Investigators => Set<InvestigatorEntity>();
+        public DbSet<PubmedStudyEntity> PubmedStudies => Set<PubmedStudyEntity>();
+        public DbSet<StudyKeywordEntity> StudyKeywords => Set<StudyKeywordEntity>();
+        public DbSet<StudyConditionEntity> StudyConditions => Set<StudyConditionEntity>();
+        public DbSet<StudyPhaseEntity> StudyPhases => Set<StudyPhaseEntity>();
+        public DbSet<StudyAuthorEntity> StudyAuthors => Set<StudyAuthorEntity>();
+        public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
 
-        modelBuilder.Entity<StudyEntity>(entity =>
+        public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
-            entity.ToTable("studies");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.NctId).IsRequired();
-            entity.HasIndex(e => e.NctId).IsUnique();
-            entity.Property(e => e.BriefTitle);
-            entity.Property(e => e.OverallStatus);
-            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW() AT TIME ZONE 'UTC'");
-            entity.Property(e => e.IsIncomplete).HasDefaultValue(false);
-        });
+        }
 
-        modelBuilder.Entity<InvestigatorEntity>(entity =>
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            entity.ToTable("investigators");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired();
-            entity.Property(e => e.OrcidId);
-            entity.Property(e => e.NcbiId);
-            entity.Property(e => e.LastSuccessfulPubmedCrawl);
-            entity.HasOne(e => e.Study)
-                .WithMany(s => s.Investigators)
-                .HasForeignKey(e => e.StudyId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(e => e.PubmedStudies)
-                .WithOne(p => p.Investigator)
-                .HasForeignKey(p => p.InvestigatorId);
-        });
+            modelBuilder.Entity<StudyEntity>(entity =>
+            {
+                entity.ToTable("studies");
+                entity.HasKey(e => e.NctId);
+                entity.Property(e => e.NctId).HasColumnName("nct_id").HasMaxLength(20);
+                entity.Property(e => e.BriefTitle).HasColumnName("brief_title");
+                entity.Property(e => e.OfficialTitle).HasColumnName("official_title");
+                entity.Property(e => e.OverallStatus).HasColumnName("overall_status");
+                entity.Property(e => e.StudyType).HasColumnName("study_type");
+                entity.Property(e => e.BriefSummary).HasColumnName("brief_summary");
+                entity.Property(e => e.PrimaryPurpose).HasColumnName("primary_purpose");
+                entity.Property(e => e.InterventionModel).HasColumnName("intervention_model");
+                entity.Property(e => e.Allocation).HasColumnName("allocation");
+                entity.Property(e => e.EnrollmentCount).HasColumnName("enrollment_count");
+                entity.Property(e => e.Sex).HasColumnName("sex");
+                entity.Property(e => e.MinimumAge).HasColumnName("minimum_age");
+                entity.Property(e => e.MaximumAge).HasColumnName("maximum_age");
+                entity.Property(e => e.StartDate).HasColumnName("start_date");
+                entity.Property(e => e.CompletionDate).HasColumnName("completion_date");
+                entity.Property(e => e.StudyFirstPostDate).HasColumnName("study_first_post_date");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
+            });
 
-        modelBuilder.Entity<PubmedStudyEntity>(entity =>
-        {
-            entity.ToTable("pubmed_studies");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Title).IsRequired();
-            entity.Property(e => e.Url);
-            entity.Property(e => e.Keywords);
-            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW() AT TIME ZONE 'UTC'");
-        });
+            modelBuilder.Entity<InvestigatorEntity>(entity =>
+            {
+                entity.ToTable("investigators");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.Role).HasColumnName("role");
+                entity.Property(e => e.Affiliation).HasColumnName("affiliation");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Investigators)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PubmedStudyEntity>(entity =>
+            {
+                entity.ToTable("pubmed_studies");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
+                entity.Property(e => e.Doi).HasColumnName("doi");
+                entity.Property(e => e.Title).HasColumnName("title");
+                entity.Property(e => e.Journal).HasColumnName("journal");
+                entity.Property(e => e.PublicationDate).HasColumnName("publication_date");
+                entity.Property(e => e.Abstract).HasColumnName("abstract");
+                entity.Property(e => e.IsNonEnglish).HasColumnName("is_non_english");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.PubmedStudies)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => new { e.StudyNctId, e.Pmid }).IsUnique();
+            });
+
+            modelBuilder.Entity<StudyKeywordEntity>(entity =>
+            {
+                entity.ToTable("study_keywords");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Keyword).HasColumnName("keyword");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Keywords)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.Keyword);
+            });
+
+            modelBuilder.Entity<StudyConditionEntity>(entity =>
+            {
+                entity.ToTable("study_conditions");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Condition).HasColumnName("condition");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Conditions)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.Condition);
+            });
+
+            modelBuilder.Entity<StudyPhaseEntity>(entity =>
+            {
+                entity.ToTable("study_phases");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Phase).HasColumnName("phase");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Phases)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<StudyAuthorEntity>(entity =>
+            {
+                entity.ToTable("study_authors");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
+                entity.Property(e => e.LastName).HasColumnName("last_name");
+                entity.Property(e => e.ForeName).HasColumnName("fore_name");
+                entity.Property(e => e.Orcid).HasColumnName("orcid");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Authors)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.LastName);
+                entity.HasIndex(e => e.Orcid);
+            });
+
+            modelBuilder.Entity<PipelineRunEntity>(entity =>
+            {
+                entity.ToTable("pipeline_runs");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StartedAt).HasColumnName("started_at");
+                entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+                entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
+                entity.Property(e => e.TotalStudies).HasColumnName("total_studies");
+                entity.Property(e => e.TotalInvestigators).HasColumnName("total_investigators");
+                entity.Property(e => e.TotalPubmedPapers).HasColumnName("total_pubmed_papers");
+                entity.Property(e => e.TotalKeywords).HasColumnName("total_keywords");
+                entity.Property(e => e.TotalAuthors).HasColumnName("total_authors");
+                entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+            });
+        }
     }
 }

@@ -9,7 +9,7 @@ public class ClinicalTrialsContextFactory : IDesignTimeDbContextFactory<Clinical
     {
         var optionsBuilder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
         var connectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;";
+            ?? $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={Environment.UserName}";
         optionsBuilder.UseNpgsql(connectionString);
         return new ClinicalTrialsContext(optionsBuilder.Options);
     }

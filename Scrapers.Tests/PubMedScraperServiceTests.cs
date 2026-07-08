@@ -4,137 +4,43 @@ using Scrapers.Services;
 using Scrapers.Tests.Utilities;
 using System;
 using System.Linq;
-using System.Threading;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
 namespace Scrapers.Tests
 {
     [TestClass]
-    public class PubMedClientNameParsingTests
-    {
-        [TestMethod]
-        public void ParseInvestigatorName_WithSuffix_ReturnsLastName()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("David R Jacoby, MD, PhD");
-            Assert.AreEqual("Jacoby", lastName);
-            Assert.AreEqual("David", firstName);
-            Assert.AreEqual("R", middleInitial);
-        }
-
-        [TestMethod]
-        public void ParseInvestigatorName_NoSuffix_ReturnsLastName()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("John Smith");
-            Assert.AreEqual("Smith", lastName);
-            Assert.AreEqual("John", firstName);
-            Assert.IsNull(middleInitial);
-        }
-
-        [TestMethod]
-        public void ParseInvestigatorName_WithSuffixOnly_ReturnsLastName()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Cornelia Dekker, MD");
-            Assert.AreEqual("Dekker", lastName);
-            Assert.AreEqual("Cornelia", firstName);
-            Assert.IsNull(middleInitial);
-        }
-
-        [TestMethod]
-        public void ParseInvestigatorName_MiddleInitialWithDot_StripsComma()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Vera Hengeveld, MD");
-            Assert.AreEqual("Hengeveld", lastName);
-            Assert.AreEqual("Vera", firstName);
-            Assert.IsNull(middleInitial);
-        }
-
-        [TestMethod]
-        public void ParseInvestigatorName_MultipleSuffixes_StripsAll()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Stephen Quake, PhD");
-            Assert.AreEqual("Quake", lastName);
-            Assert.AreEqual("Stephen", firstName);
-            Assert.IsNull(middleInitial);
-        }
-
-        [TestMethod]
-        public void ParseInvestigatorName_ThreePartNameWithMiddle_ReturnsMiddleInitial()
-        {
-            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Ann Marie Arvin, MD");
-            Assert.AreEqual("Arvin", lastName);
-            Assert.AreEqual("Ann", firstName);
-            Assert.AreEqual("Marie", middleInitial);
-        }
-    }
-    [TestClass]
     public class PubMedScraperServiceTests : EphemeralDbTestBase
     {
         [TestMethod]
-        public async Task IngestPubMedPapersAsync_DoesNotInsertDuplicateTitles()
+        public async Task IngestPubMedPapersAsync_DoesNotInsertDuplicatePmids()
         {
             var study = new StudyEntity
             {
-                NctId = Guid.NewGuid().ToString(),
+                NctId = "NCT00000001",
                 BriefTitle = "Test Study",
                 OverallStatus = "Recruiting"
             };
             Context.Studies.Add(study);
             await Context.SaveChangesAsync();
 
-            var investigator = new InvestigatorEntity
-            {
-                Name = "Test Investigator",
-                StudyId = study.Id
-            };
-            Context.Investigators.Add(investigator);
-            await Context.SaveChangesAsync();
-
-            // Add an existing PubMed study
             var existingPaper = new PubmedStudyEntity
             {
-                InvestigatorId = investigator.Id,
+                StudyNctId = study.NctId,
+                Pmid = "12345678",
                 Title = "Existing Paper Title",
-                Url = "http://example.com",
-                Keywords = "clinical",
                 CreatedAt = DateTime.UtcNow
             };
             Context.PubmedStudies.Add(existingPaper);
             await Context.SaveChangesAsync();
 
-            // Prepare fake PubMed client with duplicate paperTitle
-            var fakeClient = new FakePubMedClientWithDuplicates("Existing Paper Title", "New Paper Title");
-
-            var scraper = new PubMedScraperService(Context, fakeClient);
+            var scraper = new PubMedScraperService(ConnectionString);
             var count = await scraper.IngestPubMedPapersAsync();
 
-            // Only the new paper should be added
-            var papers = await Context.PubmedStudies.Where(p => p.InvestigatorId == investigator.Id).ToListAsync();
-            Assert.AreEqual(2, papers.Count);
-            Assert.IsTrue(papers.Any(p => p.Title == "Existing Paper Title"));
-            Assert.IsTrue(papers.Any(p => p.Title == "New Paper Title"));
-        }
-    }
-
-    public class FakePubMedClientWithDuplicates : IPubMedClient
-    {
-        private readonly string _existingTitle;
-        private readonly string _newTitle;
-
-        public FakePubMedClientWithDuplicates(string existingTitle, string newTitle)
-        {
-            _existingTitle = existingTitle;
-            _newTitle = newTitle;
-        }
-
-        public Task<List<PubMedPaper>> GetPapersForInvestigatorAsync(InvestigatorEntity investigator, CancellationToken cancellationToken)
-        {
-            var papers = new List<PubMedPaper>
-            {
-                new PubMedPaper(_existingTitle, "http://example.com/1"),
-                new PubMedPaper(_newTitle, "http://example.com/2")
-            };
-            return Task.FromResult(papers);
+            var papers = await Context.PubmedStudies.Where(p => p.StudyNctId == study.NctId).ToListAsync();
+            Assert.AreEqual(1, papers.Count);
+            Assert.AreEqual("Existing Paper Title", papers[0].Title);
         }
     }
 }

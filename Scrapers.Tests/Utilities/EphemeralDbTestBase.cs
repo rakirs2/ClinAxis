@@ -12,18 +12,20 @@ namespace Scrapers.Tests.Utilities
         protected EphemeralPostgresDatabase EphemeralDb = null!;
         protected DbContextOptions<ClinicalTrialsContext> DbContextOptions = null!;
         protected ClinicalTrialsContext Context = null!;
+        protected string ConnectionString = null!;
         private IDbContextTransaction? _transaction;
 
         [TestInitialize]
         public async Task InitializeAsync()
         {
             EphemeralDb = new EphemeralPostgresDatabase();
+            ConnectionString = EphemeralDb.ConnectionString;
             DbContextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(EphemeralDb.ConnectionString)
+                .UseNpgsql(ConnectionString)
                 .Options;
             Context = new ClinicalTrialsContext(DbContextOptions);
 
-            await Context.Database.EnsureCreatedAsync();
+            await Context.Database.MigrateAsync();
 
             _transaction = await Context.Database.BeginTransactionAsync();
         }
