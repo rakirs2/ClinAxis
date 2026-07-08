@@ -1,2 +1,3 @@
-// Parallelization is disabled because several tests share the clinical_trial_data database.
-// New tests using ephemeral databases are inherently parallel-safe.
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Scrapers.IntegrationTests")]
