@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260708171559_InitialCreate")]
+    [Migration("20260708191631_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace Scrapers.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.6")
+                .HasAnnotation("ProductVersion", "8.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -36,8 +36,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<string>("Affiliation")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("LastSuccessfulPubmedCrawl")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NcbiId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OrcidId")
                         .HasColumnType("text");
 
                     b.Property<string>("Role")
@@ -51,6 +60,40 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("StudyId");
 
                     b.ToTable("investigators", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("NOW() AT TIME ZONE 'UTC'");
+
+                    b.Property<int>("InvestigatorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Keywords")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvestigatorId");
+
+                    b.ToTable("pubmed_studies", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
@@ -94,6 +137,22 @@ namespace Scrapers.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Study");
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorEntity", "Investigator")
+                        .WithMany("PubmedStudies")
+                        .HasForeignKey("InvestigatorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Investigator");
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorEntity", b =>
+                {
+                    b.Navigation("PubmedStudies");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
