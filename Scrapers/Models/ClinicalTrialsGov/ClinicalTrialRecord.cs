@@ -1,3 +1,42 @@
-namespace Scrapers.Models.ClinicalTrialsGov;
+using System;
+using System.Collections.Generic;
 
-public sealed record ClinicalTrialRecord(StudySummary Summary, IReadOnlyList<Investigator> Investigators);
+namespace Scrapers.Models.ClinicalTrialsGov
+{
+    public class ClinicalTrialRecord
+    {
+        public string? NctId { get; set; }
+        public string? BriefTitle { get; set; }
+        public string? OfficialTitle { get; set; }
+        public string? OverallStatus { get; set; }
+        public string? BriefSummary { get; set; }
+        public string? StudyType { get; set; }
+        public List<string>? Phases { get; set; }
+        public List<string>? Conditions { get; set; }
+        public List<string>? Keywords { get; set; }
+        public string? LeadSponsorName { get; set; }
+        public List<string>? CollaboratorNames { get; set; }
+        public string? EligibilityCriteria { get; set; }
+        public string? Sex { get; set; }
+        public string? MinimumAge { get; set; }
+        public string? MaximumAge { get; set; }
+        public string? HealthyVolunteers { get; set; }
+        public string? PrimaryPurpose { get; set; }
+        public string? InterventionModel { get; set; }
+        public string? Allocation { get; set; }
+        public int? EnrollmentCount { get; set; }
+        public DateOnly? StartDate { get; set; }
+        public DateOnly? CompletionDate { get; set; }
+        public DateOnly? StudyFirstPostDate { get; set; }
+        public List<Investigator>? OverallOfficials { get; set; }
+        public List<StudyListResponse.Location>? Locations { get; set; }
+        public List<Reference>? References { get; set; }
+
+        public class Reference
+        {
+            public string? Pmid { get; set; }
+            public string? Citation { get; set; }
+            public string? Type { get; set; }
+        }
+    }
+}

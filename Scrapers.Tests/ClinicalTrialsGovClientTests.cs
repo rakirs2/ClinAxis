@@ -59,8 +59,8 @@ public sealed class ClinicalTrialsGovClientTests
         var records = await client.GetTrialRecordsAsync(count: 1);
 
         Assert.AreEqual(1, records.Count);
-        Assert.IsTrue(records[0].Investigators.Count > 0, "Expected investigators to be parsed from fixture.");
-        Assert.AreEqual("David R Jacoby, MD, PhD", records[0].Investigators[0].Name);
+        Assert.IsTrue(records[0]!.OverallOfficials!.Count > 0, "Expected investigators to be parsed from fixture.");
+        Assert.AreEqual("David R Jacoby, MD, PhD", records[0]!.OverallOfficials![0]!.Name);
     }
 
     [TestMethod]

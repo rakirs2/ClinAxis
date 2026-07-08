@@ -1,16 +1,12 @@
-namespace Scrapers.Models.ClinicalTrialsGov;
+using System.Collections.Generic;
 
-/// <summary>
-/// Represents a lightweight slice of a ClinicalTrials.gov study record.
-/// </summary>
-public sealed record StudySummary(string? NctId, string? BriefTitle, string? OverallStatus)
+namespace Scrapers.Models.ClinicalTrialsGov
 {
-    public override string ToString()
+    public class StudySummary
     {
-        var id = string.IsNullOrWhiteSpace(NctId) ? "<unknown>" : NctId;
-        var title = string.IsNullOrWhiteSpace(BriefTitle) ? "Untitled Study" : BriefTitle;
-        var status = string.IsNullOrWhiteSpace(OverallStatus) ? "Status Unknown" : OverallStatus;
-
-        return $"{id} | {status} | {title}";
+        public string? NctId { get; set; }
+        public string? BriefTitle { get; set; }
+        public string? OverallStatus { get; set; }
+        public List<string>? Conditions { get; set; }
     }
 }
