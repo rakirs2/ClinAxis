@@ -1,25 +1,21 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Npgsql;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
+using Scrapers.Tests.Helpers;
 
 namespace Scrapers.Tests;
 
 [TestClass]
 public sealed class PostgresStudyRepositoryTests
 {
-    private static string ConnectionString =>
-        Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
-        ?? throw new AssertFailedException("POSTGRES_CONNECTION_STRING environment variable must be set for integration tests.");
-
     private PostgresStudyRepository _repository = null!;
 
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _repository = new PostgresStudyRepository(ConnectionString);
+        _repository = new PostgresStudyRepository(PostgresTestHelper.ConnectionString);
         await _repository.EnsureSchemaAsync();
-        await ClearDatabaseAsync();
+        await PostgresTestHelper.ClearDatabaseAsync();
     }
 
     [TestMethod]
@@ -60,12 +56,4 @@ public sealed class PostgresStudyRepositoryTests
         return new ClinicalTrialRecord(summary, investigators);
     }
 
-    private static async Task ClearDatabaseAsync()
-    {
-        await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        const string sql = "TRUNCATE TABLE investigators RESTART IDENTITY CASCADE; TRUNCATE TABLE studies RESTART IDENTITY CASCADE;";
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
-    }
 }

@@ -15,7 +15,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: clinical_trials
+          POSTGRES_DB: ClinicalTrialData
         ports:
           - 5432:5432
         options: >-
@@ -24,7 +24,7 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trials;Username=postgres;Password=postgres;
+      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=ClinicalTrialData;Username=postgres;Password=postgres;
     steps:
       - name: Checkout
         uses: actions/checkout@v4
