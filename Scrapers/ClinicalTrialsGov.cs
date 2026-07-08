@@ -39,13 +39,19 @@ public class ClinicalTrialsGov
     }
 
     public async Task<IReadOnlyList<StudySummary>> GetTrialsAsync(int count = 500, CancellationToken cancellationToken = default)
+        => await GetTrialsInternalAsync(count, payload => payload.ToSummary(), cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ClinicalTrialRecord>> GetTrialRecordsAsync(int count = 500, CancellationToken cancellationToken = default)
+        => await GetTrialsInternalAsync(count, payload => payload.ToRecord(), cancellationToken).ConfigureAwait(false);
+
+    private async Task<IReadOnlyList<T>> GetTrialsInternalAsync<T>(int count, Func<StudyListResponse.StudyPayload, T?> projector, CancellationToken cancellationToken)
     {
         if (count <= 0)
         {
-            return Array.Empty<StudySummary>();
+            return Array.Empty<T>();
         }
 
-        var collected = new List<StudySummary>(count);
+        var collected = new List<T>(count);
         string? pageToken = null;
 
         while (collected.Count < count)
@@ -55,13 +61,13 @@ public class ClinicalTrialsGov
 
             foreach (var studyPayload in studies)
             {
-                var summary = studyPayload.ToSummary();
-                if (summary is null)
+                var item = projector(studyPayload);
+                if (item is null)
                 {
                     continue;
                 }
 
-                collected.Add(summary);
+                collected.Add(item);
                 if (collected.Count >= count)
                 {
                     break;

@@ -28,6 +28,22 @@ internal sealed class StudyListResponse
                 identification.BriefTitle,
                 ProtocolSection?.StatusModule?.OverallStatus);
         }
+
+        public ClinicalTrialRecord? ToRecord()
+        {
+            var summary = ToSummary();
+            if (summary is null)
+            {
+                return null;
+            }
+
+            var investigators = ProtocolSection?.ContactsLocationsModule?.OverallOfficials?
+                .Where(o => !string.IsNullOrWhiteSpace(o?.Name))
+                .Select(o => new Investigator(o!.Name, o.Affiliation, o.Role))
+                .ToArray() ?? Array.Empty<Investigator>();
+
+            return new ClinicalTrialRecord(summary, investigators);
+        }
     }
 
     internal sealed class ProtocolSection
@@ -37,6 +53,9 @@ internal sealed class StudyListResponse
 
         [JsonPropertyName("statusModule")]
         public StatusModule? StatusModule { get; init; }
+
+        [JsonPropertyName("contactsLocationsModule")]
+        public ContactsLocationsModule? ContactsLocationsModule { get; init; }
     }
 
     internal sealed class IdentificationModule
@@ -52,5 +71,23 @@ internal sealed class StudyListResponse
     {
         [JsonPropertyName("overallStatus")]
         public string? OverallStatus { get; init; }
+    }
+
+    internal sealed class ContactsLocationsModule
+    {
+        [JsonPropertyName("overallOfficials")]
+        public IReadOnlyList<Official>? OverallOfficials { get; init; }
+    }
+
+    internal sealed class Official
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("affiliation")]
+        public string? Affiliation { get; init; }
+
+        [JsonPropertyName("role")]
+        public string? Role { get; init; }
     }
 }

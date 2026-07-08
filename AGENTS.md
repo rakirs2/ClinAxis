@@ -25,8 +25,14 @@ This repository has strict expectations for automated or human agents contributi
 6. **Future APIs**:
    - When a new API is introduced, immediately add the corresponding unit tests, live tests, fixtures, and schema guard before merging.
 
+## Database Persistence
+- PostgreSQL is the source of truth for persisted studies.
+- Connection string must be provided via `POSTGRES_CONNECTION_STRING` (both locally and in CI). The default expectation is a database named `clinical_trials` with sufficient privileges to create tables.
+- The repository ensures the `studies` and `investigators` tables exist (`CREATE TABLE IF NOT EXISTS`). Do not add schema drift elsewhere—update the repository if schema changes are required.
+- Database integration tests must connect to the configured PostgreSQL instance and run as part of every `dotnet test` invocation. GitHub Actions uses the postgres service container defined in `.github/workflows/dotnet.yml`.
+
 ## GitHub Actions
-- CI must run `dotnet build` and `dotnet test` on every push and pull request, covering both unit and integration tests.
+- CI must run `dotnet build` and `dotnet test` on every push and pull request, covering unit, API integration, and PostgreSQL integration tests.
 
 ## Pull Request Expectations
 - Summaries must mention how the change was tested.
