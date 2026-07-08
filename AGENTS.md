@@ -18,15 +18,15 @@ This repository has strict expectations for automated or human agents contributi
    - Store JSON fixtures in `Scrapers.Tests/Data/<ServiceName>/` and keep them unmodified except for truncating unrelated sections.
 4. **Schema Change Alerts**:
    - Each API must include a schema guard test that fails when required fields disappear or change names. Implement this by inspecting the JSON fixtures (e.g., via `JsonDocument`).
-5. **Live Smoke Tests**:
-   - Keep them in separate files (e.g., `*LiveTests.cs`).
-   - Mark them with MSTest attributes (`[TestCategory("Live")]`) and skip by default unless an environment variable explicitly enables them.
+5. **Live / Integration Tests**:
+   - Keep them in separate files (e.g., `*IntegrationTests.cs`) for each API.
+   - They must run as part of every `dotnet test` execution—do not gate them behind environment variables or `[Ignore]` attributes. Tagging with `[TestCategory("Integration")]` is fine for ad-hoc filtering.
+   - Keep them lightweight (small payload requests) and add limited retry logic within the test to tolerate transient HTTP failures.
 6. **Future APIs**:
    - When a new API is introduced, immediately add the corresponding unit tests, live tests, fixtures, and schema guard before merging.
 
 ## GitHub Actions
-- CI must run `dotnet build` and `dotnet test` on every push and pull request.
-- Live smoke tests remain skipped in CI unless the workflow is configured with the proper environment variable, to avoid flaky builds.
+- CI must run `dotnet build` and `dotnet test` on every push and pull request, covering both unit and integration tests.
 
 ## Pull Request Expectations
 - Summaries must mention how the change was tested.
