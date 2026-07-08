@@ -28,59 +28,77 @@ public class StudyRepository
         await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<int> UpsertStudiesAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
-    {
-        var recordList = records.ToList();
-        if (recordList.Count == 0)
+public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
         {
-            return 0;
-        }
-
-        await using var context = CreateContext();
-        foreach (var record in recordList)
-        {
-            if (string.IsNullOrWhiteSpace(record.Summary.NctId))
+            if (records == null || !records.Any())
             {
-                continue;
+                return 0;
             }
 
-            var entity = await context.Studies
-                .Include(s => s.Investigators)
-                .FirstOrDefaultAsync(s => s.NctId == record.Summary.NctId, cancellationToken)
-                .ConfigureAwait(false);
+            var recordList = records.ToList();
 
-            if (entity is null)
+            await using var context = CreateContext();
+            foreach (var record in recordList)
             {
-                entity = new StudyEntity
+                if (record == null) throw new ArgumentNullException(nameof(record), "Record is null.");
+                if (record.Summary == null) throw new ArgumentNullException(nameof(record.Summary), "Record Summary is null.");
+                if (string.IsNullOrWhiteSpace(record.Summary.NctId)) throw new ArgumentException("Record Summary NctId is null or whitespace.");
+
+                bool incomplete = false;
+
+                if (record.Investigators == null || record.Investigators.Any(i => i == null || string.IsNullOrWhiteSpace(i?.Name)))
                 {
-                    NctId = record.Summary.NctId!,
-                    BriefTitle = record.Summary.BriefTitle,
-                    OverallStatus = record.Summary.OverallStatus,
-                    CreatedAt = DateTime.UtcNow,
-                };
-                context.Studies.Add(entity);
-            }
-            else
-            {
-                entity.BriefTitle = record.Summary.BriefTitle;
-                entity.OverallStatus = record.Summary.OverallStatus;
-            }
+                    incomplete = true;
+                }
 
-            entity.Investigators.Clear();
-            foreach (var investigator in record.Investigators.Where(i => i.HasName))
-            {
-                entity.Investigators.Add(new InvestigatorEntity
+                var entity = await context.Studies
+                    .Include(s => s.Investigators)
+                    .FirstOrDefaultAsync(s => s.NctId == record.Summary.NctId, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (entity == null)
                 {
-                    Name = investigator.Name!,
-                    Affiliation = investigator.Affiliation,
-                    Role = investigator.Role
-                });
-            }
-        }
+                    entity = new StudyEntity
+                    {
+                        NctId = record.Summary.NctId!,
+                        BriefTitle = record.Summary.BriefTitle,
+                        OverallStatus = record.Summary.OverallStatus,
+                        CreatedAt = DateTime.UtcNow,
+                        IsIncomplete = incomplete,
+                        Investigators = new List<InvestigatorEntity>()
+                    };
+                    context.Studies.Add(entity);
+                }
+                else
+                {
+                    entity.BriefTitle = record.Summary.BriefTitle;
+                    entity.OverallStatus = record.Summary.OverallStatus;
+                    entity.IsIncomplete = incomplete;
+                }
 
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return recordList.Count;
-    }
+                if (incomplete)
+                {
+                    // Skip adding investigators if study is incomplete
+                    continue;
+                }
+
+                entity.Investigators!.Clear();
+
+                foreach (var investigator in record.Investigators!)
+                {
+                    entity.Investigators.Add(new InvestigatorEntity
+                    {
+                        Name = investigator!.Name!,
+                        Affiliation = investigator.Affiliation,
+                        Role = investigator.Role
+                    });
+                }
+            }    
+
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return recordList.Count;
+        }
 
     public async Task<int> CountStudiesAsync(CancellationToken cancellationToken = default)
     {

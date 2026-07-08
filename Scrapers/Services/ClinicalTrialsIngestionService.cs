@@ -24,6 +24,6 @@ public class ClinicalTrialsIngestionService
         await _repository.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 
         var records = await _client.GetTrialRecordsAsync(count, cancellationToken).ConfigureAwait(false);
-        return await _repository.UpsertStudiesAsync(records, cancellationToken).ConfigureAwait(false);
+        return await _repository.UpdateStudiesWithClinicalTrialsAsync(records, cancellationToken).ConfigureAwait(false);
     }
 }

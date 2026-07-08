@@ -1,12 +1,16 @@
-namespace Scrapers.Persistence.Entities;
+using System;
 
-public class StudyEntity
+namespace Scrapers.Persistence.Entities
 {
-    public int Id { get; set; }
-    public string NctId { get; set; } = string.Empty;
-    public string? BriefTitle { get; set; }
-    public string? OverallStatus { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public class StudyEntity
+    {
+        public int Id { get; set; }
+        public string NctId { get; set; } = string.Empty;
+        public string? BriefTitle { get; set; }
+        public string? OverallStatus { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public bool IsIncomplete { get; set; } = false;
 
-    public List<InvestigatorEntity> Investigators { get; set; } = new();
+        public System.Collections.Generic.ICollection<InvestigatorEntity>? Investigators { get; set; }
+    }
 }
