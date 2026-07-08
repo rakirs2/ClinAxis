@@ -11,6 +11,63 @@ using Microsoft.EntityFrameworkCore;
 namespace Scrapers.Tests
 {
     [TestClass]
+    public class PubMedClientNameParsingTests
+    {
+        [TestMethod]
+        public void ParseInvestigatorName_WithSuffix_ReturnsLastName()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("David R Jacoby, MD, PhD");
+            Assert.AreEqual("Jacoby", lastName);
+            Assert.AreEqual("David", firstName);
+            Assert.AreEqual("R", middleInitial);
+        }
+
+        [TestMethod]
+        public void ParseInvestigatorName_NoSuffix_ReturnsLastName()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("John Smith");
+            Assert.AreEqual("Smith", lastName);
+            Assert.AreEqual("John", firstName);
+            Assert.IsNull(middleInitial);
+        }
+
+        [TestMethod]
+        public void ParseInvestigatorName_WithSuffixOnly_ReturnsLastName()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Cornelia Dekker, MD");
+            Assert.AreEqual("Dekker", lastName);
+            Assert.AreEqual("Cornelia", firstName);
+            Assert.IsNull(middleInitial);
+        }
+
+        [TestMethod]
+        public void ParseInvestigatorName_MiddleInitialWithDot_StripsComma()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Vera Hengeveld, MD");
+            Assert.AreEqual("Hengeveld", lastName);
+            Assert.AreEqual("Vera", firstName);
+            Assert.IsNull(middleInitial);
+        }
+
+        [TestMethod]
+        public void ParseInvestigatorName_MultipleSuffixes_StripsAll()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Stephen Quake, PhD");
+            Assert.AreEqual("Quake", lastName);
+            Assert.AreEqual("Stephen", firstName);
+            Assert.IsNull(middleInitial);
+        }
+
+        [TestMethod]
+        public void ParseInvestigatorName_ThreePartNameWithMiddle_ReturnsMiddleInitial()
+        {
+            var (lastName, firstName, middleInitial) = PubMedClient.ParseInvestigatorName("Ann Marie Arvin, MD");
+            Assert.AreEqual("Arvin", lastName);
+            Assert.AreEqual("Ann", firstName);
+            Assert.AreEqual("Marie", middleInitial);
+        }
+    }
+    [TestClass]
     public class PubMedScraperServiceTests : EphemeralDbTestBase
     {
         [TestMethod]

@@ -22,13 +22,15 @@ namespace Scrapers.Services
         {
             if (investigator == null) throw new ArgumentNullException(nameof(investigator));
 
-            var authorQuery = Uri.EscapeDataString(investigator.Name);
+            var (lastName, _, _) = ParseInvestigatorName(investigator.Name);
+            var authorQuery = Uri.EscapeDataString(lastName);
             var pmidList = await GetPmidsByAuthorAsync(authorQuery, cancellationToken);
             if (pmidList.Count == 0) return new List<PubMedPaper>();
 
             var papers = await GetPaperDetailsAsync(pmidList, cancellationToken);
 
-            var filteredPapers = papers.Where(p => p.Authors.Any(a => a.Equals(investigator.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+            var filteredPapers = papers.Where(p =>
+                p.Authors.Any(a => a.StartsWith(lastName, StringComparison.OrdinalIgnoreCase))).ToList();
 
             return filteredPapers.Select(p => new PubMedPaper(
                 p.Title,
@@ -110,6 +112,16 @@ namespace Scrapers.Services
             return await action();
         }
 
+        public static (string LastName, string FirstName, string? MiddleInitial) ParseInvestigatorName(string fullName)
+        {
+            var namePart = fullName.Split(',')[0].Trim();
+            var tokens = namePart.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var lastName = tokens[^1];
+            var firstName = tokens[0];
+            var middleInitial = tokens.Length > 2 ? tokens[1] : null;
+            return (lastName, firstName, middleInitial);
+        }
+
         private class PaperDetail
         {
             public string Pmid { get; set; } = string.Empty;
@@ -122,7 +134,7 @@ namespace Scrapers.Services
 
     public record PubMedPaper(string Title, string Url, string? NcbiId = null, string? OrcidId = null);
 
-    public interface IPubMedClient
+public interface IPubMedClient
     {
         Task<List<PubMedPaper>> GetPapersForInvestigatorAsync(InvestigatorEntity investigator, CancellationToken cancellationToken);
     }
