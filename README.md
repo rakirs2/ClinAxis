@@ -4,18 +4,18 @@ Fetch and persist structured snapshots from [ClinicalTrials.gov](https://clinica
 ## Requirements
 - .NET 10 SDK (ships with this repo via `global.json` equivalent from `Scrapers` project target).
 - PostgreSQL 15+ running locally (e.g., `brew install postgresql@18 && brew services start postgresql@18`).
-- If you previously created a `clinical_trials` database for this project, remove it (`dropdb clinical_trials`) to avoid stale data.
+- If you previously created `clinical_trials` or `ClinicalTrialData` databases for this project, remove them (`dropdb clinical_trials`, `dropdb ClinicalTrialData`) to avoid stale data.
 
-Create the `ClinicalTrialData` database:
+Create the `clinical_trial_data` database:
 
 ```bash
-createdb ClinicalTrialData
+createdb clinical_trial_data
 ```
 
 Export the connection string (use your local user/password as needed):
 
 ```bash
-export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=ClinicalTrialData;Username=$USER"
+export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_data;Username=$USER"
 ```
 
 ## Ingest the First 5 Studies

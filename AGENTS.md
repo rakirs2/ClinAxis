@@ -27,7 +27,7 @@ This repository has strict expectations for automated or human agents contributi
 
 ## Database Persistence
 - PostgreSQL is the source of truth for persisted studies.
-- Connection string must be provided via `POSTGRES_CONNECTION_STRING` (both locally and in CI). The default expectation is a database named `ClinicalTrialData` with sufficient privileges to create tables.
+- Connection string must be provided via `POSTGRES_CONNECTION_STRING` (both locally and in CI). The default expectation is a database named `clinical_trial_data` with sufficient privileges to create tables.
 - The repository ensures the `studies` and `investigators` tables exist (`CREATE TABLE IF NOT EXISTS`). Do not add schema drift elsewhere—update the repository if schema changes are required.
 - Database integration tests must connect to the configured PostgreSQL instance and run as part of every `dotnet test` invocation. GitHub Actions uses the postgres service container defined in `.github/workflows/dotnet.yml`.
 - Tests require a **fresh ingestion**: they truncate `studies`/`investigators` and insert the first five live studies before each integration test, so do not depend on manual DB state.
