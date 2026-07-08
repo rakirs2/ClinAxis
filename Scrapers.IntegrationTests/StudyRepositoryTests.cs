@@ -24,13 +24,13 @@ public sealed class StudyRepositoryTests
         var records = new[]
         {
             CreateRecord("NCT00000001", "Study One", "RECRUITING",
-                new Investigator("Alice Smith", "Acme Research", "PRINCIPAL_INVESTIGATOR"),
-                new Investigator("Bob Jones", "Acme Research", "SUB_INVESTIGATOR")),
+                new Investigator { Name = "Alice Smith", Affiliation = "Acme Research", Role = "PRINCIPAL_INVESTIGATOR" },
+                new Investigator { Name = "Bob Jones", Affiliation = "Acme Research", Role = "SUB_INVESTIGATOR" }),
             CreateRecord("NCT00000002", "Study Two", "COMPLETED",
-                new Investigator("Carol White", "Health Org", "STUDY_DIRECTOR"))
+                new Investigator { Name = "Carol White", Affiliation = "Health Org", Role = "STUDY_DIRECTOR" })
         };
 
-        var ingested = await _repository.UpsertStudiesAsync(records);
+        var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(records);
 
         Assert.AreEqual(records.Length, ingested);
         Assert.AreEqual(records.Length, await _repository.CountStudiesAsync());
@@ -41,10 +41,10 @@ public sealed class StudyRepositoryTests
     public async Task UpsertStudiesAsync_IsIdempotent()
     {
         var record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
-            new Investigator("Dana King", "Wellness Org", "STUDY_DIRECTOR"));
+            new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" });
 
-        await _repository.UpsertStudiesAsync(new[] { record });
-        await _repository.UpsertStudiesAsync(new[] { record });
+        await _repository.UpdateStudiesWithClinicalTrialsAsync(new[] { record });
+        await _repository.UpdateStudiesWithClinicalTrialsAsync(new[] { record });
 
         Assert.AreEqual(1, await _repository.CountStudiesAsync());
         Assert.AreEqual(1, await _repository.CountInvestigatorsAsync());
@@ -52,7 +52,12 @@ public sealed class StudyRepositoryTests
 
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status, params Investigator[] investigators)
     {
-        var summary = new StudySummary(nctId, title, status);
-        return new ClinicalTrialRecord(summary, investigators);
+        return new ClinicalTrialRecord
+        {
+            NctId = nctId,
+            BriefTitle = title,
+            OverallStatus = status,
+            OverallOfficials = investigators.ToList()
+        };
     }
 }
