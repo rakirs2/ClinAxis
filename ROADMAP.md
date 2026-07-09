@@ -65,9 +65,10 @@ This document outlines all planned PRs for the MVP. Each PR is tied to a GitHub 
 
 ---
 
-### Issue #13 — PR 4: DataApi project
+### Issue #13 — PR 4: DataApi project (DONE)
 
-**Branch:** TBD
+**Branch:** `feature/data-api`
+**PR:** #20
 
 **Goal:** Expose scraped data via REST API.
 
@@ -78,13 +79,15 @@ This document outlines all planned PRs for the MVP. Each PR is tied to a GitHub 
   - `GET /api/studies/{nctId}` — single study detail
   - `GET /api/pipeline-runs` — history
   - `GET /api/stats` — aggregate counts
-- `DataService` (private to `DataApi/`)
 - No CORS needed (Frontend talks directly, clients use nginx reverse proxy)
-- Runs on port 5000
+- Runs on port 5003 (5000 is used by macOS AirPlay Receiver / Control Center)
 
 ---
 
-### Issue #14 — PR 5: Frontend project
+### Issue #14 — PR 5: Frontend project (DONE)
+
+**Branch:** `feature/frontend`
+**PR:** #21
 
 **Goal:** Blazor Server UI for browsing studies.
 
@@ -94,32 +97,66 @@ This document outlines all planned PRs for the MVP. Each PR is tied to a GitHub 
   - **Search** — full-text search across studies, hover for abstract
   - **Study Detail** — single study view with investigators, PubMed papers, keywords
   - **Pipeline History** — list of past pipeline runs
-- Plain Bootstrap (no paid theme)
-- HTTP client talks to `DataApi` on port 5000
+- HTTP client talks to `DataApi` on port 5003
 - Runs on port 5001
 
 ---
 
-### Issue #15 — PR 6: Frontend tests
+### Issue #15 — PR 6: Frontend tests (DONE)
+
+**Branch:** `feature/frontend-tests`
+**PR:** #22 (in review)
 
 **Goal:** Coverage for the three Blazor pages.
 
 **Changes:**
 - New `Frontend.Tests/` project (MSTest + bUnit)
-- ~19 tests covering Search, Study Detail, Pipeline History pages
+- 4 tests covering Search (2), Pipeline History (1), Study Detail (1) pages
 - Uses `RichardSzalay.MockHttp` for API mocking
+- Uses bUnit 2.0 `Render` API (`new BunitContext()` + `ctx.Render<T>()`)
 
 ---
 
-### Issue #16 — PR 7: ARCHITECTURE.md + final polish
+### Issue #16 — PR 7: ARCHITECTURE.md + final polish (IN REVIEW)
+
+**Branch:** `feature/architecture-docs`
+**PR:** (current)
 
 **Goal:** Documentation and deployment readiness.
 
 **Changes:**
 - `ARCHITECTURE.md` describing two-DO-droplet deployment
-- `README.md` update with local dev instructions
-- CI/CD pipeline config for DO deployment
-- Any remaining config polish
+- `README.md` update with local dev instructions, new port (5003), project table
+- `ROADMAP.md` — mark all issues done
+- DataApi port changed from 5000→5003 (macOS port conflict)
+- Frontend: added `app.UseAntiforgery()` (required by .NET 10)
+- All projects build with 0 warnings/errors; all 25 tests pass
+
+---
+
+### Issue #17 — PR 8: CMS Medicare provider cross-reference pipeline (PLANNED)
+
+**Goal:** Cross-reference Principal Investigators from ClinicalTrials.gov with CMS Medicare provider data to identify PIs serving specific patient demographics, geographies, and procedure types.
+
+**Data Sources:**
+- **NPPES NPI Registry** (API) — map PI name/affiliation → NPI
+- **Medicare Physician & Other Practitioners** (by Provider, CSV via data.cms.gov) — NPI-level: specialty, geography, beneficiary demographics (age, race, dual-eligible), service counts, HCPCS codes
+
+**Proposed Changes:**
+- New `CmsScraper/` project:
+  - `NpiResolverService` — queries NPPES API to resolve PI names → NPIs
+  - `CmsProviderService` — downloads/imports CMS Provider CSV into PostgreSQL
+  - `CmsProviderEntity` — stores provider NPI, specialty, address, beneficiary demographics
+  - `PiNpiMappingEntity` — stores resolved PI name → NPI mappings
+- Repository methods for CMS provider queries (by NPI, geography, specialty)
+- New DataApi endpoints: `GET /api/pi-provider-enrichment`, `GET /api/cms-providers?geo=...&demo=...`
+- Frontend Status page updated to show CMS cross-reference counts
+- Unit tests + integration tests following existing conventions
+
+**Open Questions:**
+- Should the CMS CSV (~2GB) be pre-processed before import, or import full dataset?
+- How to handle PIs without NPI matches (non-US investigators)?
+- What's the MVP scope of enriched queries on the Status page?
 
 ---
 
@@ -140,6 +177,6 @@ export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_tr
 dotnet run --project DataAggregators/ -- --count 50
 
 # API + Frontend (separate terminals)
-dotnet run --project DataApi/ --urls "http://localhost:5000"
+dotnet run --project DataApi/
 dotnet run --project Frontend/ --urls "http://localhost:5001"
 ```

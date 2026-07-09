@@ -302,15 +302,19 @@ namespace Scrapers.Persistence
             if (!string.IsNullOrWhiteSpace(search))
             {
                 query = query.Where(s =>
-                    (s.BriefTitle != null && s.BriefTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    (s.OfficialTitle != null && s.OfficialTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    (s.BriefSummary != null && s.BriefSummary.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    s.NctId.Contains(search, StringComparison.OrdinalIgnoreCase));
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, $"%{search}%")) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, $"%{search}%")) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, $"%{search}%")) ||
+                    EF.Functions.ILike(s.NctId, $"%{search}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(status))
             {
-                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+                var statuses = status.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (statuses.Length > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Any(st => st == s.OverallStatus));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(phase))
@@ -333,15 +337,19 @@ namespace Scrapers.Persistence
             if (!string.IsNullOrWhiteSpace(search))
             {
                 query = query.Where(s =>
-                    (s.BriefTitle != null && s.BriefTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    (s.OfficialTitle != null && s.OfficialTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    (s.BriefSummary != null && s.BriefSummary.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
-                    s.NctId.Contains(search, StringComparison.OrdinalIgnoreCase));
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, $"%{search}%")) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, $"%{search}%")) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, $"%{search}%")) ||
+                    EF.Functions.ILike(s.NctId, $"%{search}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(status))
             {
-                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+                var statuses = status.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (statuses.Length > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Any(st => st == s.OverallStatus));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(phase))
@@ -366,6 +374,24 @@ namespace Scrapers.Persistence
                 .FirstOrDefaultAsync(s => s.NctId == nctId, cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<int> CountPiAggregationsAsync(CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.PiAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<CategoryTypeCount>> CountCategoryAggregationsByTypeAsync(CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            var raw = await context.CategoryAggregations
+                .GroupBy(c => c.CategoryType)
+                .Select(g => new { categoryType = g.Key, count = g.Count() })
+                .AsNoTracking()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return raw.Select(r => new CategoryTypeCount(r.categoryType, r.count)).ToList();
+        }
+
         public async Task ReplacePiAggregationsAsync(IReadOnlyList<PiAggregationEntity> aggregations, CancellationToken cancellationToken = default)
         {
             await using ClinicalTrialsContext context = CreateContext();
@@ -385,6 +411,18 @@ namespace Scrapers.Persistence
         private ClinicalTrialsContext CreateContext()
         {
             return new(_options);
+        }
+    }
+
+    public class CategoryTypeCount
+    {
+        public string CategoryType { get; }
+        public int Count { get; }
+
+        public CategoryTypeCount(string categoryType, int count)
+        {
+            CategoryType = categoryType;
+            Count = count;
         }
     }
 }
