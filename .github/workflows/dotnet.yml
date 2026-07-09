@@ -82,21 +82,29 @@ jobs:
 
       - name: Start services (background)
         run: |
-          dotnet run --project DataApi/DataApi.csproj --configuration Release --no-build > /tmp/dataapi.log 2>&1 &
-          dotnet run --project Frontend/Frontend.csproj --configuration Release --no-build > /tmp/frontend.log 2>&1 &
+          nohup dotnet run --project DataApi/DataApi.csproj --configuration Release --no-build > /tmp/dataapi.log 2>&1 &
+          echo "DataApi PID: $!"
+          nohup dotnet run --project Frontend/Frontend.csproj --configuration Release --no-build > /tmp/frontend.log 2>&1 &
+          echo "Frontend PID: $!"
 
       - name: Wait for services
+        shell: bash
         run: |
+          set +e
           for i in $(seq 1 15); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 | grep -q 200 \
-               && curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ | grep -q 200; then
-              echo "Both services ready (after $((i*2))s)"
+            api_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 2>/dev/null)
+            frontend_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null)
+            echo "[$((i*2))s] DataApi=$api_status Frontend=$frontend_status"
+            if [ "$api_status" = "200" ] && [ "$frontend_status" = "200" ]; then
+              echo "Both services ready"
               exit 0
             fi
             sleep 2
           done
-          echo "DataApi log:" && head -5 /tmp/dataapi.log
-          echo "Frontend log:" && head -5 /tmp/frontend.log
+          echo "--- DataApi log ---"
+          head -20 /tmp/dataapi.log
+          echo "--- Frontend log ---"
+          head -20 /tmp/frontend.log
           echo "Services failed to start"
           exit 1
 
