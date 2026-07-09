@@ -1,60 +1,72 @@
 # ClinicalTrialData
-Fetch and persist structured snapshots from [ClinicalTrials.gov](https://clinicaltrials.gov) so investigators and studies can be analyzed locally.
+
+Fetch and persist structured snapshots from [ClinicalTrials.gov](https://clinicaltrials.gov) and [PubMed](https://pubmed.ncbi.nlm.nih.gov/). Browse studies, investigators, and PubMed papers through a web UI.
 
 ## Requirements
-- .NET 10 SDK (ships with this repo via `global.json` equivalent from `Scrapers` project target).
-- PostgreSQL 15+ running locally (e.g., `brew install postgresql@18 && brew services start postgresql@18`).
-- If you previously created `clinical_trials` or `ClinicalTrialData` databases for this project, remove them (`dropdb clinical_trials`, `dropdb ClinicalTrialData`) to avoid stale data.
 
-Create the `clinical_trial_data` database:
+- .NET 10 SDK
+- PostgreSQL 15+ running locally (e.g., `brew install postgresql@18 && brew services start postgresql@18`)
+
+## Setup
 
 ```bash
+# Create the database
 createdb clinical_trial_data
-```
 
-Export the connection string (use your local user/password as needed):
-
-```bash
+# Export connection string
 export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_data;Username=$USER"
+
+# Build everything
+dotnet build
 ```
 
-## Programmatic Ingestion
-
-Ingestion is exposed as composable services so future cron jobs (or your own console app) can orchestrate them. Example:
-
-```csharp
-var client = new ClinicalTrialsGov();
-var repository = new StudyRepository(Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")!);
-var coordinator = new ClinicalTrialsIngestionService(client, repository);
-await coordinator.IngestAsync(count: 5);
-```
-
-This fetches the first five studies from the `/studies` endpoint and persists them into the `studies` and `investigators` tables.
-
-### Schema & Migrations
-
-Entity Framework Core manages the schema (see `Scrapers/Persistence/Migrations`). When you change the schema, add a migration via `dotnet ef migrations add <Name> --project Scrapers` and run `dotnet ef database update` (or rely on the ingestion service/tests calling `Database.Migrate`).
-
-Verify the rows with `psql`:
+## Run
 
 ```bash
-psql $POSTGRES_CONNECTION_STRING -c "SELECT COUNT(*) FROM studies;"
-psql $POSTGRES_CONNECTION_STRING -c "SELECT COUNT(*) FROM investigators;"
+# Start the API (port 5003)
+dotnet run --project DataApi/
+
+# Start the frontend (port 5001) — separate terminal
+dotnet run --project Frontend/
+```
+
+Open http://localhost:5001 in your browser.
+
+> Port 5000 is reserved by macOS AirPlay Receiver / Control Center. DataApi uses port 5003 to avoid the conflict.
+
+## Ingest Data
+
+```bash
+dotnet run --project DataAggregators/ -- --count 50
 ```
 
 ## Tests
 
-Run unit tests (no Postgres dependency):
-
 ```bash
-dotnet test Scrapers.Tests/Scrapers.Tests.csproj
+# Unit tests (no Postgres needed)
+dotnet test Scrapers.Tests/
+dotnet test Frontend.Tests/
+
+# All tests (requires local Postgres)
+dotnet test
 ```
 
-Run integration tests (requires local Postgres + live ClinicalTrials.gov access). If `POSTGRES_CONNECTION_STRING` is not set the tests fall back to `Host=localhost;Port=5432;Database=clinical_trial_data;Username=<your user>`:
+Integration tests connect to a live Postgres instance and real ClinicalTrials.gov/PubMed APIs. They truncate the database before each run and perform a fresh ingestion of 5 studies.
 
-```bash
-POSTGRES_CONNECTION_STRING=... dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
-```
+## Projects
 
-The integration suite truncates the database between runs, runs migrations automatically, and verifies that live API calls persist data.
-When running from an IDE (Rider, VS, etc.) you can drop a `Scrapers.IntegrationTests/.integrationtests.env` file containing `POSTGRES_CONNECTION_STRING=...` so the tests pick up the connection string automatically.
+| Project | Description |
+|---------|-------------|
+| `Scrapers/` | Core library: entities, repositories, ClinicalTrials.gov & PubMed scrapers |
+| `DataAggregators/` | PI and category aggregation pipeline step |
+| `DataApi/` | ASP.NET Core Minimal API (4 endpoints) |
+| `Frontend/` | Blazor Server UI (Search, Study Detail, Pipeline History) |
+| `IngestionApp/` | Console app to run the full pipeline |
+| `Scrapers.Tests/` | Unit tests with fake HTTP handlers and captured payloads |
+| `Scrapers.IntegrationTests/` | Live integration tests (API + Postgres) |
+| `Frontend.Tests/` | bUnit component tests with HTTP mocking |
+
+## Tech Stack
+
+- .NET 10 · ASP.NET Core · Entity Framework Core · PostgreSQL
+- Blazor Server · Bootstrap 5 · bUnit · MSTest · RichardSzalay.MockHttp
