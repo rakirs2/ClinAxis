@@ -1,0 +1,143 @@
+@page "/studies/{nctId}"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>@study?.briefTitle</h1>
+
+@if (study is null)
+{
+    <p class="text-muted">Loading...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <h5>Details</h5>
+            <dl class="row">
+                <dt class="col-sm-4">NCT ID</dt>
+                <dd class="col-sm-8">@study.nctId</dd>
+                <dt class="col-sm-4">Official Title</dt>
+                <dd class="col-sm-8">@study.officialTitle</dd>
+                <dt class="col-sm-4">Status</dt>
+                <dd class="col-sm-8">@study.overallStatus</dd>
+                <dt class="col-sm-4">Study Type</dt>
+                <dd class="col-sm-8">@study.studyType</dd>
+                <dt class="col-sm-4">Primary Purpose</dt>
+                <dd class="col-sm-8">@study.primaryPurpose</dd>
+                <dt class="col-sm-4">Enrollment</dt>
+                <dd class="col-sm-8">@study.enrollmentCount</dd>
+            </dl>
+
+            @if (!string.IsNullOrEmpty(study.briefSummary))
+            {
+                <h5>Summary</h5>
+                <p>@study.briefSummary</p>
+            }
+
+            <h5>Conditions</h5>
+            <p>@(study.conditions != null ? string.Join(", ", study.conditions) : "None")</p>
+
+            <h5>Keywords</h5>
+            <p>@(study.keywords != null ? string.Join(", ", study.keywords) : "None")</p>
+
+            <h5>Phases</h5>
+            <p>@(study.phases != null ? string.Join(", ", study.phases) : "None")</p>
+        </div>
+
+        <div class="col-md-4">
+            <h5>Investigators</h5>
+            @if (study.investigators != null && study.investigators.Count > 0)
+            {
+                <ul class="list-group mb-3">
+                    @foreach (var inv in study.investigators)
+                    {
+                        <li class="list-group-item">
+                            <strong>@inv.name</strong><br />
+                            <small>@inv.role@(!string.IsNullOrEmpty(inv.affiliation) ? $" - {inv.affiliation}" : "")</small>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="text-muted">No investigators listed</p>
+            }
+
+            <h5>PubMed Papers (@(study.pubmedPapers?.Count ?? 0))</h5>
+            @if (study.pubmedPapers != null && study.pubmedPapers.Count > 0)
+            {
+                <div class="accordion" id="pubmedAccordion">
+                    @for (int i = 0; i < study.pubmedPapers.Count; i++)
+                    {
+                        var p = study.pubmedPapers[i];
+                        var id = $"pubmed-{i}";
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@id">
+                                    @p.title
+                                </button>
+                            </h2>
+                            <div id="@id" class="accordion-collapse collapse" data-bs-parent="#pubmedAccordion">
+                                <div class="accordion-body">
+                                    <small class="text-muted">PMID: @p.pmid | Journal: @p.journal</small>
+                                    <hr />
+                                    @if (!string.IsNullOrEmpty(p.abstractText))
+                                    {
+                                        <p>@p.abstractText</p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No PubMed papers linked</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? nctId { get; set; }
+
+    private StudyDetailData? study;
+
+    protected override async Task OnInitializedAsync()
+    {
+        study = await Client.GetFromJsonAsync<StudyDetailData>($"/api/studies/{nctId}");
+    }
+
+    private class StudyDetailData
+    {
+        public string? nctId { get; set; }
+        public string? briefTitle { get; set; }
+        public string? officialTitle { get; set; }
+        public string? overallStatus { get; set; }
+        public string? studyType { get; set; }
+        public string? briefSummary { get; set; }
+        public string? primaryPurpose { get; set; }
+        public int? enrollmentCount { get; set; }
+        public List<Investigator>? investigators { get; set; }
+        public List<string>? conditions { get; set; }
+        public List<string>? keywords { get; set; }
+        public List<string>? phases { get; set; }
+        public List<PubmedPaper>? pubmedPapers { get; set; }
+    }
+
+    private class Investigator
+    {
+        public string? name { get; set; }
+        public string? role { get; set; }
+        public string? affiliation { get; set; }
+    }
+
+    private class PubmedPaper
+    {
+        public string? pmid { get; set; }
+        public string? title { get; set; }
+        public string? journal { get; set; }
+        public string? abstractText { get; set; }
+    }
+}
