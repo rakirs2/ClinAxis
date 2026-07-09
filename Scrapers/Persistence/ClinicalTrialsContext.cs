@@ -14,6 +14,8 @@ namespace Scrapers.Persistence
         public DbSet<StudyPhaseEntity> StudyPhases => Set<StudyPhaseEntity>();
         public DbSet<StudyAuthorEntity> StudyAuthors => Set<StudyAuthorEntity>();
         public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
+        public DbSet<PiAggregationEntity> PiAggregations => Set<PiAggregationEntity>();
+        public DbSet<CategoryAggregationEntity> CategoryAggregations => Set<CategoryAggregationEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -172,6 +174,37 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.TotalKeywords).HasColumnName("total_keywords");
                 entity.Property(e => e.TotalAuthors).HasColumnName("total_authors");
                 entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+            });
+
+            modelBuilder.Entity<PiAggregationEntity>(entity =>
+            {
+                entity.ToTable("pi_aggregations");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.InvestigatorName).HasColumnName("investigator_name").HasMaxLength(200);
+                entity.Property(e => e.Affiliation).HasColumnName("affiliation");
+                entity.Property(e => e.StudyCount).HasColumnName("study_count");
+                entity.Property(e => e.PubmedPaperCount).HasColumnName("pubmed_paper_count");
+                entity.Property(e => e.StudyNctIds).HasColumnName("study_nct_ids");
+                entity.Property(e => e.ComputedAt).HasColumnName("computed_at");
+
+                entity.HasIndex(e => e.InvestigatorName);
+            });
+
+            modelBuilder.Entity<CategoryAggregationEntity>(entity =>
+            {
+                entity.ToTable("category_aggregations");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.CategoryName).HasColumnName("category_name").HasMaxLength(200);
+                entity.Property(e => e.CategoryType).HasColumnName("category_type").HasMaxLength(50);
+                entity.Property(e => e.StudyCount).HasColumnName("study_count");
+                entity.Property(e => e.PubmedPaperCount).HasColumnName("pubmed_paper_count");
+                entity.Property(e => e.StudyNctIds).HasColumnName("study_nct_ids");
+                entity.Property(e => e.ComputedAt).HasColumnName("computed_at");
+
+                entity.HasIndex(e => e.CategoryName);
+                entity.HasIndex(e => e.CategoryType);
             });
         }
     }

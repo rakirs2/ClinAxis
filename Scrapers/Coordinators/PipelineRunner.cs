@@ -31,13 +31,15 @@ namespace Scrapers.Coordinators
 
             try
             {
-
                 var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 100);
                 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
                 await clinicalTrialsIngestionService.IngestAsync(clinicalTrialsCount, cancellationToken);
 
                 var pubMedScraperService = new PubMedScraperService(connectionString);
                 await pubMedScraperService.IngestPubMedPapersAsync(cancellationToken);
+
+                var aggregationService = new AggregationService(studyRepo);
+                await aggregationService.AggregateAsync(cancellationToken);
 
                 var studyCount = await studyRepo.CountStudiesAsync(cancellationToken);
                 var investigatorCount = await studyRepo.CountInvestigatorsAsync(cancellationToken);

@@ -42,18 +42,26 @@ This document outlines all planned PRs for the MVP. Each PR is tied to a GitHub 
 
 ---
 
-### Issue #12 — PR 3: DataAggregators project
+### Issue #12 — PR 3: PI & category aggregations (DONE)
 
-**Branch:** TBD (create from main after PR 1/2 merged)
+**Branch:** `feature/pi-category-aggregations`
+**PR:** #19
 
-**Goal:** Extract the scraper/orchestration layer from `Scrapers/` into its own console app project.
+**Goal:** Compute counts and links by PI and category, stored in the DB for fast queries.
 
 **Changes:**
-- New `DataAggregators/` project (console app, `net10.0`)
-- Move: `ClinicalTrialsGov`, `PubMedScraperService`, `PipelineRunner`, `IngestionCoordinatorService`, models, persistence from `Scrapers/`
-- `Scrapers/` becomes a library shared with tests
-- Entry point: `--count N` argument, runs the full pipeline
-- Retain the EF Core DbContext + migrations in the moved project
+- `PiAggregationEntity` — per investigator: study count, PubMed paper count, linked NCT IDs
+- `CategoryAggregationEntity` — per condition/keyword/phase: study count, PubMed paper count, linked NCT IDs
+- `AggregationService` — aggregates all data after ClinicalTrials + PubMed scrape
+- `StudyRepository` — `GetAllStudiesWithFullDataAsync`, `ReplacePiAggregationsAsync`, `ReplaceCategoryAggregationsAsync`, `GetPubmedStudiesWithAuthorsAsync`
+- `PipelineRunner` — calls `AggregationService.AggregateAsync()` after PubMed scrape
+- Migration `AddAggregationTables` — creates `pi_aggregations` and `category_aggregations` tables
+- Schema guard tests for both new tables
+- Integration tests for aggregation logic
+
+**Verified:**
+- `dotnet build` — 0 errors, 0 warnings
+- `dotnet test` — 21/21 pass (6 unit + 15 integration)
 
 ---
 
