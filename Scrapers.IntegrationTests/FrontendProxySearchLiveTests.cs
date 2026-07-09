@@ -20,6 +20,7 @@ public sealed class FrontendProxySearchLiveTests
     }
 
     [TestMethod]
+    [TestCategory("HttpLive")]
     public async Task ProxySearch_ReturnsMatchingResults()
     {
         var record = new ClinicalTrialRecord
@@ -49,6 +50,7 @@ public sealed class FrontendProxySearchLiveTests
     }
 
     [TestMethod]
+    [TestCategory("HttpLive")]
     public async Task ProxySearch_ReturnsSameShapeAsDataApi()
     {
         using var proxyResponse = await Client.GetAsync(

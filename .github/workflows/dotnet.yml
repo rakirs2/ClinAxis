@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
+  unit-and-db-tests:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -43,5 +43,61 @@ jobs:
       - name: Unit Tests
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
 
-      - name: Integration Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build
+      - name: DB Integration Tests
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory!=HttpLive"
+
+  live-http-tests:
+    needs: unit-and-db-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: clinical_trial_data
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Start DataApi (background)
+        run: dotnet run --project DataApi/DataApi.csproj --configuration Release --no-build &
+
+      - name: Start Frontend (background)
+        run: dotnet run --project Frontend/Frontend.csproj --configuration Release --no-build &
+
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 | grep -q 200 \
+               && curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/api-proxy/studies?search=test | grep -q 200; then
+              echo "Both services ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services failed to start"
+          exit 1
+
+      - name: Live HTTP Tests
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory=HttpLive"

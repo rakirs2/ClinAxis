@@ -20,6 +20,7 @@ public sealed class DataApiSearchLiveTests
     }
 
     [TestMethod]
+    [TestCategory("HttpLive")]
     public async Task SearchStudiesViaApi_ReturnsMatchingResults()
     {
         ClinicalTrialRecord record = new()
@@ -49,6 +50,7 @@ public sealed class DataApiSearchLiveTests
     }
 
     [TestMethod]
+    [TestCategory("HttpLive")]
     public async Task SearchStudiesViaApi_EmptySearchReturnsStudies()
     {
         using HttpResponseMessage response = await Client.GetAsync(
@@ -64,6 +66,7 @@ public sealed class DataApiSearchLiveTests
     }
 
     [TestMethod]
+    [TestCategory("HttpLive")]
     public async Task SearchStudiesViaApi_ResponseShapeMatchesSchema()
     {
         using HttpResponseMessage response = await Client.GetAsync(
