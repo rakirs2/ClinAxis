@@ -310,7 +310,11 @@ namespace Scrapers.Persistence
 
             if (!string.IsNullOrWhiteSpace(status))
             {
-                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+                var statuses = status.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (statuses.Length > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Any(st => st == s.OverallStatus));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(phase))
@@ -341,7 +345,11 @@ namespace Scrapers.Persistence
 
             if (!string.IsNullOrWhiteSpace(status))
             {
-                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+                var statuses = status.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (statuses.Length > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Any(st => st == s.OverallStatus));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(phase))
