@@ -8,6 +8,9 @@ builder.WebHost.UseUrls("http://0.0.0.0:5003");
 
 var connectionString = ConnectionStringProvider.Default;
 
+var startupRepo = new StudyRepository(connectionString);
+await startupRepo.EnsureSchemaAsync();
+
 WebApplication app = builder.Build();
 
 app.MapGet("/api/studies", async (int? page, int? pageSize, string? search, string? status, string? phase) =>
@@ -81,4 +84,4 @@ app.MapGet("/api/aggregations", async () =>
     });
 });
 
-app.Run();
+await app.RunAsync();

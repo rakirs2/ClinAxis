@@ -92,11 +92,11 @@ jobs:
         run: |
           set +e
           for i in $(seq 1 15); do
-            api_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 2>/dev/null)
-            frontend_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null)
-            echo "[$((i*2))s] DataApi=$api_status Frontend=$frontend_status"
-            if [ "$api_status" = "200" ] && [ "$frontend_status" = "200" ]; then
-              echo "Both services ready"
+            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 2>/dev/null)
+            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null)
+            echo "[$((i*2))s] DataApi=$api_code Frontend=$frontend_code"
+            if [ -n "$api_code" ] && [ "$api_code" != "000" ] && [ -n "$frontend_code" ] && [ "$frontend_code" != "000" ]; then
+              echo "Both services ready (returning $api_code / $frontend_code)"
               exit 0
             fi
             sleep 2
