@@ -52,7 +52,7 @@ public class ClinicalTrialsGov
             return Array.Empty<T>();
         }
 
-        var collected = new List<T>(count);
+        var collected = new List<T>(Math.Min(count, 1000));
         string? pageToken = null;
 
         while (collected.Count < count)
