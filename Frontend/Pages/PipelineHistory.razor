@@ -1,0 +1,78 @@
+@page "/pipeline-runs"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>Pipeline History</h1>
+
+@if (runs is null)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (runs.Count == 0)
+{
+    <p class="text-muted">No pipeline runs recorded yet.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Started</th>
+                <th>Completed</th>
+                <th>Status</th>
+                <th>Studies</th>
+                <th>Investigators</th>
+                <th>PubMed</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var run in runs)
+            {
+                <tr>
+                    <td>@run.id</td>
+                    <td>@run.startedAt?.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@run.completedAt?.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@StatusBadge(run.status)</td>
+                    <td>@run.totalStudies</td>
+                    <td>@run.totalInvestigators</td>
+                    <td>@run.totalPubmedPapers</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<PipelineRun>? runs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Client.GetFromJsonAsync<PipelineListResponse>("/api/pipeline-runs");
+        runs = result?.data;
+    }
+
+    private static RenderFragment StatusBadge(string? status) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge bg-{(status == "Completed" ? "success" : status == "Failed" ? "danger" : "warning")}");
+        builder.AddContent(2, status);
+        builder.CloseElement();
+    };
+
+    private class PipelineListResponse
+    {
+        public List<PipelineRun>? data { get; set; }
+    }
+
+    private class PipelineRun
+    {
+        public int id { get; set; }
+        public DateTime? startedAt { get; set; }
+        public DateTime? completedAt { get; set; }
+        public string? status { get; set; }
+        public int? totalStudies { get; set; }
+        public int? totalInvestigators { get; set; }
+        public int? totalPubmedPapers { get; set; }
+    }
+}

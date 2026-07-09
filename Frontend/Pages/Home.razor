@@ -1,0 +1,107 @@
+@page "/"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>Study Search</h1>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input @bind="search" class="form-control" placeholder="Search by title, NCT ID, or summary" />
+    </div>
+    <div class="col-md-2">
+        <select @bind="statusFilter" class="form-select">
+            <option value="">All statuses</option>
+            <option value="RECRUITING">Recruiting</option>
+            <option value="ACTIVE">Active</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="ENROLLING_BY_INVITATION">Enrolling by invitation</option>
+            <option value="NOT_YET_RECRUITING">Not yet recruiting</option>
+            <option value="TERMINATED">Terminated</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary" @onclick="SearchStudies">Search</button>
+    </div>
+</div>
+
+@if (studies is not null)
+{
+    <p class="text-muted">@total studies found</p>
+
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>NCT ID</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Conditions</th>
+                <th>Investigators</th>
+                <th>PubMed</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in studies)
+            {
+                <tr>
+                    <td><a href="/studies/@s.NctId">@s.NctId</a></td>
+                    <td>@s.BriefTitle</td>
+                    <td><span class="badge bg-@(s.OverallStatus == "COMPLETED" ? "success" : s.OverallStatus == "RECRUITING" ? "primary" : "secondary")">@s.OverallStatus</span></td>
+                    <td>@(s.Conditions != null ? string.Join(", ", s.Conditions) : "")</td>
+                    <td>@s.InvestigatorCount</td>
+                    <td>@s.PubmedPaperCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (loading)
+{
+    <div class="d-flex justify-content-center">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+
+@code {
+    private string? search = "";
+    private string? statusFilter = "";
+    private List<Study>? studies;
+    private int total;
+    private bool loading;
+
+    private async Task SearchStudies()
+    {
+        loading = true;
+        try
+        {
+            var query = $"/api/studies?page=1&pageSize=50&search={Uri.EscapeDataString(search ?? "")}&status={Uri.EscapeDataString(statusFilter ?? "")}";
+            var result = await Client.GetFromJsonAsync<StudyListResponse>(query);
+            if (result != null)
+            {
+                studies = result.Data;
+                total = result.Total;
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private class StudyListResponse
+    {
+        public List<Study>? Data { get; set; }
+        public int Total { get; set; }
+    }
+
+    private class Study
+    {
+        public string? NctId { get; set; }
+        public string? BriefTitle { get; set; }
+        public string? OverallStatus { get; set; }
+        public int InvestigatorCount { get; set; }
+        public int PubmedPaperCount { get; set; }
+        public List<string>? Conditions { get; set; }
+        public List<string>? Phases { get; set; }
+    }
+}
