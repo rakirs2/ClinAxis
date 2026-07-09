@@ -23,7 +23,14 @@ public class ClinicalTrialsIngestionService
 
         await _repository.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 
-        IReadOnlyList<ClinicalTrialRecord> records = await _client.GetTrialRecordsAsync(count, cancellationToken).ConfigureAwait(false);
-        return await _repository.UpdateStudiesWithClinicalTrialsAsync(records, cancellationToken).ConfigureAwait(false);
+        var totalIngested = 0;
+
+        await _client.GetTrialRecordsBatchedAsync(count, async batch =>
+        {
+            var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, cancellationToken).ConfigureAwait(false);
+            totalIngested += ingested;
+        }, cancellationToken).ConfigureAwait(false);
+
+        return totalIngested;
     }
 }
