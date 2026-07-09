@@ -16,6 +16,7 @@ namespace Scrapers.Persistence
         public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
         public DbSet<PiAggregationEntity> PiAggregations => Set<PiAggregationEntity>();
         public DbSet<CategoryAggregationEntity> CategoryAggregations => Set<CategoryAggregationEntity>();
+        public DbSet<ScrapeEventEntity> ScrapeEvents => Set<ScrapeEventEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -205,6 +206,31 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.CategoryName);
                 entity.HasIndex(e => e.CategoryType);
+            });
+
+            modelBuilder.Entity<ScrapeEventEntity>(entity =>
+            {
+                entity.ToTable("scrape_events");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.PipelineRunId).HasColumnName("pipeline_run_id");
+                entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
+                entity.Property(e => e.EventType).HasColumnName("event_type").HasMaxLength(50);
+                entity.Property(e => e.Level).HasColumnName("level").HasMaxLength(20);
+                entity.Property(e => e.DurationMs).HasColumnName("duration_ms");
+                entity.Property(e => e.RecordsAffected).HasColumnName("records_affected");
+                entity.Property(e => e.Message).HasColumnName("message");
+                entity.Property(e => e.HttpStatusCode).HasColumnName("http_status_code");
+
+                entity.HasOne(e => e.PipelineRun)
+                    .WithMany()
+                    .HasForeignKey(e => e.PipelineRunId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(e => e.Timestamp);
+                entity.HasIndex(e => e.Source);
+                entity.HasIndex(e => e.EventType);
             });
         }
     }
