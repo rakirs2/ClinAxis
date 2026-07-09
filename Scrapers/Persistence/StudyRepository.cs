@@ -408,6 +408,49 @@ namespace Scrapers.Persistence
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task AddScrapeEventAsync(ScrapeEventEntity evt, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(evt);
+            await using ClinicalTrialsContext context = CreateContext();
+            context.ScrapeEvents.Add(evt);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task AddScrapeEventsAsync(IEnumerable<ScrapeEventEntity> events, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            context.ScrapeEvents.AddRange(events);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<ScrapeEventEntity>> GetRecentScrapeEventsAsync(int limit = 50, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.ScrapeEvents
+                .OrderByDescending(e => e.Timestamp)
+                .Take(limit)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<DateTime?> GetLastSuccessfulPipelineRunDateAsync(CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.PipelineRuns
+                .Where(r => r.Status == "Completed" || r.Status == "CompletedWithErrors")
+                .OrderByDescending(r => r.StartedAt)
+                .Select(r => (DateTime?)r.StartedAt)
+                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> GetRecentScrapeEventCountAsync(TimeSpan within, CancellationToken cancellationToken = default)
+        {
+            DateTime since = DateTime.UtcNow - within;
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.ScrapeEvents
+                .CountAsync(e => e.Timestamp >= since, cancellationToken).ConfigureAwait(false);
+        }
+
         private ClinicalTrialsContext CreateContext()
         {
             return new(_options);

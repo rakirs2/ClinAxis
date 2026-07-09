@@ -66,6 +66,46 @@ app.MapGet("/api/stats", async () =>
     });
 });
 
+app.MapGet("/api/telemetry", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+
+    var studies = await repo.CountStudiesAsync();
+    var investigators = await repo.CountInvestigatorsAsync();
+    var pubmedPapers = await repo.CountPubmedStudiesAsync();
+    var keywords = await repo.CountKeywordsAsync();
+    var authors = await repo.CountAuthorsAsync();
+
+    List<PipelineRunEntity> recentRuns = await repo.GetPipelineRunsAsync(1, 5);
+    IReadOnlyList<ScrapeEventEntity> recentEvents = await repo.GetRecentScrapeEventsAsync(20);
+
+    return Results.Ok(new
+    {
+        db = new
+        {
+            totalStudies = studies,
+            totalInvestigators = investigators,
+            totalPubmedPapers = pubmedPapers,
+            totalKeywords = keywords,
+            totalAuthors = authors
+        },
+        pipelineRuns = recentRuns.Select(r => StudyMapper.ToPipelineRun(r)),
+        recentEvents = recentEvents.Select(e => new
+        {
+            id = e.Id,
+            pipelineRunId = e.PipelineRunId,
+            timestamp = e.Timestamp,
+            source = e.Source,
+            eventType = e.EventType,
+            level = e.Level,
+            durationMs = e.DurationMs,
+            recordsAffected = e.RecordsAffected,
+            message = e.Message,
+            httpStatusCode = e.HttpStatusCode
+        })
+    });
+});
+
 app.MapGet("/api/aggregations", async () =>
 {
     var repo = new StudyRepository(connectionString);
