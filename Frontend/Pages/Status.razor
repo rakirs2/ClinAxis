@@ -1,0 +1,154 @@
+@page "/status"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>System Status</h1>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@if (loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+
+@if (dbStats is not null)
+{
+    <h3 class="mt-4">Database</h3>
+    <table class="table table-sm" style="max-width: 400px">
+        <tbody>
+            <tr><th>Studies</th><td>@dbStats.totalStudies</td></tr>
+            <tr><th>Investigators</th><td>@dbStats.totalInvestigators</td></tr>
+            <tr><th>PubMed Papers</th><td>@dbStats.totalPubmedPapers</td></tr>
+            <tr><th>Keywords</th><td>@dbStats.totalKeywords</td></tr>
+            <tr><th>Authors</th><td>@dbStats.totalAuthors</td></tr>
+        </tbody>
+    </table>
+}
+
+@if (pipelineStats is not null)
+{
+    <h3 class="mt-4">Pipeline</h3>
+    <table class="table table-sm" style="max-width: 600px">
+        <tbody>
+            <tr><th>Total Runs</th><td>@pipelineStats.totalRuns</td></tr>
+            <tr><th>Last Run</th><td>@pipelineStats.lastRunId</td></tr>
+            <tr><th>Status</th><td><span class="badge bg-@(pipelineStats.lastRunStatus == "Completed" ? "success" : pipelineStats.lastRunStatus == "Failed" ? "danger" : "warning")">@pipelineStats.lastRunStatus</span></td></tr>
+            <tr><th>Started</th><td>@pipelineStats.lastRunStarted</td></tr>
+            <tr><th>Studies Ingested</th><td>@pipelineStats.lastRunStudies</td></tr>
+            <tr><th>Investigators</th><td>@pipelineStats.lastRunInvestigators</td></tr>
+            <tr><th>PubMed Papers</th><td>@pipelineStats.lastRunPubmed</td></tr>
+        </tbody>
+    </table>
+}
+
+@if (aggStats is not null)
+{
+    <h3 class="mt-4">Aggregations</h3>
+    <table class="table table-sm" style="max-width: 400px">
+        <tbody>
+            <tr><th>PI Aggregations</th><td>@aggStats.piAggregationCount</td></tr>
+            <tr><th>Category Aggregations</th><td>@aggStats.categoryAggregationCount</td></tr>
+        </tbody>
+    </table>
+
+    @if (aggStats.categoryAggregationsByType is not null)
+    {
+        <h5 class="mt-3">By Type</h5>
+        <table class="table table-sm" style="max-width: 400px">
+            <thead><tr><th>Type</th><th>Count</th></tr></thead>
+            <tbody>
+                @foreach (var kv in aggStats.categoryAggregationsByType)
+                {
+                    <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private DbStats? dbStats;
+    private PipelineStats? pipelineStats;
+    private AggStats? aggStats;
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            dbStats = await Client.GetFromJsonAsync<DbStats>("/api/stats");
+            var pipelineData = await Client.GetFromJsonAsync<PipelineResponse>("/api/pipeline-runs?page=1&pageSize=1");
+            if (pipelineData?.data?.Count > 0)
+            {
+                var last = pipelineData.data[0];
+                pipelineStats = new PipelineStats
+                {
+                    totalRuns = 0,
+                    lastRunId = last.id,
+                    lastRunStatus = last.status ?? "",
+                    lastRunStarted = last.startedAt?.ToString("yyyy-MM-dd HH:mm") ?? "",
+                    lastRunStudies = last.totalStudies,
+                    lastRunInvestigators = last.totalInvestigators,
+                    lastRunPubmed = last.totalPubmedPapers
+                };
+            }
+            aggStats = await Client.GetFromJsonAsync<AggStats>("/api/aggregations");
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load status: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private class DbStats
+    {
+        public int totalStudies { get; set; }
+        public int totalInvestigators { get; set; }
+        public int totalPubmedPapers { get; set; }
+        public int totalKeywords { get; set; }
+        public int totalAuthors { get; set; }
+    }
+
+    private class PipelineStats
+    {
+        public int totalRuns { get; set; }
+        public int lastRunId { get; set; }
+        public string lastRunStatus { get; set; } = "";
+        public string lastRunStarted { get; set; } = "";
+        public int? lastRunStudies { get; set; }
+        public int? lastRunInvestigators { get; set; }
+        public int? lastRunPubmed { get; set; }
+    }
+
+    private class PipelineResponse
+    {
+        public List<PipelineRunItem>? data { get; set; }
+    }
+
+    private class PipelineRunItem
+    {
+        public int id { get; set; }
+        public string? status { get; set; }
+        public DateTime? startedAt { get; set; }
+        public int? totalStudies { get; set; }
+        public int? totalInvestigators { get; set; }
+        public int? totalPubmedPapers { get; set; }
+    }
+
+    private class AggStats
+    {
+        public int piAggregationCount { get; set; }
+        public int categoryAggregationCount { get; set; }
+        public Dictionary<string, int>? categoryAggregationsByType { get; set; }
+    }
+}

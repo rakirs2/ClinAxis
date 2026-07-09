@@ -4,9 +4,12 @@ using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://0.0.0.0:5000");
+builder.WebHost.UseUrls("http://0.0.0.0:5003");
 
 var connectionString = ConnectionStringProvider.Default;
+
+var startupRepo = new StudyRepository(connectionString);
+await startupRepo.EnsureSchemaAsync();
 
 WebApplication app = builder.Build();
 
@@ -63,4 +66,22 @@ app.MapGet("/api/stats", async () =>
     });
 });
 
-app.Run();
+app.MapGet("/api/aggregations", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var piCount = await repo.CountPiAggregationsAsync();
+    IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
+    Dictionary<string, int> categoryDict = new();
+    foreach (CategoryTypeCount c in categoryByType)
+    {
+        categoryDict[c.CategoryType] = c.Count;
+    }
+    return Results.Ok(new
+    {
+        piAggregationCount = piCount,
+        categoryAggregationCount = categoryByType.Sum(c => c.Count),
+        categoryAggregationsByType = categoryDict
+    });
+});
+
+await app.RunAsync();
