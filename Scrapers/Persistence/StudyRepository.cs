@@ -232,6 +232,8 @@ namespace Scrapers.Persistence
         public async Task ClearAsync(CancellationToken cancellationToken = default)
         {
             await using ClinicalTrialsContext context = CreateContext();
+            context.PiAggregations.RemoveRange(context.PiAggregations);
+            context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
             context.StudyAuthors.RemoveRange(context.StudyAuthors);
             context.StudyKeywords.RemoveRange(context.StudyKeywords);
             context.StudyConditions.RemoveRange(context.StudyConditions);
@@ -263,6 +265,43 @@ namespace Scrapers.Persistence
         {
             await using ClinicalTrialsContext context = CreateContext();
             return await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesWithAuthorsAsync(CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.PubmedStudies
+                .Include(p => p.Study)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies
+                .Include(s => s.Investigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.PubmedStudies)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task ReplacePiAggregationsAsync(IReadOnlyList<PiAggregationEntity> aggregations, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            context.PiAggregations.RemoveRange(context.PiAggregations);
+            context.PiAggregations.AddRange(aggregations);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task ReplaceCategoryAggregationsAsync(IReadOnlyList<CategoryAggregationEntity> aggregations, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
+            context.CategoryAggregations.AddRange(aggregations);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         private ClinicalTrialsContext CreateContext()
