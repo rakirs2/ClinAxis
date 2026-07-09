@@ -50,7 +50,7 @@ dotnet_style_qualification_for_event = false:error
 # CA suppressions
 dotnet_diagnostic.CA1303.severity = none
 dotnet_diagnostic.CA1848.severity = none
-dotnet_diagnostic.CA1031.severity = warning
+dotnet_diagnostic.CA1031.severity = none
 dotnet_diagnostic.CA2007.severity = none
 dotnet_diagnostic.CA1724.severity = none
 
