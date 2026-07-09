@@ -288,6 +288,84 @@ namespace Scrapers.Persistence
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<IReadOnlyList<StudyEntity>> GetStudiesPagedAsync(int page, int pageSize, string? search = null, string? status = null, string? phase = null, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            IQueryable<StudyEntity> query = context.Studies
+                .Include(s => s.Investigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.PubmedStudies)
+                .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(s =>
+                    (s.BriefTitle != null && s.BriefTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    (s.OfficialTitle != null && s.OfficialTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    (s.BriefSummary != null && s.BriefSummary.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    s.NctId.Contains(search, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(phase))
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase == phase));
+            }
+
+            return await query
+                .OrderByDescending(s => s.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountStudiesFilteredAsync(string? search = null, string? status = null, string? phase = null, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            IQueryable<StudyEntity> query = context.Studies.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(s =>
+                    (s.BriefTitle != null && s.BriefTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    (s.OfficialTitle != null && s.OfficialTitle.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    (s.BriefSummary != null && s.BriefSummary.Contains(search, StringComparison.OrdinalIgnoreCase)) ||
+                    s.NctId.Contains(search, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(s => s.OverallStatus != null && s.OverallStatus == status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(phase))
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase == phase));
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<StudyEntity?> GetStudyByNctIdAsync(string nctId, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies
+                .Include(s => s.Investigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.PubmedStudies)
+                .Include(s => s.Authors)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.NctId == nctId, cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task ReplacePiAggregationsAsync(IReadOnlyList<PiAggregationEntity> aggregations, CancellationToken cancellationToken = default)
         {
             await using ClinicalTrialsContext context = CreateContext();
