@@ -45,6 +45,59 @@ public class ClinicalTrialsGov
         return await GetTrialsInternalAsync(count, payload => payload.ToRecord(), cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<int> GetTrialRecordsBatchedAsync(int count, Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onBatch);
+
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        var totalFetched = 0;
+        string? pageToken = null;
+
+        while (totalFetched < count)
+        {
+            StudyListResponse response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
+            List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
+            if (studies.Count == 0)
+            {
+                break;
+            }
+
+            var batch = new List<ClinicalTrialRecord>(studies.Count);
+            foreach (StudyListResponse.StudyPayload studyPayload in studies)
+            {
+                ClinicalTrialRecord? item = studyPayload.ToRecord();
+                if (item is null)
+                {
+                    continue;
+                }
+                batch.Add(item);
+                totalFetched++;
+                if (totalFetched >= count)
+                {
+                    break;
+                }
+            }
+
+            if (batch.Count > 0)
+            {
+                await onBatch(batch).ConfigureAwait(false);
+            }
+
+            if (totalFetched >= count || string.IsNullOrWhiteSpace(response.NextPageToken))
+            {
+                break;
+            }
+
+            pageToken = response.NextPageToken;
+        }
+
+        return totalFetched;
+    }
+
     private async Task<IReadOnlyList<T>> GetTrialsInternalAsync<T>(int count, Func<StudyListResponse.StudyPayload, T?> projector, CancellationToken cancellationToken)
     {
         if (count <= 0)

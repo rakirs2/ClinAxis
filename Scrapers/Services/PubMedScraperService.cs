@@ -34,7 +34,7 @@ namespace Scrapers.Services
             await using (var context = new ClinicalTrialsContext(contextOptions))
             {
                 var studiesWithPmids = await context.Studies
-                    .Where(s => !s.IsIncomplete)
+                    .Where(s => !s.IsIncomplete && s.OverallStatus != "COMPLETED")
                     .Select(s => new { s.NctId })
                     .ToListAsync(cancellationToken).ConfigureAwait(false);
 
