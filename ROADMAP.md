@@ -134,6 +134,32 @@ This document outlines all planned PRs for the MVP. Each PR is tied to a GitHub 
 
 ---
 
+### Issue #17 — PR 8: CMS Medicare provider cross-reference pipeline (PLANNED)
+
+**Goal:** Cross-reference Principal Investigators from ClinicalTrials.gov with CMS Medicare provider data to identify PIs serving specific patient demographics, geographies, and procedure types.
+
+**Data Sources:**
+- **NPPES NPI Registry** (API) — map PI name/affiliation → NPI
+- **Medicare Physician & Other Practitioners** (by Provider, CSV via data.cms.gov) — NPI-level: specialty, geography, beneficiary demographics (age, race, dual-eligible), service counts, HCPCS codes
+
+**Proposed Changes:**
+- New `CmsScraper/` project:
+  - `NpiResolverService` — queries NPPES API to resolve PI names → NPIs
+  - `CmsProviderService` — downloads/imports CMS Provider CSV into PostgreSQL
+  - `CmsProviderEntity` — stores provider NPI, specialty, address, beneficiary demographics
+  - `PiNpiMappingEntity` — stores resolved PI name → NPI mappings
+- Repository methods for CMS provider queries (by NPI, geography, specialty)
+- New DataApi endpoints: `GET /api/pi-provider-enrichment`, `GET /api/cms-providers?geo=...&demo=...`
+- Frontend Status page updated to show CMS cross-reference counts
+- Unit tests + integration tests following existing conventions
+
+**Open Questions:**
+- Should the CMS CSV (~2GB) be pre-processed before import, or import full dataset?
+- How to handle PIs without NPI matches (non-US investigators)?
+- What's the MVP scope of enriched queries on the Status page?
+
+---
+
 ## Development Flow
 
 1. **All work on feature branches** from `main`
@@ -151,6 +177,6 @@ export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_tr
 dotnet run --project DataAggregators/ -- --count 50
 
 # API + Frontend (separate terminals)
-dotnet run --project DataApi/ --urls "http://localhost:5000"
+dotnet run --project DataApi/
 dotnet run --project Frontend/ --urls "http://localhost:5001"
 ```

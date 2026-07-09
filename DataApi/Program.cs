@@ -63,4 +63,22 @@ app.MapGet("/api/stats", async () =>
     });
 });
 
+app.MapGet("/api/aggregations", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var piCount = await repo.CountPiAggregationsAsync();
+    IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
+    Dictionary<string, int> categoryDict = new();
+    foreach (CategoryTypeCount c in categoryByType)
+    {
+        categoryDict[c.CategoryType] = c.Count;
+    }
+    return Results.Ok(new
+    {
+        piAggregationCount = piCount,
+        categoryAggregationCount = categoryByType.Sum(c => c.Count),
+        categoryAggregationsByType = categoryDict
+    });
+});
+
 app.Run();
