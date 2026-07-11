@@ -49,6 +49,12 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 
+# Agent planning folder (local use only, not tracked in git)
+.opencode/
+
+# EF Core auto-generated migration designer files
+*.Designer.cs
+
 # MSBuild Binary and Structured Log
 *.binlog
 
