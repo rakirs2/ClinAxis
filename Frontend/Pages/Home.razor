@@ -27,30 +27,23 @@
             <div class="row">
                 <div class="col-md-6">
                     <label class="form-label">Status</label>
-                    <select multiple @bind="selectedStatuses" class="form-select" size="4">
-                        <option value="">-- Any Status --</option>
-                        <option value="RECRUITING">Recruiting</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="ENROLLING_BY_INVITATION">Enrolling by Invitation</option>
-                        <option value="NOT_YET_RECRUITING">Not Yet Recruiting</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="TERMINATED">Terminated</option>
-                        <option value="SUSPENDED">Suspended</option>
-                        <option value="WITHDRAWN">Withdrawn</option>
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                    <div class="d-flex flex-column">
+                        <label><input type="checkbox" value="RECRUITING" @onchange="@((ChangeEventArgs e) => ToggleStatus("RECRUITING", (bool)e.Value!))" /> Recruiting</label>
+                        <label><input type="checkbox" value="ACTIVE" @onchange="@((ChangeEventArgs e) => ToggleStatus("ACTIVE", (bool)e.Value!))" /> Active</label>
+                        <label><input type="checkbox" value="COMPLETED" @onchange="@((ChangeEventArgs e) => ToggleStatus("COMPLETED", (bool)e.Value!))" /> Completed</label>
+                        <label><input type="checkbox" value="TERMINATED" @onchange="@((ChangeEventArgs e) => ToggleStatus("TERMINATED", (bool)e.Value!))" /> Terminated</label>
+                        <label><input type="checkbox" value="SUSPENDED" @onchange="@((ChangeEventArgs e) => ToggleStatus("SUSPENDED", (bool)e.Value!))" /> Suspended</label>
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Phase</label>
-                    <select multiple @bind="selectedPhases" class="form-select" size="4">
-                        <option value="">-- Any Phase --</option>
-                        <option value="Phase 1">Phase 1</option>
-                        <option value="Phase 2">Phase 2</option>
-                        <option value="Phase 3">Phase 3</option>
-                        <option value="Phase 4">Phase 4</option>
-                        <option value="Early Phase 1">Early Phase 1</option>
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                    <div class="d-flex flex-column">
+                        <label><input type="checkbox" value="Phase 1" @onchange="@((ChangeEventArgs e) => TogglePhase("Phase 1", (bool)e.Value!))" /> Phase 1</label>
+                        <label><input type="checkbox" value="Phase 2" @onchange="@((ChangeEventArgs e) => TogglePhase("Phase 2", (bool)e.Value!))" /> Phase 2</label>
+                        <label><input type="checkbox" value="Phase 3" @onchange="@((ChangeEventArgs e) => TogglePhase("Phase 3", (bool)e.Value!))" /> Phase 3</label>
+                        <label><input type="checkbox" value="Phase 4" @onchange="@((ChangeEventArgs e) => TogglePhase("Phase 4", (bool)e.Value!))" /> Phase 4</label>
+                        <label><input type="checkbox" value="Early Phase 1" @onchange="@((ChangeEventArgs e) => TogglePhase("Early Phase 1", (bool)e.Value!))" /> Early Phase 1</label>
+                    </div>
                 </div>
             </div>
 
@@ -249,7 +242,7 @@ else if (studies is not null)
     private List<string>? availableCountries;
     private List<string>? availableStates;
 
-    private bool showFilters = false;
+    private bool showFilters = true;
 
     private int currentPage = 1;
     private int pageSize = 20;
@@ -297,6 +290,22 @@ else if (studies is not null)
     private void ToggleFilters()
     {
         showFilters = !showFilters;
+    }
+
+    private void ToggleStatus(string status, bool isChecked)
+    {
+        if (isChecked && !selectedStatuses.Contains(status))
+            selectedStatuses.Add(status);
+        else if (!isChecked)
+            selectedStatuses.Remove(status);
+    }
+
+    private void TogglePhase(string phase, bool isChecked)
+    {
+        if (isChecked && !selectedPhases.Contains(phase))
+            selectedPhases.Add(phase);
+        else if (!isChecked)
+            selectedPhases.Remove(phase);
     }
 
     private void OnConditionInput(KeyboardEventArgs e)
