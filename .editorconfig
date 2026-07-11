@@ -75,7 +75,6 @@ generated_code = true
 
 # Test infrastructure — suppress overly strict rules for test utility files
 [Scrapers/Testing/*.cs]
-dotnet_diagnostic.IDE0008.severity = none
 dotnet_diagnostic.CA2025.severity = none
 dotnet_diagnostic.IDE0032.severity = none
 dotnet_diagnostic.CA2100.severity = none

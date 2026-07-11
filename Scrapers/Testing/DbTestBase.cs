@@ -10,14 +10,14 @@ namespace Scrapers.Testing;
 public abstract class DbTestBase
 {
     private static PostgreSqlContainer? _container;
-    private static readonly Lazy<Task> _initialize = new(InitializeAsync);
+    private static readonly Lazy<Task> Initialize = new(InitializeAsync);
     private static string _adminConnectionString = "";
     protected string ConnectionString { get; private set; } = "";
     protected ClinicalTrialsContext Context { get; private set; } = null!;
 
     private static async Task InitializeAsync()
     {
-        var container = new PostgreSqlBuilder()
+        PostgreSqlContainer container = new PostgreSqlBuilder()
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
@@ -29,7 +29,7 @@ public abstract class DbTestBase
     [TestInitialize]
     public async Task Init()
     {
-        await _initialize.Value;
+        await Initialize.Value;
 
         // Each test method gets its own database for isolation
         // (StudyRepository creates its own connections, so txn rollback won't cover it)
@@ -40,7 +40,7 @@ public abstract class DbTestBase
         };
         await using var adminConn = new NpgsqlConnection(adminBuilder.ConnectionString);
         await adminConn.OpenAsync();
-        await using var createCmd = adminConn.CreateCommand();
+        await using NpgsqlCommand createCmd = adminConn.CreateCommand();
         createCmd.CommandText = $"CREATE DATABASE \"{dbName}\"";
         await createCmd.ExecuteNonQueryAsync();
 
@@ -50,7 +50,7 @@ public abstract class DbTestBase
         }.ConnectionString;
 
         // Run migrations on this fresh database
-        var opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         await using var ctx = new ClinicalTrialsContext(opts);
         await ctx.Database.MigrateAsync();

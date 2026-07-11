@@ -37,6 +37,9 @@ This repository has strict expectations for automated or human agents contributi
 ## GitHub Actions
 - CI must run `dotnet build` and `dotnet test` on every push and pull request, covering unit, API integration, and PostgreSQL integration tests.
 
+## Style Enforcement
+- **`.editorconfig`** is the sole authority for all C# style rules (`IDE*` diagnostics). Never suppress `IDE*` in `.csproj` `<NoWarn>` — that creates a split-brain between Rider and `dotnet build`. Project-specific `<NoWarn>` is reserved for non-style warnings only (CA\*, NU\*, CS\*).
+
 ## Branching Workflow
 - Always create new branches off `origin/main` (`git fetch origin main && git checkout origin/main -b feature/<name>`), not your local stale `main`. This ensures you start from the latest merged state.
 - After branching, run `dotnet restore` and `dotnet build` once before making any changes to confirm the base compiles cleanly.
