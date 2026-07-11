@@ -8,7 +8,7 @@ builder.Services.AddRazorComponents();
 WebApplication app = builder.Build();
 
 app.UseAntiforgery();
-app.UseStaticFiles();
+app.MapStaticAssets();
 
 app.MapGet("/api-proxy/studies", async (int? page, int? pageSize, string? search, string? status, string? phase) =>
 {
