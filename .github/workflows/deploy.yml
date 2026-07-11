@@ -82,7 +82,7 @@ jobs:
            # Remove old current directory if it exists
            ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
              "rm -rf /var/www/ct-data/current 2>/dev/null || true"
-           # Create fresh directory
+            # Create fresh directory
             ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
               "mkdir -p /var/www/ct-data/current"
             # Copy binaries (use absolute paths to ensure files are found)
