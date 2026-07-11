@@ -103,20 +103,20 @@ jobs:
           echo "Waiting 15 seconds for application to fully initialize..."
           sleep 15
           for i in {1..10}; do
-            echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}/health"
-            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" http://${{ secrets.DEPLOY_HOST }}/health 2>&1)
+            echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}:5001/health (Frontend)"
+            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" http://${{ secrets.DEPLOY_HOST }}:5001/health 2>&1)
             HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -1)
             BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
             echo "Response code: $HTTP_CODE"
             echo "Response body: $BODY"
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "Health check passed - application is healthy (HTTP $HTTP_CODE)"
+              echo "Health check passed - Frontend is healthy (HTTP $HTTP_CODE)"
               exit 0
             fi
-            echo "Application not yet healthy. Retrying in 5s..."
+            echo "Frontend not yet healthy. Retrying in 5s..."
             sleep 5
           done
-          echo "Health check failed after 10 attempts - application did not become healthy"
+          echo "Health check failed after 10 attempts - Frontend did not become healthy"
           exit 1
 
       - name: Promote (cleanup rollback)
