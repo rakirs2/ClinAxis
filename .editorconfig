@@ -6,6 +6,12 @@ indent_size = 4
 insert_final_newline = true
 charset = utf-8-bom
 
+# YAML files (GitHub Actions workflows)
+[*.yml]
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+
 # Naming (enforced by Rider natively — .editorconfig naming rules removed to avoid AD0001 crashes)
 dotnet_diagnostic.IDE1006.severity = warning
 
