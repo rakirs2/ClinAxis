@@ -91,3 +91,8 @@ dotnet_diagnostic.IDE0051.severity = none
 dotnet_diagnostic.IDE0052.severity = none
 resharper_unused_member_highlighting = none
 resharper_unused_member_global_highlighting = none
+
+# Test files - suppress naming rules and string comparison rules for test methods
+[*Tests*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1307.severity = none
