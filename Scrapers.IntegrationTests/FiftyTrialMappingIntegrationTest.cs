@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
-using Scrapers.IntegrationTests.Utilities;
+using Scrapers.Testing;
 using Scrapers.Persistence.Entities;
 using System;
 using System.Linq;
@@ -9,7 +9,7 @@ using System.Linq;
 namespace Scrapers.IntegrationTests;
 
 [TestClass]
-public class FiftyTrialMappingIntegrationTest : EphemeralDbTestBase
+public class FiftyTrialMappingIntegrationTest : DbTestBase
 {
     [TestMethod]
     public async Task Run_50_Trials_And_Report_Counts()

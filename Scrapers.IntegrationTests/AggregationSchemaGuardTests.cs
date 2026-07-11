@@ -2,19 +2,20 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
-using Scrapers.IntegrationTests.Helpers;
+using Scrapers.Testing;
 
 namespace Scrapers.IntegrationTests;
 
 [TestClass]
-public sealed class AggregationSchemaGuardTests
+public sealed class AggregationSchemaGuardTests : DbTestBase
 {
     [TestMethod]
     [TestCategory("Integration")]
     public async Task PiAggregationsTable_HasRequiredColumns()
     {
-        DbContextOptions<ClinicalTrialsContext> options = PostgresTestHelper.CreateOptions();
-        await using var context = new ClinicalTrialsContext(options);
+        DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
+            .UseNpgsql(ConnectionString).Options;
+        await using var context = new ClinicalTrialsContext(opts);
         await context.Database.MigrateAsync();
 
         DbConnection connection = context.Database.GetDbConnection();
@@ -46,8 +47,9 @@ public sealed class AggregationSchemaGuardTests
     [TestCategory("Integration")]
     public async Task CategoryAggregationsTable_HasRequiredColumns()
     {
-        DbContextOptions<ClinicalTrialsContext> options = PostgresTestHelper.CreateOptions();
-        await using var context = new ClinicalTrialsContext(options);
+        DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
+            .UseNpgsql(ConnectionString).Options;
+        await using var context = new ClinicalTrialsContext(opts);
         await context.Database.MigrateAsync();
 
         DbConnection connection = context.Database.GetDbConnection();

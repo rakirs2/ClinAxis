@@ -3,40 +3,22 @@ using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
-using Scrapers.IntegrationTests.Helpers;
+using Scrapers.Testing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Scrapers.IntegrationTests;
 
 [TestClass]
-public sealed class AggregationIntegrationTests
+public sealed class AggregationIntegrationTests : DbTestBase
 {
-    private StudyRepository _repository = null!;
-    private ClinicalTrialsContext _context = null!;
-
-    [TestInitialize]
-    public async Task InitializeAsync()
-    {
-        _repository = new StudyRepository(PostgresTestHelper.ConnectionString);
-        await _repository.EnsureSchemaAsync();
-        await PostgresTestHelper.ClearDatabaseAsync();
-
-        DbContextOptions<ClinicalTrialsContext> options = PostgresTestHelper.CreateOptions();
-        _context = new ClinicalTrialsContext(options);
-    }
-
-    [TestCleanup]
-    public async Task CleanupAsync()
-    {
-        await _context.DisposeAsync();
-    }
-
     [TestMethod]
     [TestCategory("Integration")]
     public async Task AggregateAsync_ComputesPiCounts()
     {
-        ClinicalTrialRecord[] records = new[]
-        {
+        var repository = new StudyRepository(ConnectionString);
+
+        ClinicalTrialRecord[] records =
+        [
             CreateRecord("NCT00000001", "Study Alpha", "RECRUITING",
                 new Investigator { Name = "Alice Smith", Affiliation = "Acme", Role = "PI" },
                 new Investigator { Name = "Bob Jones", Affiliation = "Acme", Role = "SUB_I" }),
@@ -44,14 +26,14 @@ public sealed class AggregationIntegrationTests
                 new Investigator { Name = "Alice Smith", Affiliation = "Acme", Role = "PI" }),
             CreateRecord("NCT00000003", "Study Gamma", "ACTIVE",
                 new Investigator { Name = "Carol White", Affiliation = "Beta Corp", Role = "PI" })
-        };
+        ];
 
-        await _repository.UpdateStudiesWithClinicalTrialsAsync(records);
+        await repository.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        var service = new AggregationService(_repository);
+        var service = new AggregationService(repository);
         await service.AggregateAsync();
 
-        List<PiAggregationEntity> piRows = await _context.PiAggregations
+        List<PiAggregationEntity> piRows = await Context.PiAggregations
             .OrderByDescending(p => p.StudyCount)
             .ToListAsync();
 
@@ -76,24 +58,26 @@ public sealed class AggregationIntegrationTests
     [TestCategory("Integration")]
     public async Task AggregateAsync_ComputesCategoryCounts()
     {
-        ClinicalTrialRecord[] records = new[]
-        {
+        var repository = new StudyRepository(ConnectionString);
+
+        ClinicalTrialRecord[] records =
+        [
             CreateRecord("NCT00000001", "Heart Study", "RECRUITING",
-                "CARDIOLOGY", new[] { "cardiac-risk", "heart-failure" },
-                new[] { "PHASE3" },
+                "CARDIOLOGY", ["cardiac-risk", "heart-failure"],
+                ["PHASE3"],
                 new Investigator { Name = "Alice Smith", Affiliation = "Acme", Role = "PI" }),
             CreateRecord("NCT00000002", "Diabetes Study", "COMPLETED",
-                "DIABETES", new[] { "insulin-therapy", "hypertension" },
-                new[] { "PHASE2" },
+                "DIABETES", ["insulin-therapy", "hypertension"],
+                ["PHASE2"],
                 new Investigator { Name = "Bob Jones", Affiliation = "Acme", Role = "PI" })
-        };
+        ];
 
-        await _repository.UpdateStudiesWithClinicalTrialsAsync(records);
+        await repository.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        var service = new AggregationService(_repository);
+        var service = new AggregationService(repository);
         await service.AggregateAsync();
 
-        List<CategoryAggregationEntity> catRows = await _context.CategoryAggregations
+        List<CategoryAggregationEntity> catRows = await Context.CategoryAggregations
             .OrderByDescending(c => c.StudyCount)
             .ToListAsync();
 
@@ -123,7 +107,7 @@ public sealed class AggregationIntegrationTests
             BriefTitle = title,
             OverallStatus = status,
             OverallOfficials = investigators.ToList(),
-            Conditions = new List<string> { condition },
+            Conditions = [condition],
             Keywords = keywords.ToList(),
             Phases = phases.ToList()
         };

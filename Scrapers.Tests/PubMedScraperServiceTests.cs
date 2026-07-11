@@ -1,7 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
-using Scrapers.Tests.Utilities;
+using Scrapers.Testing;
 using System;
 using System.Linq;
 using System.Net.Http;
@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Scrapers.Tests
 {
     [TestClass]
-    public class PubMedScraperServiceTests : EphemeralDbTestBase
+    public class PubMedScraperServiceTests : DbTestBase
     {
         [TestMethod]
         public async Task IngestPubMedPapersAsync_DoesNotInsertDuplicatePmids()

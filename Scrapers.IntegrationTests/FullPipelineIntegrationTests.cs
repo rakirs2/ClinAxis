@@ -5,12 +5,12 @@ using Scrapers.Services;
 using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Scrapers.IntegrationTests.Utilities;
+using Scrapers.Testing;
 
 namespace Scrapers.IntegrationTests
 {
     [TestClass]
-    public class FullPipelineIntegrationTests : EphemeralDbTestBase
+    public class FullPipelineIntegrationTests : DbTestBase
     {
         [TestMethod]
         public async Task FullScraperPipeline_RunsAndVerifiesDataAsync()

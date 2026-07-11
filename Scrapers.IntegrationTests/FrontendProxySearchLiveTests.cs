@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Scrapers.IntegrationTests.Helpers;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 
@@ -15,7 +14,7 @@ public sealed class FrontendProxySearchLiveTests
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _repo = new StudyRepository(PostgresTestHelper.ConnectionString);
+        _repo = new StudyRepository(ConnectionStringProvider.Default);
         await _repo.EnsureSchemaAsync();
     }
 
