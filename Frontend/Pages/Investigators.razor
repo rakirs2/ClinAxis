@@ -6,7 +6,7 @@
 
 <div class="row mb-3">
     <div class="col-md-6">
-        <input @bind="search" @bind:event="oninput" class="form-control" placeholder="Search by investigator name"
+        <input @bind="search" @bind:event="oninput" @oninput="OnSearchInput" class="form-control" placeholder="Search by investigator name"
                @onkeydown="HandleKeyDown" />
     </div>
     <div class="col-md-2">
@@ -86,6 +86,12 @@ else if (investigators is not null)
     protected override async Task OnInitializedAsync()
     {
         // Load all investigators on page initialization
+        await LoadPage(1);
+    }
+
+    private async Task OnSearchInput()
+    {
+        // Trigger search automatically as user types
         await LoadPage(1);
     }
 
