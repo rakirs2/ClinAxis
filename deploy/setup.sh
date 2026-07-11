@@ -34,9 +34,9 @@ EOF
 echo "Creating deploy user..."
 useradd -m -s /bin/bash ct-deploy 2>/dev/null || true
 
-# Configure passwordless sudo for systemctl
+# Configure passwordless sudo for ct-deploy
 echo "Configuring sudo for ct-deploy..."
-echo "ct-deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart ct-data-api, /bin/systemctl restart ct-frontend, /bin/systemctl daemon-reload" | sudo tee /etc/sudoers.d/ct-deploy > /dev/null
+echo "ct-deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ct-deploy > /dev/null
 chmod 440 /etc/sudoers.d/ct-deploy
 
 # Create SSH key directory and add public key
