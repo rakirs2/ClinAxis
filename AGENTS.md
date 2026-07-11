@@ -99,7 +99,8 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - Deploy workflow (added in a future PR) runs only after CI passes, publishing to a DigitalOcean Droplet.
 
 ## Style Enforcement
-- **`.editorconfig`** is the sole authority for all C# style rules (`IDE*` diagnostics). Never suppress `IDE*` in `.csproj` `<NoWarn>` — that creates a split-brain between Rider and `dotnet build`. Project-specific `<NoWarn>` is reserved for non-style warnings only (CA\*, NU\*, CS\*).
+- **`.editorconfig`** is the sole authority for ALL code analysis, including both style (`IDE*`) and quality (`CA*`) rules. No `#pragma warning disable` anywhere in the codebase. No `<NoWarn>` in any `.csproj` file. If a rule fires, fix the code — do not suppress it.
+- When a public API surface is needed for testing (e.g., `partial class Program` for `WebApplicationFactory`), use `<InternalsVisibleTo>` in `.csproj` instead of making types `public` or suppressing CA1515.
 
 ## Branching Workflow
 - Always create new branches off `origin/main` (`git fetch origin main && git checkout origin/main -b feature/<name>`), not your local stale `main`. This ensures you start from the latest merged state.

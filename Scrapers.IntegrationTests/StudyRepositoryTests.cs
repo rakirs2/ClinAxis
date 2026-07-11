@@ -65,6 +65,23 @@ public sealed class StudyRepositoryTests : DbTestBase
     }
 
     [TestMethod]
+    public async Task SearchStudiesAsync_WithTwoStudies_OnlyPregabalinMatches()
+    {
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT00001001", "Pregabalin for Neuropathic Pain Relief Trial", "COMPLETED",
+                new Investigator { Name = "Eve Adams", Affiliation = "Pain Clinic", Role = "PRINCIPAL_INVESTIGATOR" }),
+            CreateRecord("NCT00001002", "Aspirin Cardiovascular Prevention Study", "RECRUITING",
+                new Investigator { Name = "Frank Lee", Role = "PRINCIPAL_INVESTIGATOR" }),
+        ];
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        IReadOnlyList<StudyEntity> results = await _repo.GetStudiesPagedAsync(1, 10, search: "Pregabalin");
+        Assert.AreEqual(1, results.Count);
+        Assert.AreEqual("NCT00001001", results[0].NctId);
+    }
+
+    [TestMethod]
     public async Task SearchStudiesAsync_FindsByStatusFilter()
     {
         ClinicalTrialRecord[] records =
