@@ -94,6 +94,38 @@ public class DatabaseSeeder
         "INTERVENTIONAL", "OBSERVATIONAL", "EXPANDED_ACCESS"
     ];
 
+    // Investigator name components for generating realistic names
+    private static readonly string[] FirstNames =
+    [
+        "James", "Sarah", "Michael", "Jennifer", "David", "Emma", "Robert", "Lisa",
+        "William", "Mary", "Richard", "Patricia", "Joseph", "Barbara", "Thomas", "Susan",
+        "Charles", "Jessica", "Christopher", "Sarah", "Daniel", "Karen", "Matthew", "Nancy",
+        "Anthony", "Margaret", "Mark", "Betty", "Donald", "Donna", "Steven", "Dorothy",
+        "Paul", "Carol", "Andrew", "Ruth", "Joshua", "Sharon", "Kenneth", "Anna",
+        "Kevin", "Brenda", "Brian", "Pamela", "George", "Nicole", "Edward", "Samantha"
+    ];
+
+    private static readonly string[] LastNames =
+    [
+        "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+        "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
+        "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
+        "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
+        "Young", "Allen", "King", "Wright", "Scott", "Torres", "Peterson", "Phillips",
+        "Campbell", "Parker", "Evans", "Edwards", "Collins", "Reeves", "Morris", "Murphy",
+        "Chen", "Kim", "Patel", "Singh"
+    ];
+
+    private static readonly string[] Titles =
+    [
+        "Dr.", "Prof.", "Prof. Dr."
+    ];
+
+    private static readonly string[] Degrees =
+    [
+        "MD", "PhD", "MD, PhD", "MSc", "MD, MSc", "DM"
+    ];
+
     public DatabaseSeeder(string connectionString)
     {
         _connectionString = connectionString;
@@ -128,6 +160,9 @@ public class DatabaseSeeder
         var randomWrapper = new SecureRandom(RandomSeed);
         var studies = new List<StudyEntity>();
         var usedNctIds = new HashSet<string>();
+
+        // Pre-generate a pool of 50-60 unique investigator names for reuse across studies
+        var investigatorPool = GenerateInvestigatorPool(50);
 
         for (int i = 0; i < count; i++)
         {
@@ -199,6 +234,42 @@ public class DatabaseSeeder
                 new() { Phase = phaseStr }
             };
 
+            // Create investigators (1 PI, 0-2 co-investigators)
+            var investigators = new List<InvestigatorEntity>();
+            var primaryAffiliation = locations[0].Facility ?? Facilities[randomWrapper.Next(Facilities.Length)];
+            
+            // Always add 1 principal investigator from the pool
+            var piName = investigatorPool[randomWrapper.Next(investigatorPool.Count)];
+            investigators.Add(new InvestigatorEntity
+            {
+                StudyNctId = nctId,
+                Name = piName,
+                Role = "PRINCIPAL_INVESTIGATOR",
+                Affiliation = primaryAffiliation
+            });
+
+            // Optionally add 0-2 co-investigators from the pool
+            int coInvestigatorCount = randomWrapper.Next(3); // 0, 1, or 2
+            var usedInvestigators = new HashSet<string> { piName };
+            for (int inv = 0; inv < coInvestigatorCount; inv++)
+            {
+                string coiName;
+                // Ensure we don't add the same investigator twice to the same study
+                do
+                {
+                    coiName = investigatorPool[randomWrapper.Next(investigatorPool.Count)];
+                } while (usedInvestigators.Contains(coiName));
+                usedInvestigators.Add(coiName);
+
+                investigators.Add(new InvestigatorEntity
+                {
+                    StudyNctId = nctId,
+                    Name = coiName,
+                    Role = "CO_INVESTIGATOR",
+                    Affiliation = primaryAffiliation
+                });
+            }
+
             // Create study
             var study = new StudyEntity
             {
@@ -210,6 +281,7 @@ public class DatabaseSeeder
                 EnrollmentCount = enrollment,
                 Conditions = conditions,
                 Locations = locations,
+                Investigators = investigators,
                 StudyType = AllStudyTypes[randomWrapper.Next(AllStudyTypes.Length)],
                 OfficialTitle = GenerateStudyTitle(i, Conditions[randomWrapper.Next(Conditions.Length)])
             };
@@ -218,6 +290,33 @@ public class DatabaseSeeder
         }
 
         return studies;
+    }
+
+    private static List<string> GenerateInvestigatorPool(int poolSize)
+    {
+        var randomWrapper = new SecureRandom(RandomSeed);
+        var pool = new HashSet<string>();
+        var attempts = 0;
+        const int maxAttempts = 1000; // Prevent infinite loop
+
+        while (pool.Count < poolSize && attempts < maxAttempts)
+        {
+            var name = GenerateInvestigatorName(randomWrapper);
+            pool.Add(name); // HashSet automatically prevents duplicates
+            attempts++;
+        }
+
+        return new List<string>(pool);
+    }
+
+    private static string GenerateInvestigatorName(SecureRandom randomWrapper)
+    {
+        var firstName = FirstNames[randomWrapper.Next(FirstNames.Length)];
+        var lastName = LastNames[randomWrapper.Next(LastNames.Length)];
+        var title = Titles[randomWrapper.Next(Titles.Length)];
+        var degree = Degrees[randomWrapper.Next(Degrees.Length)];
+
+        return $"{title} {firstName} {lastName}, {degree}";
     }
 
     private static string GenerateStudyTitle(int index, string condition)
