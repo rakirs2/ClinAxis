@@ -1,6 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
-using Scrapers.IntegrationTests.Utilities;
+using Scrapers.Testing;
 using Scrapers.Persistence;
 using Scrapers.Services;
 using System;
@@ -12,7 +12,7 @@ using Scrapers.Persistence.Entities;
 namespace Scrapers.IntegrationTests
 {
     [TestClass]
-    public class E2EPipelineIntegrationTests : EphemeralDbTestBase
+    public class E2EPipelineIntegrationTests : DbTestBase
     {
         [TestMethod]
         public async Task FullE2E_WithLiveApis_VerifiesDbState()

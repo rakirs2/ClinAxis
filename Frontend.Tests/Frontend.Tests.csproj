@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Frontend.Tests</RootNamespace>
-    <NoWarn>$(NoWarn);CS0618;CS0619;CA1515;IDE0008</NoWarn>
+    <NoWarn>$(NoWarn);CS0618;CS0619;CA1515</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
