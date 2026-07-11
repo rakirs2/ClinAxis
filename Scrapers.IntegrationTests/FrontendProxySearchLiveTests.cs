@@ -38,13 +38,13 @@ public sealed class FrontendProxySearchLiveTests
         };
         await _repo.UpdateStudiesWithClinicalTrialsAsync(new[] { record });
 
-        using var response = await Client.GetAsync(
+        using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5001/api-proxy/studies?search=pancreatic+cancer&page=1&pageSize=10"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
 
-        var data = doc.RootElement.GetProperty("data");
+        JsonElement data = doc.RootElement.GetProperty("data");
         Assert.IsTrue(data.GetArrayLength() > 0, "Proxy search should return at least one result");
 
         var found = data.EnumerateArray().Any(s =>
@@ -57,13 +57,13 @@ public sealed class FrontendProxySearchLiveTests
     [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task ProxySearch_ReturnsSameShapeAsDataApi()
     {
-        using var proxyResponse = await Client.GetAsync(
+        using HttpResponseMessage proxyResponse = await Client.GetAsync(
             new Uri("http://localhost:5001/api-proxy/studies?search=cancer&page=1&pageSize=2"));
         proxyResponse.EnsureSuccessStatusCode();
         var proxyBody = await proxyResponse.Content.ReadAsStringAsync();
         using var proxyDoc = JsonDocument.Parse(proxyBody);
 
-        using var apiResponse = await Client.GetAsync(
+        using HttpResponseMessage apiResponse = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?search=cancer&page=1&pageSize=2"));
         apiResponse.EnsureSuccessStatusCode();
         var apiBody = await apiResponse.Content.ReadAsStringAsync();

@@ -57,7 +57,7 @@ public sealed class DataApiSearchLiveTests
     [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_EmptySearchReturnsStudies()
     {
-        using var response = await Client.GetAsync(
+        using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?page=1&pageSize=5"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
@@ -74,13 +74,13 @@ public sealed class DataApiSearchLiveTests
     [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_ResponseShapeMatchesSchema()
     {
-        using var response = await Client.GetAsync(
+        using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?search=cancer&page=1&pageSize=1"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
 
-        var root = doc.RootElement;
+        JsonElement root = doc.RootElement;
         Assert.IsTrue(root.TryGetProperty("data", out JsonElement data));
         Assert.IsTrue(root.TryGetProperty("total", out _));
         Assert.IsTrue(root.TryGetProperty("page", out _));
@@ -89,7 +89,7 @@ public sealed class DataApiSearchLiveTests
 
         if (data.GetArrayLength() > 0)
         {
-            var study = data[0];
+            JsonElement study = data[0];
             Assert.IsTrue(study.TryGetProperty("nctId", out _));
             Assert.IsTrue(study.TryGetProperty("briefTitle", out _));
             Assert.IsTrue(study.TryGetProperty("overallStatus", out _));
