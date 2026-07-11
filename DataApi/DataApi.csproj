@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DataApi</RootNamespace>
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

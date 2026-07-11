@@ -156,7 +156,7 @@ public class ClinicalTrialsGov
 
                 if (response.IsSuccessStatusCode)
                 {
-                    await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                    using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
                     StudyListResponse? payload = await JsonSerializer.DeserializeAsync<StudyListResponse>(stream, _serializerOptions, cancellationToken)
                         .ConfigureAwait(false);
                     return payload ?? new StudyListResponse();

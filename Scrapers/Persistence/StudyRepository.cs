@@ -27,7 +27,7 @@ namespace Scrapers.Persistence
 
         public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -39,7 +39,7 @@ namespace Scrapers.Persistence
                 return 0;
             }
 
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -161,31 +161,31 @@ namespace Scrapers.Persistence
 
         public async Task<int> CountStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Studies.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Investigators.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountPubmedStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedStudies.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountKeywordsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.StudyKeywords.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountAuthorsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.StudyAuthors.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -193,7 +193,7 @@ namespace Scrapers.Persistence
         {
             ArgumentNullException.ThrowIfNull(run);
 
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.PipelineRuns.Add(run);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return run.Id;
@@ -203,7 +203,7 @@ namespace Scrapers.Persistence
             int? pubmedPapers = null, int? keywords = null, int? authors = null, string? errorMessage = null,
             CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             PipelineRunEntity? run = await context.PipelineRuns.FindAsync(new object[] { runId }, cancellationToken).ConfigureAwait(false);
             if (run != null)
             {
@@ -221,7 +221,7 @@ namespace Scrapers.Persistence
 
         public async Task<List<PipelineRunEntity>> GetPipelineRunsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PipelineRuns
                 .OrderByDescending(r => r.StartedAt)
                 .Skip((page - 1) * pageSize)
@@ -231,7 +231,7 @@ namespace Scrapers.Persistence
 
         public async Task ClearAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.PiAggregations.RemoveRange(context.PiAggregations);
             context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
             context.StudyAuthors.RemoveRange(context.StudyAuthors);
@@ -246,7 +246,7 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<StudyEntity>> GetStudiesWithInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
                 .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
@@ -257,19 +257,19 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedStudies.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<int>> GetInvestigatorIdsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesWithAuthorsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedStudies
                 .Include(p => p.Study)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -277,7 +277,7 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
                 .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
@@ -290,7 +290,7 @@ namespace Scrapers.Persistence
 
         public async Task<IReadOnlyList<StudyEntity>> GetStudiesPagedAsync(int page, int pageSize, string? search = null, string? status = null, string? phase = null, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             IQueryable<StudyEntity> query = context.Studies
                 .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
@@ -331,7 +331,7 @@ namespace Scrapers.Persistence
 
         public async Task<int> CountStudiesFilteredAsync(string? search = null, string? status = null, string? phase = null, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             IQueryable<StudyEntity> query = context.Studies.AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -362,7 +362,7 @@ namespace Scrapers.Persistence
 
         public async Task<StudyEntity?> GetStudyByNctIdAsync(string nctId, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
                 .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
@@ -376,13 +376,13 @@ namespace Scrapers.Persistence
 
         public async Task<int> CountPiAggregationsAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PiAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<CategoryTypeCount>> CountCategoryAggregationsByTypeAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             var raw = await context.CategoryAggregations
                 .GroupBy(c => c.CategoryType)
                 .Select(g => new { categoryType = g.Key, count = g.Count() })
@@ -394,7 +394,7 @@ namespace Scrapers.Persistence
 
         public async Task ReplacePiAggregationsAsync(IReadOnlyList<PiAggregationEntity> aggregations, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.PiAggregations.RemoveRange(context.PiAggregations);
             context.PiAggregations.AddRange(aggregations);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -402,7 +402,7 @@ namespace Scrapers.Persistence
 
         public async Task ReplaceCategoryAggregationsAsync(IReadOnlyList<CategoryAggregationEntity> aggregations, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
             context.CategoryAggregations.AddRange(aggregations);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -411,21 +411,21 @@ namespace Scrapers.Persistence
         public async Task AddScrapeEventAsync(ScrapeEventEntity evt, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(evt);
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.ScrapeEvents.Add(evt);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task AddScrapeEventsAsync(IEnumerable<ScrapeEventEntity> events, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             context.ScrapeEvents.AddRange(events);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<ScrapeEventEntity>> GetRecentScrapeEventsAsync(int limit = 50, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.ScrapeEvents
                 .OrderByDescending(e => e.Timestamp)
                 .Take(limit)
@@ -435,7 +435,7 @@ namespace Scrapers.Persistence
 
         public async Task<DateTime?> GetLastSuccessfulPipelineRunDateAsync(CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.PipelineRuns
                 .Where(r => r.Status == "Completed" || r.Status == "CompletedWithErrors")
                 .OrderByDescending(r => r.StartedAt)
@@ -447,7 +447,7 @@ namespace Scrapers.Persistence
             int page, int pageSize, string? search = null,
             CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
 
             IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
 
@@ -473,7 +473,7 @@ namespace Scrapers.Persistence
 
         public async Task<int> CountInvestigatorsFilteredAsync(string? search = null, CancellationToken cancellationToken = default)
         {
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
 
             IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
 
@@ -488,7 +488,7 @@ namespace Scrapers.Persistence
         public async Task<int> GetRecentScrapeEventCountAsync(TimeSpan within, CancellationToken cancellationToken = default)
         {
             DateTime since = DateTime.UtcNow - within;
-            await using ClinicalTrialsContext context = CreateContext();
+            using ClinicalTrialsContext context = CreateContext();
             return await context.ScrapeEvents
                 .CountAsync(e => e.Timestamp >= since, cancellationToken).ConfigureAwait(false);
         }
