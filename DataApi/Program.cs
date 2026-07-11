@@ -17,14 +17,60 @@ WebApplication app = builder.Build();
 
 app.MapHealthChecks("/health");
 
-app.MapGet("/api/studies", async (int? page, int? pageSize, string? search, string? status, string? phase) =>
+// New endpoints for autocomplete dropdowns
+app.MapGet("/api/distinct-conditions", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var conditions = await repo.GetDistinctConditionsAsync();
+    return Results.Ok(new { data = conditions });
+});
+
+app.MapGet("/api/distinct-locations", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync();
+    return Results.Ok(new
+    {
+        countries,
+        states,
+        cities,
+        facilities
+    });
+});
+
+// Enhanced search endpoint - accepts all StudySearchCriteria parameters
+app.MapGet("/api/studies", async (
+    int? page, int? pageSize,
+    string? search, string? status, string? phase,  // Legacy params
+    string? condition, string? country, string? state, string? city, string? facility,
+    int? enrollmentMin, int? enrollmentMax,
+    DateTime? startDateFrom, DateTime? startDateTo) =>
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
     var ps = Math.Clamp(pageSize ?? 20, 1, 100);
 
-    IReadOnlyList<StudyEntity> studies = await repo.GetStudiesPagedAsync(p, ps, search, status, phase);
-    var total = await repo.CountStudiesFilteredAsync(search, status, phase);
+    // Build StudySearchCriteria from query parameters
+    var criteria = new StudySearchCriteria
+    {
+        Keyword = search,
+        Statuses = string.IsNullOrEmpty(status) ? null : status.Split(',').Select(s => s.Trim()).ToList(),
+        Phases = string.IsNullOrEmpty(phase) ? null : phase.Split(',').Select(p => p.Trim()).ToList(),
+        Conditions = string.IsNullOrEmpty(condition) ? null : condition.Split(',').Select(c => c.Trim()).ToList(),
+        Countries = string.IsNullOrEmpty(country) ? null : country.Split(',').Select(c => c.Trim()).ToList(),
+        States = string.IsNullOrEmpty(state) ? null : state.Split(',').Select(s => s.Trim()).ToList(),
+        Cities = string.IsNullOrEmpty(city) ? null : city.Split(',').Select(c => c.Trim()).ToList(),
+        Facilities = string.IsNullOrEmpty(facility) ? null : facility.Split(',').Select(f => f.Trim()).ToList(),
+        EnrollmentMin = enrollmentMin,
+        EnrollmentMax = enrollmentMax,
+        StartDateFrom = startDateFrom,
+        StartDateTo = startDateTo,
+        Page = p,
+        PageSize = ps
+    };
+
+    IReadOnlyList<StudyEntity> studies = await repo.SearchStudiesAsync(criteria);
+    var total = await repo.CountStudiesFilteredAsync(criteria);
 
     return Results.Ok(new
     {

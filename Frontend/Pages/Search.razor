@@ -1,0 +1,506 @@
+@page "/search"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Web
+@inject IHttpClientFactory HttpClientFactory
+
+<h1>Advanced Study Search</h1>
+
+<!-- Filter Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <!-- Row 1: Keyword -->
+        <div class="mb-3">
+            <label class="form-label">Keywords</label>
+            <input @bind="filters.Keyword" class="form-control" 
+                   placeholder="Study title, description, or NCT ID">
+        </div>
+
+        <!-- Row 2: Status & Phase (two columns) -->
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Status</label>
+                <select multiple @bind="filters.SelectedStatuses" class="form-select" size="5">
+                    @foreach (var s in AvailableStatuses)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Phase</label>
+                <select multiple @bind="filters.SelectedPhases" class="form-select" size="5">
+                    @foreach (var p in AvailablePhases)
+                    {
+                        <option value="@p">@p</option>
+                    }
+                </select>
+                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+        </div>
+
+        <!-- Row 3: Conditions (autocomplete with chips) -->
+        <div class="mb-3">
+            <label class="form-label">Conditions</label>
+            <input @bind="conditionInput" 
+                   @onfocus="ShowConditionDropdown"
+                   @onkeyup="OnConditionInput"
+                   class="form-control" 
+                   placeholder="Type to search conditions...">
+            
+            <!-- Autocomplete dropdown -->
+            @if (showConditionDropdown && filteredConditions != null && filteredConditions.Count > 0)
+            {
+                <div class="dropdown-menu show w-100 mt-1" style="position: static; display: block;">
+                    @foreach (var cond in filteredConditions.Take(10))
+                    {
+                        <button type="button" class="dropdown-item" @onclick="() => SelectCondition(cond)">
+                            @cond
+                        </button>
+                    }
+                </div>
+            }
+            
+            <!-- Selected conditions as Bootstrap badges -->
+            @if (filters.SelectedConditions.Count > 0)
+            {
+                <div class="mt-2">
+                    @foreach (var cond in filters.SelectedConditions)
+                    {
+                        <span class="badge bg-secondary me-2 mb-2" 
+                              role="button" 
+                              style="cursor: pointer;"
+                              @onclick="() => RemoveCondition(cond)"
+                              title="Click to remove">
+                            @cond ×
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Row 4: Location Filters (collapsible) -->
+        <div class="accordion mb-3">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" 
+                            @onclick="ToggleLocationSection" style="cursor: pointer;">
+                        Location Filters
+                    </button>
+                </h2>
+                <div class="accordion-body" style="display:@(showLocationSection ? "block" : "none")">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Country</label>
+                            <select multiple @bind="filters.SelectedCountries" class="form-select" size="4">
+                                @if (availableCountries != null)
+                                {
+                                    @foreach (var c in availableCountries)
+                                    {
+                                        <option value="@c">@c</option>
+                                    }
+                                }
+                            </select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">State/Province</label>
+                            <select multiple @bind="filters.SelectedStates" class="form-select" size="4">
+                                @if (availableStates != null)
+                                {
+                                    @foreach (var s in availableStates)
+                                    {
+                                        <option value="@s">@s</option>
+                                    }
+                                }
+                            </select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label class="form-label">City</label>
+                            <input @bind="filters.City" class="form-control" placeholder="e.g., San Francisco">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Facility</label>
+                            <input @bind="filters.Facility" class="form-control" placeholder="e.g., Stanford Medical Center">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 5: Enrollment Range -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Min Enrollment</label>
+                <input type="number" @bind="filters.EnrollmentMin" class="form-control" 
+                       placeholder="0" min="0">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Max Enrollment</label>
+                <input type="number" @bind="filters.EnrollmentMax" class="form-control" 
+                       placeholder="Unlimited" min="0">
+            </div>
+        </div>
+
+        <!-- Row 6: Date Range -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Study Start Date (From)</label>
+                <input type="date" @bind="filters.StartDateFrom" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Study Start Date (To)</label>
+                <input type="date" @bind="filters.StartDateTo" class="form-control">
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" @onclick="SearchStudies" disabled="@loading">
+                @(loading ? "Searching..." : "Search")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="ClearAllFilters">Clear Filters</button>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+@if (loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (error != null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (studies != null)
+{
+    <h3>Results <span class="badge bg-info">@total total</span></h3>
+    
+    @if (studies.Count == 0)
+    {
+        <p class="text-muted">No studies found matching your criteria.</p>
+    }
+    else
+    {
+        <p class="text-muted">Showing @studies.Count of @total studies (Page @currentPage of @totalPages)</p>
+        
+        <!-- Results Table -->
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>NCT ID</th>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Conditions</th>
+                    <th>Phases</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in studies)
+                {
+                    <tr>
+                        <td><a href="/studies/@s.nctId">@s.nctId</a></td>
+                        <td>@s.briefTitle</td>
+                        <td><span class="badge bg-@StatusColor(s.overallStatus)">@s.overallStatus</span></td>
+                        <td>@(s.conditions != null ? string.Join(", ", s.conditions) : "")</td>
+                        <td>@(s.phases != null ? string.Join(", ", s.phases) : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <nav>
+            <ul class="pagination">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    // Filter state
+    private FilterState filters = new();
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int total;
+    private int totalPages;
+    private bool loading;
+    private string? error;
+    private List<StudySummary>? studies;
+
+    // Dropdown state
+    private bool showConditionDropdown;
+    private bool showLocationSection;
+    private string conditionInput = "";
+    private List<string>? filteredConditions;
+
+    // Available dropdown options
+    private static readonly List<string> AvailableStatuses = new()
+    {
+        "ACTIVE", "COMPLETED", "NOT_YET_RECRUITING", "RECRUITING", "SUSPENDED", "TERMINATED", "WITHDRAWN", "UNKNOWN"
+    };
+
+    private static readonly List<string> AvailablePhases = new()
+    {
+        "PHASE1", "PHASE2", "PHASE3", "PHASE4", "N/A"
+    };
+
+    private List<string>? availableCountries;
+    private List<string>? availableStates;
+    private List<string>? availableCities;
+    private List<string>? availableFacilities;
+    private List<string>? allConditions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAutocompleteData();
+    }
+
+    private async Task LoadAutocompleteData()
+    {
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            
+            // Load conditions
+            var condResponse = await client.GetFromJsonAsync<ConditionsResponse>("/api/distinct-conditions");
+            allConditions = condResponse?.data ?? new List<string>();
+
+            // Load locations
+            var locResponse = await client.GetFromJsonAsync<LocationsResponse>("/api/distinct-locations");
+            if (locResponse != null)
+            {
+                availableCountries = locResponse.countries;
+                availableStates = locResponse.states;
+                availableCities = locResponse.cities;
+                availableFacilities = locResponse.facilities;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load filter options: {ex.Message}";
+        }
+    }
+
+    private void ShowConditionDropdown()
+    {
+        showConditionDropdown = true;
+        UpdateConditionFilter();
+    }
+
+    private void OnConditionInput(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            showConditionDropdown = false;
+        }
+        else
+        {
+            UpdateConditionFilter();
+        }
+    }
+
+    private void UpdateConditionFilter()
+    {
+        if (allConditions == null)
+            return;
+
+        if (string.IsNullOrEmpty(conditionInput))
+        {
+            filteredConditions = allConditions.ToList();
+        }
+        else
+        {
+            filteredConditions = allConditions
+                .Where(c => c.Contains(conditionInput, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private void SelectCondition(string condition)
+    {
+        if (!filters.SelectedConditions.Contains(condition))
+        {
+            filters.SelectedConditions.Add(condition);
+        }
+        conditionInput = "";
+        showConditionDropdown = false;
+    }
+
+    private void RemoveCondition(string condition)
+    {
+        filters.SelectedConditions.Remove(condition);
+    }
+
+    private void ToggleLocationSection()
+    {
+        showLocationSection = !showLocationSection;
+    }
+
+    private async Task SearchStudies()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        await LoadPage(page);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        loading = true;
+        error = null;
+        currentPage = page;
+
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            
+            // Build query parameters
+            var queryParams = new List<string>();
+            
+            if (!string.IsNullOrEmpty(filters.Keyword))
+                queryParams.Add($"search={Uri.EscapeDataString(filters.Keyword)}");
+            
+            if (filters.SelectedStatuses.Count > 0)
+                queryParams.Add($"status={Uri.EscapeDataString(string.Join(",", filters.SelectedStatuses))}");
+            
+            if (filters.SelectedPhases.Count > 0)
+                queryParams.Add($"phase={Uri.EscapeDataString(string.Join(",", filters.SelectedPhases))}");
+            
+            if (filters.SelectedConditions.Count > 0)
+                queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", filters.SelectedConditions))}");
+            
+            if (filters.SelectedCountries.Count > 0)
+                queryParams.Add($"country={Uri.EscapeDataString(string.Join(",", filters.SelectedCountries))}");
+            
+            if (filters.SelectedStates.Count > 0)
+                queryParams.Add($"state={Uri.EscapeDataString(string.Join(",", filters.SelectedStates))}");
+            
+            if (!string.IsNullOrEmpty(filters.City))
+                queryParams.Add($"city={Uri.EscapeDataString(filters.City)}");
+            
+            if (!string.IsNullOrEmpty(filters.Facility))
+                queryParams.Add($"facility={Uri.EscapeDataString(filters.Facility)}");
+            
+            if (filters.EnrollmentMin.HasValue)
+                queryParams.Add($"enrollmentMin={filters.EnrollmentMin.Value}");
+            
+            if (filters.EnrollmentMax.HasValue)
+                queryParams.Add($"enrollmentMax={filters.EnrollmentMax.Value}");
+            
+            if (filters.StartDateFrom.HasValue)
+                queryParams.Add($"startDateFrom={filters.StartDateFrom.Value:yyyy-MM-dd}");
+            
+            if (filters.StartDateTo.HasValue)
+                queryParams.Add($"startDateTo={filters.StartDateTo.Value:yyyy-MM-dd}");
+
+            queryParams.Add($"page={page}");
+            queryParams.Add($"pageSize={pageSize}");
+
+            string url = $"/api/studies?" + string.Join("&", queryParams);
+            var response = await client.GetFromJsonAsync<StudyListResponse>(url);
+            
+            if (response != null)
+            {
+                studies = response.data;
+                total = response.total;
+                totalPages = response.totalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load studies: {ex.Message}";
+            studies = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ClearAllFilters()
+    {
+        filters = new FilterState();
+        studies = null;
+        error = null;
+        conditionInput = "";
+        showConditionDropdown = false;
+        currentPage = 1;
+    }
+
+    private static string StatusColor(string? status) => status switch
+    {
+        "ACTIVE" or "RECRUITING" => "success",
+        "COMPLETED" => "primary",
+        "UNKNOWN" or "WITHDRAWN" => "secondary",
+        "TERMINATED" or "SUSPENDED" => "danger",
+        _ => "warning"
+    };
+
+    private class FilterState
+    {
+        public string? Keyword { get; set; }
+        public List<string> SelectedStatuses { get; set; } = new();
+        public List<string> SelectedPhases { get; set; } = new();
+        public List<string> SelectedConditions { get; set; } = new();
+        public List<string> SelectedCountries { get; set; } = new();
+        public List<string> SelectedStates { get; set; } = new();
+        public string? City { get; set; }
+        public string? Facility { get; set; }
+        public int? EnrollmentMin { get; set; }
+        public int? EnrollmentMax { get; set; }
+        public DateTime? StartDateFrom { get; set; }
+        public DateTime? StartDateTo { get; set; }
+    }
+
+    private class StudyListResponse
+    {
+        public List<StudySummary>? data { get; set; }
+        public int total { get; set; }
+        public int page { get; set; }
+        public int pageSize { get; set; }
+        public int totalPages { get; set; }
+    }
+
+    private class StudySummary
+    {
+        public string? nctId { get; set; }
+        public string? briefTitle { get; set; }
+        public string? overallStatus { get; set; }
+        public List<string>? conditions { get; set; }
+        public List<string>? phases { get; set; }
+    }
+
+    private class ConditionsResponse
+    {
+        public List<string>? data { get; set; }
+    }
+
+    private class LocationsResponse
+    {
+        public List<string>? countries { get; set; }
+        public List<string>? states { get; set; }
+        public List<string>? cities { get; set; }
+        public List<string>? facilities { get; set; }
+    }
+}

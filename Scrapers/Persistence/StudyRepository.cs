@@ -32,6 +32,63 @@ namespace Scrapers.Persistence
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Get all distinct condition values for autocomplete dropdown.
+        /// </summary>
+        public async Task<List<string>> GetDistinctConditionsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.StudyConditions
+                .Select(c => c.Condition)
+                .Distinct()
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Get all distinct location values (countries, states, cities, facilities) for autocomplete dropdowns.
+        /// </summary>
+        public async Task<(List<string> Countries, List<string> States, List<string> Cities, List<string> Facilities)> GetDistinctLocationsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var countries = (await context.StudyLocations
+                .Select(l => l.Country)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var states = (await context.StudyLocations
+                .Select(l => l.State)
+                .Where(s => s != null)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var cities = (await context.StudyLocations
+                .Select(l => l.City)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var facilities = (await context.StudyLocations
+                .Select(l => l.Facility)
+                .Where(f => f != null)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            return (countries, states, cities, facilities);
+        }
+
         public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
         {
             var recordList = records?.ToList();
