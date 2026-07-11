@@ -98,6 +98,9 @@ app.MapGet("/api/telemetry", async () =>
     List<PipelineRunEntity> recentRuns = await repo.GetPipelineRunsAsync(1, 5);
     IReadOnlyList<ScrapeEventEntity> recentEvents = await repo.GetRecentScrapeEventsAsync(20);
 
+    var piCount = await repo.CountPiAggregationsAsync();
+    IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
+
     return Results.Ok(new
     {
         db = new
@@ -121,7 +124,12 @@ app.MapGet("/api/telemetry", async () =>
             recordsAffected = e.RecordsAffected,
             message = e.Message,
             httpStatusCode = e.HttpStatusCode
-        })
+        }),
+        aggregations = new
+        {
+            piAggregationCount = piCount,
+            categoryAggregationCount = categoryByType.Sum(c => c.Count)
+        }
     });
 });
 

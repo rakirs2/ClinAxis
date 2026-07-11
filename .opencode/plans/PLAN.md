@@ -339,37 +339,22 @@ internal static class SeedData
 
 ---
 
-### PR 4: Feature 3 — Advanced Search Page
-**Goal:** Search with all filter criteria.
-
-**Steps:**
-1. Update `GET /api/studies` with params: `condition`, `keyword`, `enrollmentMin`, `enrollmentMax`, `dateFrom`, `dateTo`
-2. Update repository's `GetStudiesPagedAsync` / `CountStudiesFilteredAsync`
-3. Create `Search.razor` with:
-   - Text search, Status multi-select, Phase multi-select
-   - Condition / Keyword text fields, Enrollment range, Date range
-   - Paginated results
-4. Snapshot tests for every filter combination
-
-**Verification:** All filter combinations return correct results. `dotnet test` passes.
-
----
-
-### PR 5: Feature 4 — Status Page with Real-Time Updates
+### PR 4: Feature 3 — Status Page with Real-Time Updates
 **Goal:** `/status` shows live DB & scraper stats via Blazor's SignalR circuit.
 
 **Steps:**
 1. Enhance `GET /api/telemetry` with pipeline runs, scrape events, row counts, health indicators
-2. Convert `Status.razor` to Interactive Server:
+2. Add `Status.razor` as Interactive Server:
    - Timer-driven auto-refresh (10–15s interval via `InvokeAsync` on the existing Blazor SignalR circuit)
-   - DB stats panel, Pipeline timeline, Scrape events log, Aggregation summary
-3. Snapshot tests for telemetry endpoint and status page rendering
+   - DB stats panel, Pipeline timeline, Scrape events log
+3. Add nav link in `MainLayout.razor`
+4. Snapshot tests for telemetry endpoint and status page rendering
 
 **Verification:** `/status` auto-updates without page refresh. Shows live pipeline data. `dotnet test` passes.
 
 ---
 
-### PR 6: GitHub Actions Deploy → DigitalOcean Droplet
+### PR 5: GitHub Actions Deploy → DigitalOcean Droplet
 **Goal:** Push to `main` → build → test → deploy → verify → promote or rollback.
 
 **Steps:**
@@ -421,6 +406,22 @@ jobs:
 ```
 
 **Verification:** `git push main` → GH Actions green → site live at droplet. `dotnet test` blocks if any test fails.
+
+---
+
+### PR 6: Feature 4 — Advanced Search Page
+**Goal:** Search with all filter criteria.
+
+**Steps:**
+1. Update `GET /api/studies` with params: `condition`, `keyword`, `enrollmentMin`, `enrollmentMax`, `dateFrom`, `dateTo`
+2. Update repository's `GetStudiesPagedAsync` / `CountStudiesFilteredAsync`
+3. Create `Search.razor` with:
+   - Text search, Status multi-select, Phase multi-select
+   - Condition / Keyword text fields, Enrollment range, Date range
+   - Paginated results
+4. Snapshot tests for every filter combination
+
+**Verification:** All filter combinations return correct results. `dotnet test` passes.
 
 ---
 
