@@ -443,6 +443,48 @@ namespace Scrapers.Persistence
                 .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<IReadOnlyList<InvestigatorSummary>> GetInvestigatorsPagedAsync(
+            int page, int pageSize, string? search = null,
+            CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(i => EF.Functions.ILike(i.Name!, $"%{search}%"));
+            }
+
+            IQueryable<InvestigatorSummary> grouped = query
+                .GroupBy(i => new { i.Name, i.Affiliation })
+                .Select(g => new InvestigatorSummary
+                {
+                    Name = g.Key.Name,
+                    Affiliation = g.Key.Affiliation,
+                    StudyCount = g.Select(i => i.StudyNctId).Distinct().Count()
+                })
+                .OrderByDescending(x => x.StudyCount)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            return await grouped.ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountInvestigatorsFilteredAsync(string? search = null, CancellationToken cancellationToken = default)
+        {
+            await using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(i => EF.Functions.ILike(i.Name!, $"%{search}%"));
+            }
+
+            return await query.Select(i => new { i.Name, i.Affiliation }).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task<int> GetRecentScrapeEventCountAsync(TimeSpan within, CancellationToken cancellationToken = default)
         {
             DateTime since = DateTime.UtcNow - within;
@@ -467,5 +509,12 @@ namespace Scrapers.Persistence
             CategoryType = categoryType;
             Count = count;
         }
+    }
+
+    public class InvestigatorSummary
+    {
+        public string? Name { get; set; }
+        public string? Affiliation { get; set; }
+        public int StudyCount { get; set; }
     }
 }
