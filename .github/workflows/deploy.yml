@@ -1,0 +1,129 @@
+name: Build, Test & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: clinical_trial_data_test
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Run all tests
+        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Publish DataApi
+        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/data-api --no-restore
+
+      - name: Publish Frontend
+        run: dotnet publish Frontend/ -c Release -r linux-x64 --self-contained -o publish/frontend --no-restore
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Save current as rollback target
+        run: |
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p /var/www/ct-data && mv /var/www/ct-data/current /var/www/ct-data/previous 2>/dev/null || true"
+
+      - name: Copy binaries to Droplet
+        run: |
+          # Remove old current directory if it exists
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
+            "rm -rf /var/www/ct-data/current 2>/dev/null || true"
+          # Create fresh directory
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p /var/www/ct-data/current"
+          # Copy binaries
+          scp -i ~/.ssh/deploy_key -r publish/data-api/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
+          scp -i ~/.ssh/deploy_key -r publish/frontend/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
+
+      - name: Update environment file and restart services
+        run: |
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}" | sudo tee /etc/ct-data-api.env > /dev/null
+          sudo systemctl daemon-reload
+          sudo systemctl restart ct-data-api ct-frontend
+          sleep 5
+          EOSSH
+
+      - name: Health check
+        run: |
+          for i in {1..10}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L http://${{ secrets.DEPLOY_HOST }}/)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            echo "Attempt $i/10: HTTP $HTTP_CODE - retrying in 5s..."
+            sleep 5
+          done
+          echo "Health check failed after 10 attempts"
+          exit 1
+
+      - name: Promote (cleanup rollback)
+        if: success()
+        run: |
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
+            "rm -rf /var/www/ct-data/previous 2>/dev/null || true"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Rolling back..."
+          rm -rf /var/www/ct-data/current
+          mv /var/www/ct-data/previous /var/www/ct-data/current
+          sudo systemctl restart ct-data-api ct-frontend
+          EOSSH
