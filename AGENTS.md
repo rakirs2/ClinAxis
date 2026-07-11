@@ -19,7 +19,7 @@ These are non-negotiable. Never violate these rules.
 - Minimum verification: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
 - Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
 
-### 3. Three DB Testing Modes (see `.opencode/plans/PLAN.md` for full design)
+### 3. Three DB Testing Modes (see `/docs/README.md` for full design)
 All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data_test`). No `CREATE DATABASE`/`DROP DATABASE` per test class. Isolation is via **transaction rollback** — each test writes inside a transaction, then rolls back. Single shared copy of the test base lives in `Scrapers/Testing/`.
 
 | Mode | Class | Use Case |
@@ -45,7 +45,24 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 | CI/CD | GitHub Actions only | Source of truth for builds |
 | Deploy | DigitalOcean Droplet — `dotnet publish` → SCP → systemd → Kestrel directly on port 80/443 | Per [Microsoft docs](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx) and [DigitalOcean docs](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/) |
 
-### 6. Test Conventions
+### 6. Zero Data Loss in Scraping — Persist All API Fields
+- **Rule: Never discard API response data.** If an external API (ClinicalTrials.gov, PubMed, etc.) returns a field, it MUST be persisted to PostgreSQL.
+- **Audit every scraper:**
+  - When adding a new scraper or updating an existing one, verify that ALL fields from the API response have corresponding database storage.
+  - If the API returns a field but no database table/column exists, create it (following the `StudyConditionEntity` / `StudyKeywordEntity` pattern for junction tables, or add scalar fields to the entity).
+  - If a field is **intentionally ignored**, document WHY in a code comment with clear rationale.
+- **Data loss discovered (current code):**
+   - ✓ `ClinicalTrialRecord.Locations` array is deserialized from API
+   - ✗ No `StudyLocationEntity` table existed
+   - ✗ Locations were silently discarded during `StudyRepository.MapRecordToEntity()`
+   - **Impact:** Cannot filter studies by geographic location; search is incomplete
+   - **This PR:** Fixes locations. See `/docs/data_loss_remediation.md` for audit of all 22 lost fields and remediation roadmap.
+- **Test coverage:** Every scraper integration test must verify:
+  - Row counts in dependent tables match API data (e.g., if API returns 3 locations, assert `study_locations` has 3 rows for that study)
+  - No data is silently dropped during mapping
+  - Full field coverage is tested via assertions or schema guards
+
+### 7. Test Conventions
 - **Avoid mocks. Prefer pre-seeded data.** Most tests should use `SnapshotDb` with known golden data in a real PostgreSQL database. Only use fake HTTP handlers when testing an HTTP client against an external API that cannot be called in CI (e.g., third-party rate limits).
 - **MSTest only.** Do not introduce xUnit, NUnit, or any other framework.
 - **Per-API coverage:** Every external API we call must have:
@@ -68,17 +85,17 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - No Docker for .NET apps in production. Docker is for local PostgreSQL only.
 - No nginx. Keep the stack minimal.
 
-### 8. It's OK to Delete Bad Code
+### 9. It's OK to Delete Bad Code
 - Refactor first, add features second.
 - If code is duplicated, convoluted, or hard to test, delete it and replace with a simpler version.
 - Do this in a dedicated PR before the feature PR.
 
-### 9. Document Attempts — Do Not Repeat Failures
+### 10. Document Attempts — Do Not Repeat Failures
 - Update `.opencode/plans/PLAN.md` with what was tried and what happened.
 - Never retry an approach that already failed in a prior PR.
 - Keep the decision log with choices and rationales.
 
-### 10. When in Doubt, Default to User Choice
+### 11. When in Doubt, Default to User Choice
 - If there is no clear default documented here, **present options to the user and let them decide**. Don't guess and don't default to a personal preference.
 - If standard docs answer the question, reference them (e.g., [MS Learn](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx), [DO guides](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/)).
 - If standard docs don't give a clear default, list the plausible approaches with trade-offs and ask.

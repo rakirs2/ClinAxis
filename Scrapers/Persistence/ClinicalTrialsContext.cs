@@ -11,6 +11,7 @@ namespace Scrapers.Persistence
         public DbSet<PubmedStudyEntity> PubmedStudies => Set<PubmedStudyEntity>();
         public DbSet<StudyKeywordEntity> StudyKeywords => Set<StudyKeywordEntity>();
         public DbSet<StudyConditionEntity> StudyConditions => Set<StudyConditionEntity>();
+        public DbSet<StudyLocationEntity> StudyLocations => Set<StudyLocationEntity>();
         public DbSet<StudyPhaseEntity> StudyPhases => Set<StudyPhaseEntity>();
         public DbSet<StudyAuthorEntity> StudyAuthors => Set<StudyAuthorEntity>();
         public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
@@ -123,6 +124,29 @@ namespace Scrapers.Persistence
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(e => e.Condition);
+            });
+
+            modelBuilder.Entity<StudyLocationEntity>(entity =>
+            {
+                entity.ToTable("study_locations");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Facility).HasColumnName("facility");
+                entity.Property(e => e.City).HasColumnName("city");
+                entity.Property(e => e.State).HasColumnName("state");
+                entity.Property(e => e.Country).HasColumnName("country");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Locations)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.Country);
+                entity.HasIndex(e => e.State);
+                entity.HasIndex(e => e.City);
+                entity.HasIndex(e => e.Facility);
             });
 
             modelBuilder.Entity<StudyPhaseEntity>(entity =>

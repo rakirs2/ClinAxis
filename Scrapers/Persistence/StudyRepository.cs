@@ -28,7 +28,8 @@ namespace Scrapers.Persistence
         public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+            // Create schema based on EF Core model (no migrations needed until production)
+            await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
@@ -64,6 +65,7 @@ namespace Scrapers.Persistence
                     .Include(s => s.Keywords)
                     .Include(s => s.Conditions)
                     .Include(s => s.Phases)
+                    .Include(s => s.Locations)
                     .FirstOrDefaultAsync(s => s.NctId == record.NctId, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -76,7 +78,8 @@ namespace Scrapers.Persistence
                         Investigators = new List<InvestigatorEntity>(),
                         Keywords = new List<StudyKeywordEntity>(),
                         Conditions = new List<StudyConditionEntity>(),
-                        Phases = new List<StudyPhaseEntity>()
+                        Phases = new List<StudyPhaseEntity>(),
+                        Locations = new List<StudyLocationEntity>()
                     };
                     context.Studies.Add(entity);
                 }
@@ -129,6 +132,26 @@ namespace Scrapers.Persistence
                             if (!string.IsNullOrWhiteSpace(phase))
                             {
                                 entity.Phases!.Add(new StudyPhaseEntity { StudyNctId = record.NctId!, Phase = phase.Trim() });
+                            }
+                        }
+                    }
+
+                    // Populate locations from API response (fix data loss bug)
+                    entity.Locations!.Clear();
+                    if (record.Locations != null && record.Locations.Count > 0)
+                    {
+                        foreach (var location in record.Locations)
+                        {
+                            if (location != null)
+                            {
+                                entity.Locations.Add(new StudyLocationEntity
+                                {
+                                    StudyNctId = record.NctId!,
+                                    Facility = location.Facility,
+                                    City = location.City,
+                                    State = location.State,
+                                    Country = location.Country
+                                });
                             }
                         }
                     }
@@ -355,6 +378,255 @@ namespace Scrapers.Persistence
             if (!string.IsNullOrWhiteSpace(phase))
             {
                 query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase == phase));
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<StudyEntity>> SearchStudiesAsync(
+            StudySearchCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+
+            using var context = CreateContext();
+
+            var query = context.Studies
+                .Include(s => s.Investigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.Locations)
+                .Include(s => s.PubmedStudies)
+                .AsNoTracking();
+
+            // Apply filters in order (helps query planner use indices)
+
+            // 1. Keyword search (case-insensitive)
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            // 2. Status filter (multi-select)
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                var statuses = criteria.Statuses.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                if (statuses.Count > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Contains(s.OverallStatus));
+                }
+            }
+
+            // 3. Phase filter (multi-select)
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                var phases = criteria.Phases.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (phases.Count > 0)
+                {
+                    query = query.Where(s => s.Phases!.Any(p => phases.Contains(p.Phase)));
+                }
+            }
+
+            // 4. Condition filter (multi-select)
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                var conditions = criteria.Conditions.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (conditions.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c => conditions.Contains(c.Condition)));
+                }
+            }
+
+            // 5. Location filters (independent OR logic within each dimension)
+            if (criteria.Countries != null && criteria.Countries.Count > 0)
+            {
+                var countries = criteria.Countries.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (countries.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.Country != null && countries.Contains(l.Country)));
+                }
+            }
+
+            if (criteria.States != null && criteria.States.Count > 0)
+            {
+                var states = criteria.States.Where(st => !string.IsNullOrWhiteSpace(st)).ToList();
+                if (states.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.State != null && states.Contains(l.State)));
+                }
+            }
+
+            if (criteria.Cities != null && criteria.Cities.Count > 0)
+            {
+                var cities = criteria.Cities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (cities.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.City != null && cities.Contains(l.City)));
+                }
+            }
+
+            if (criteria.Facilities != null && criteria.Facilities.Count > 0)
+            {
+                var facilities = criteria.Facilities.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+                if (facilities.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.Facility != null && facilities.Contains(l.Facility)));
+                }
+            }
+
+            // 6. Enrollment range filter
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            // 7. Date range filter
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
+            }
+
+            // Sort by StartDate DESC (newest first)
+            query = query.OrderByDescending(s => s.StartDate);
+
+            // Paginate
+            var results = await query
+                .Skip((criteria.Page - 1) * criteria.PageSize)
+                .Take(criteria.PageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return results.AsReadOnly();
+        }
+
+        public async Task<int> CountStudiesFilteredAsync(
+            StudySearchCriteria criteria,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+
+            using var context = CreateContext();
+
+            var query = context.Studies
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.Locations)
+                .AsNoTracking();
+
+            // Apply SAME filters as SearchStudiesAsync (copy filter logic)
+            // This ensures pagination counts match results
+
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                var statuses = criteria.Statuses.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                if (statuses.Count > 0)
+                {
+                    query = query.Where(s => s.OverallStatus != null && statuses.Contains(s.OverallStatus));
+                }
+            }
+
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                var phases = criteria.Phases.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (phases.Count > 0)
+                {
+                    query = query.Where(s => s.Phases!.Any(p => phases.Contains(p.Phase)));
+                }
+            }
+
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                var conditions = criteria.Conditions.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (conditions.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c => conditions.Contains(c.Condition)));
+                }
+            }
+
+            if (criteria.Countries != null && criteria.Countries.Count > 0)
+            {
+                var countries = criteria.Countries.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (countries.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.Country != null && countries.Contains(l.Country)));
+                }
+            }
+
+            if (criteria.States != null && criteria.States.Count > 0)
+            {
+                var states = criteria.States.Where(st => !string.IsNullOrWhiteSpace(st)).ToList();
+                if (states.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.State != null && states.Contains(l.State)));
+                }
+            }
+
+            if (criteria.Cities != null && criteria.Cities.Count > 0)
+            {
+                var cities = criteria.Cities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                if (cities.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.City != null && cities.Contains(l.City)));
+                }
+            }
+
+            if (criteria.Facilities != null && criteria.Facilities.Count > 0)
+            {
+                var facilities = criteria.Facilities.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+                if (facilities.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l => l.Facility != null && facilities.Contains(l.Facility)));
+                }
+            }
+
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
             }
 
             return await query.CountAsync(cancellationToken).ConfigureAwait(false);
