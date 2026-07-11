@@ -45,14 +45,11 @@ dotnet run --project IngestionApp/ -- 50
 dotnet test Scrapers.Tests/
 dotnet test Frontend.Tests/
 
-# All tests (requires Docker Postgres running)
+# All tests (Testcontainers manages Docker PostgreSQL automatically)
 dotnet test
-
-# Full suite against Docker Postgres
-docker compose up -d postgres && dotnet test
 ```
 
-Integration tests connect to a live Postgres instance and real ClinicalTrials.gov/PubMed APIs. They use ephemeral databases (temp DB created per test class, rolled back on cleanup).
+Integration tests connect to a real PostgreSQL via Testcontainers and real ClinicalTrials.gov/PubMed APIs. No manual Docker setup needed — just have Docker Desktop running.
 
 ## Projects
 

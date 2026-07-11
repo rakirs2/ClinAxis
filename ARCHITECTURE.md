@@ -9,7 +9,7 @@ ClinicalTrialData fetches studies from ClinicalTrials.gov and PubMed, stores the
 ```
 ClinicalTrialData/
 ├── Scrapers/               # Core library: entities, repositories, scraping services
-├── Scrapers/Testing/       # Shared test utilities (EphemeralDbTestBase, SnapshotDb, SeedData)
+├── Scrapers/Testing/       # Shared test utilities (DbTestBase, SnapshotDb, SeedData)
 ├── DataApi/                # ASP.NET Core Minimal API (port 5003)
 ├── Frontend/               # Blazor Server UI (port 5001)
 ├── IngestionApp/           # Console app for running the full pipeline
@@ -30,8 +30,13 @@ PubMed  ───────────►  PubMedScraperService  ────
                                                                │
                            DataApi  ───────────────────────────┘
                                │
+                               │  (HTTP only — no direct DB access)
+                               │
                            Frontend (Blazor Server, Interactive Server)
+                                   (also calls DataApi, never the DB directly)
 ```
+
+**Critical rule: Only DataApi reads/writes to PostgreSQL.** Frontend, IngestionApp, and tests all go through DataApi's REST API or share the `Scrapers` library (which DataApi also uses). No DbContext or SQL outside DataApi.
 
 ## Deployment
 
@@ -48,7 +53,7 @@ The system runs on a single DigitalOcean Droplet:
 | Service   | Port | Notes |
 |-----------|------|-------|
 | Frontend  | 80/443 | Public entry point. Kestrel directly, TLS via .NET HTTPS + Let's Encrypt. |
-| DataApi   | 5003 | Internal, not exposed publicly. Frontend proxies requests. |
+| DataApi   | 5003 | Internal, not exposed publicly. Frontend calls DataApi via HttpClient. |
 
 (5000 is reserved by macOS AirPlay Receiver / Control Center.)
 
@@ -65,12 +70,12 @@ The system runs on a single DigitalOcean Droplet:
 
 ## Test Infrastructure
 
-Three database testing modes, all using `EphemeralPostgresDatabase` (Npgsql-based, no CLI tools):
+Three database testing modes, all using `Testcontainers.PostgreSql` (disposable Docker PostgreSQL):
 
 | Mode | Class | Lifecycle | Use |
 |------|-------|-----------|-----|
-| Ephemeral | `EphemeralDbTestBase` | Temp DB per class, transaction rollback per method | Fast integration tests |
-| Snapshot | `SnapshotDb` | Temp DB seeded with golden data | Deterministic assertions |
+| Integration/IO | `DbTestBase` | Testcontainers container per class, transaction rollback per method | Fast integration tests |
+| Snapshot | `SnapshotDb` | Container seeded with golden data | Deterministic assertions |
 | Persistent | `SnapshotDb(persist:true)` | Fixed DB name, survives test run | Manual inspection |
 
 Test utilities live in `Scrapers/Testing/` and are shared via `InternalsVisibleTo`. No duplication.

@@ -13,21 +13,27 @@ These are non-negotiable. Never violate these rules.
 - Before branching: `git fetch origin main && git checkout origin/main -b feature/<name>`
 - After branching, run `dotnet restore && dotnet build` to confirm the base compiles cleanly.
 
-### 2. Local Verification Required
-- **Never** merge or deploy changes that have not been verified locally.
-- Minimum verification for any PR: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
-- Full verification: `docker compose up -d postgres && dotnet test` (tests run against Docker PostgreSQL).
+### 2. Local Verification Required — Rider Runs All Tests
+- **Rider runs every test locally.** All integration tests execute against a Docker PostgreSQL container. No tests are gated behind `[Ignore]`, environment checks, or manual approval.
+- **Never** merge or deploy changes that have not passed locally.
+- Minimum verification: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
+- Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
 
 ### 3. Three DB Testing Modes (see `.opencode/plans/PLAN.md` for full design)
-All database tests use `EphemeralPostgresDatabase` (Npgsql-based, no CLI `createdb`/`dropdb` calls). Single shared copy lives in `Scrapers/Testing/`.
+All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data_test`). No `CREATE DATABASE`/`DROP DATABASE` per test class. Isolation is via **transaction rollback** — each test writes inside a transaction, then rolls back. Single shared copy of the test base lives in `Scrapers/Testing/`.
 
 | Mode | Class | Use Case |
 |------|-------|----------|
-| **Ephemeral** | `EphemeralDbTestBase` | Temp DB per test class, transaction rollback per method. Fast and isolated for integration tests. |
-| **Snapshot** | `SnapshotDb` | Temp DB seeded with known golden data. Deterministic assertions against a fixed dataset. |
-| **Persistent** | `SnapshotDb(persist: true)` | Same as snapshot but DB survives after tests. For manual inspection via any SQL tool. |
+| **Integration/IO** | `DbTestBase` | Testcontainers container per class, transaction rollback per method. Fast and isolated. |
+| **Snapshot** | `SnapshotDb` | Container seeded with known golden data. Deterministic assertions against a fixed dataset. |
+| **Persistent/fiddle** | `SnapshotDb(persist: true)` | Same as snapshot but no rollback — DB stays for manual inspection via any SQL tool. |
 
-### 4. Tech Stack
+### 4. Single Gateway Rule: All DB Access Goes Through DataApi
+- **Only DataApi talks to PostgreSQL.** Frontend, IngestionApp, and tests all access the database exclusively through DataApi's REST endpoints or via the shared `Scrapers` library's repositories.
+- **No DbContext, Npgsql, or direct SQL in Frontend.** Frontend communicates with DataApi via HTTP (HttpClient). If something needs database access, it either calls DataApi or lives in the `Scrapers` library consumed by DataApi.
+- **This is not negotiable.** It preserves a single contract boundary, enables independent scaling, and prevents tight coupling.
+
+### 5. Tech Stack
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
@@ -39,7 +45,7 @@ All database tests use `EphemeralPostgresDatabase` (Npgsql-based, no CLI `create
 | CI/CD | GitHub Actions only | Source of truth for builds |
 | Deploy | DigitalOcean Droplet — `dotnet publish` → SCP → systemd → Kestrel directly on port 80/443 | Per [Microsoft docs](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx) and [DigitalOcean docs](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/) |
 
-### 5. Test Conventions
+### 6. Test Conventions
 - **Avoid mocks. Prefer pre-seeded data.** Most tests should use `SnapshotDb` with known golden data in a real PostgreSQL database. Only use fake HTTP handlers when testing an HTTP client against an external API that cannot be called in CI (e.g., third-party rate limits).
 - **MSTest only.** Do not introduce xUnit, NUnit, or any other framework.
 - **Per-API coverage:** Every external API we call must have:
@@ -50,7 +56,11 @@ All database tests use `EphemeralPostgresDatabase` (Npgsql-based, no CLI `create
 - **Live/integration tests:** Keep in separate `*IntegrationTests.cs` files. Tag with `[TestCategory("Integration")]` or `[TestCategory("HttpLive")]`. Do not gate behind `[Ignore]` or environment variables — they must run as part of `dotnet test`.
 - **Test utilities live in `Scrapers/Testing/`** — shared via `InternalsVisibleTo`. Never duplicate.
 
-### 6. Deployment Standard
+### Running Tests from Rider
+1. Ensure Docker Desktop is running (Testcontainers manages containers automatically — no manual `docker compose` needed)
+2. Click **Run All Tests** in the test runner — every test, including integration tests against a real Postgres via Testcontainers, executes locally. No exceptions. No manual setup.
+
+### 7. Deployment Standard
 - `dotnet publish --self-contained -r linux-x64`
 - SCP publish output to Droplet
 - systemd unit files for process management
@@ -58,20 +68,20 @@ All database tests use `EphemeralPostgresDatabase` (Npgsql-based, no CLI `create
 - No Docker for .NET apps in production. Docker is for local PostgreSQL only.
 - No nginx. Keep the stack minimal.
 
-### 7. It's OK to Delete Bad Code
+### 8. It's OK to Delete Bad Code
 - Refactor first, add features second.
 - If code is duplicated, convoluted, or hard to test, delete it and replace with a simpler version.
 - Do this in a dedicated PR before the feature PR.
 
-### 8. Document Attempts — Do Not Repeat Failures
+### 9. Document Attempts — Do Not Repeat Failures
 - Update `.opencode/plans/PLAN.md` with what was tried and what happened.
 - Never retry an approach that already failed in a prior PR.
 - Keep the decision log with choices and rationales.
 
-### 9. When in Doubt, Default to Standard Docs
-- .NET deploy to Linux: https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx
-- DO + GitHub Actions: https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/
-- Default choices are better than custom ones. For this project, Kestrel serves directly (no nginx).
+### 10. When in Doubt, Default to User Choice
+- If there is no clear default documented here, **present options to the user and let them decide**. Don't guess and don't default to a personal preference.
+- If standard docs answer the question, reference them (e.g., [MS Learn](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx), [DO guides](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/)).
+- If standard docs don't give a clear default, list the plausible approaches with trade-offs and ask.
 
 ---
 
@@ -80,11 +90,13 @@ All database tests use `EphemeralPostgresDatabase` (Npgsql-based, no CLI `create
 - Connection string via `POSTGRES_CONNECTION_STRING` env var. Default fallback: `Host=localhost;Port=5432;Database=clinical_trial_data;Username=<current_user>`.
 - Schema changes managed via EF Core migrations in `Scrapers/Persistence/Migrations/`. Always add migrations (`dotnet ef migrations add`) instead of writing raw SQL.
 - No schema drift outside the migrations system.
+- **No raw SQL strings anywhere in application code.** All database operations use EF Core LINQ queries. No `FromSqlRaw`, `ExecuteSqlRaw`, `SqlQuery`, or direct `NpgsqlCommand` calls. The sole exception is EF Core migration SQL (auto-generated by `dotnet ef migrations add`).
 - **No production database exists yet.** All databases are local or ephemeral test databases. Schema migrations are low-risk — add them freely during development. Deployment to production will include running migrations at startup (current behavior via `EnsureSchemaAsync`).
 
 ## GitHub Actions
 - CI must run `dotnet build` + `dotnet test` on every push and pull request, covering unit, DB integration, and live HTTP tests.
-- Deploy workflow (added in a future PR) must run after CI passes, publishing to a DigitalOcean Droplet.
+- **No push to `main` without all integration tests passing.** The CI workflow blocks the merge if any test — unit, integration, or live HTTP — fails.
+- Deploy workflow (added in a future PR) runs only after CI passes, publishing to a DigitalOcean Droplet.
 
 ## Pull Request Expectations
 - Summaries must mention how the change was tested.

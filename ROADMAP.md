@@ -33,13 +33,14 @@ These PRs built the initial codebase. No further changes should be needed to the
 ### PR 1: Build Fix + Package Upgrades + Test Infrastructure
 **Goal:** `dotnet build` + `dotnet test` passing. Tests work with Docker-only Postgres.
 
-- Upgrade EF Core 8.0.4 → 10.x, Npgsql 8.0.4 → 9.x
-- Replace CLI `createdb`/`dropdb` with Npgsql-based `CREATE DATABASE`/`DROP DATABASE`
+- Add `Testcontainers.PostgreSql` NuGet package to `Scrapers.csproj`
+- Create `Scrapers/Testing/` with `DbTestBase` (Testcontainers + txn rollback), `SnapshotDb` (seeded golden data), `SeedData`
+- Upgrade EF Core 8.0.4 → 10.x, Npgsql 8.0.4 → 9.x across all `.csproj` files
 - De-duplicate test utilities into `Scrapers/Testing/`, shared via `InternalsVisibleTo`
-- Add `SnapshotDb` + `SeedData` for deterministic golden-data tests
-- Add `docker-compose.yml` (Postgres only), `appsettings.json` files
+- Delete old `EphemeralPostgresDatabase` files (4 files, 2x duplicated)
+- Add `docker-compose.yml` (Postgres only for manual use), `appsettings.json` files
 
-**Verification:** `dotnet build` (0 errors/warnings), `dotnet test` (all pass), `docker compose up -d postgres && dotnet test` (all pass)
+**Verification:** `dotnet build` (0 errors/warnings), `dotnet test` (all pass — Testcontainers manages PostgreSQL automatically)
 
 ---
 
@@ -94,13 +95,12 @@ These PRs built the initial codebase. No further changes should be needed to the
 - systemd service management
 - Add `deploy/` directory with configs and setup script
 - **Deploy pipeline runs all integration tests first** — if tests fail, deploy is blocked
-- **Post-deploy smoke tests** — CI calls live deployed endpoints (Frontend:80, DataApi:5003) and verifies HTTP 200 + correct response shape
+- **Post-deploy smoke tests** — CI calls live deployed Frontend (port 80/443) and verifies HTTP 200 + correct response shape (DataApi is internal, not publicly exposed)
 - **Rollback on failure** — if smoke tests fail, CI restores previous version and alerts
 
 **Verification:** 
 - `dotnet test` passes in CI
-- After deploy, CI hits `https://<droplet-ip>/api/studies?page=1&pageSize=1` and expects 200 + valid JSON shape
-- CI hits `https://<droplet-ip>/` and expects 200
+- After deploy, CI curls `https://<droplet>/` and expects HTTP 200 (Frontend loads, Blazor Server serves interactivity via SignalR)
 - All tests run as GitHub Actions checks — nothing merges without green CI
 
 ---
@@ -109,7 +109,7 @@ These PRs built the initial codebase. No further changes should be needed to the
 
 - **DataGenService** — Rename `IngestionApp` to a background hosted service for scheduled scraping
 - **CMS Medicare cross-reference** — Map PIs to CMS provider data via NPPES NPI Registry
-- **Any Docker-based deployment path** (deliberately deferred — see AGENTS.md section 6)
+- **Any Docker-based deployment path** (deliberately deferred — see AGENTS.md section 7)
 
 ---
 
