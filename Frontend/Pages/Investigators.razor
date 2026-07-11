@@ -83,6 +83,12 @@ else if (investigators is not null)
     private string? error;
     private List<InvestigatorItem>? investigators;
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Load all investigators on page initialization
+        await LoadPage(1);
+    }
+
     private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
