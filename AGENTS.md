@@ -98,6 +98,13 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **No push to `main` without all integration tests passing.** The CI workflow blocks the merge if any test — unit, integration, or live HTTP — fails.
 - Deploy workflow (added in a future PR) runs only after CI passes, publishing to a DigitalOcean Droplet.
 
+## Style Enforcement
+- **`.editorconfig`** is the sole authority for all C# style rules (`IDE*` diagnostics). Never suppress `IDE*` in `.csproj` `<NoWarn>` — that creates a split-brain between Rider and `dotnet build`. Project-specific `<NoWarn>` is reserved for non-style warnings only (CA\*, NU\*, CS\*).
+
+## Branching Workflow
+- Always create new branches off `origin/main` (`git fetch origin main && git checkout origin/main -b feature/<name>`), not your local stale `main`. This ensures you start from the latest merged state.
+- After branching, run `dotnet restore` and `dotnet build` once before making any changes to confirm the base compiles cleanly.
+
 ## Pull Request Expectations
 - Summaries must mention how the change was tested.
 - Include instructions if special setup was required.

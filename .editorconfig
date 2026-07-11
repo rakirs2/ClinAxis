@@ -73,6 +73,12 @@ dotnet_diagnostic.CA1861.severity = none
 [Scrapers/Persistence/Migrations/*.Designer.cs]
 generated_code = true
 
+# Test infrastructure — suppress overly strict rules for test utility files
+[Scrapers/Testing/*.cs]
+dotnet_diagnostic.CA2025.severity = none
+dotnet_diagnostic.IDE0032.severity = none
+dotnet_diagnostic.CA2100.severity = none
+
 # Rider false positive: private class properties used via object initializer
 [Scrapers/Services/PubMedScraperService.cs]
 dotnet_diagnostic.IDE0051.severity = none

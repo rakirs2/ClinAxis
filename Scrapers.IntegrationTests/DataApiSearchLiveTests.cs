@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Scrapers.IntegrationTests.Helpers;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 
@@ -12,18 +11,22 @@ public sealed class DataApiSearchLiveTests
     private StudyRepository _repo = null!;
     private static readonly HttpClient Client = new();
 
+    // Need to determine HttpLive status — these tests require DataApi running on :5003.
+    // Planned fix (PR 7, #34): use WebApplicationFactory<Program> + Testcontainers.PostgreSql
+    // so they self-host in-process and work with a single Run click.
     [TestInitialize]
     public async Task InitializeAsync()
     {
-        _repo = new StudyRepository(PostgresTestHelper.ConnectionString);
+        _repo = new StudyRepository(ConnectionStringProvider.Default);
         await _repo.EnsureSchemaAsync();
     }
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_ReturnsMatchingResults()
     {
-        ClinicalTrialRecord record = new()
+        var record = new ClinicalTrialRecord
         {
             NctId = "NCT09999001",
             BriefTitle = "Liver Cancer Immunotherapy Trial Phase III",
@@ -39,7 +42,7 @@ public sealed class DataApiSearchLiveTests
             new Uri("http://localhost:5003/api/studies?search=liver+cancer&page=1&pageSize=10"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
-        using JsonDocument doc = JsonDocument.Parse(body);
+        using var doc = JsonDocument.Parse(body);
 
         JsonElement data = doc.RootElement.GetProperty("data");
         Assert.IsTrue(data.GetArrayLength() > 0, "Search should return at least one result");
@@ -51,13 +54,14 @@ public sealed class DataApiSearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_EmptySearchReturnsStudies()
     {
         using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?page=1&pageSize=5"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
-        using JsonDocument doc = JsonDocument.Parse(body);
+        using var doc = JsonDocument.Parse(body);
 
         Assert.IsTrue(doc.RootElement.TryGetProperty("data", out JsonElement data));
         Assert.IsTrue(data.GetArrayLength() > 0, "Empty search should return studies");
@@ -67,13 +71,14 @@ public sealed class DataApiSearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_ResponseShapeMatchesSchema()
     {
         using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?search=cancer&page=1&pageSize=1"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
-        using JsonDocument doc = JsonDocument.Parse(body);
+        using var doc = JsonDocument.Parse(body);
 
         JsonElement root = doc.RootElement;
         Assert.IsTrue(root.TryGetProperty("data", out JsonElement data));

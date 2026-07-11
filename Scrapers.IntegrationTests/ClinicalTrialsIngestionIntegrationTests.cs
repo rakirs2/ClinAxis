@@ -1,46 +1,47 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence;
 using Scrapers.Services;
-using Scrapers.IntegrationTests.Helpers;
+using Scrapers.Testing;
 
 namespace Scrapers.IntegrationTests;
 
 [TestClass]
-public sealed class ClinicalTrialsIngestionIntegrationTests
+public sealed class ClinicalTrialsIngestionIntegrationTests : DbTestBase
 {
-    private ClinicalTrialsIngestionService _service = null!;
-    private StudyRepository _repository = null!;
-    private int _saved;
-    private int _investigatorCount;
+    private StudyRepository _repo = null!;
 
     [TestInitialize]
-    public async Task InitializeAsync()
+    public void TestInit()
     {
-        _repository = new StudyRepository(PostgresTestHelper.ConnectionString);
-        _service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repository);
-
-        await _repository.EnsureSchemaAsync();
-        await PostgresTestHelper.ClearDatabaseAsync();
-        _saved = await _service.IngestAsync(5);
-        _investigatorCount = await _repository.CountInvestigatorsAsync();
+        _repo = new StudyRepository(ConnectionString);
     }
 
     [TestMethod]
     [TestCategory("Integration")]
     public async Task IngestionPersistsRequestedCount()
     {
-        Assert.AreEqual(5, _saved, "Ingestion should report five persisted studies.");
-        Assert.AreEqual(5, await _repository.CountStudiesAsync(), "Database should contain five studies after ingestion.");
-        Assert.IsTrue(_investigatorCount > 0, "Investigators table should have at least one row after ingestion.");
+        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repo);
+
+        var saved = await service.IngestAsync(5);
+        var investigatorCount = await _repo.CountInvestigatorsAsync();
+
+        Assert.AreEqual(5, saved, "Ingestion should report five persisted studies.");
+        Assert.AreEqual(5, await _repo.CountStudiesAsync(), "Database should contain five studies after ingestion.");
+        Assert.IsTrue(investigatorCount > 0, "Investigators table should have at least one row after ingestion.");
     }
 
     [TestMethod]
     [TestCategory("Integration")]
     public async Task IngestionIsIdempotent()
     {
-        var savedAgain = await _service.IngestAsync(5);
+        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repo);
+
+        var saved = await service.IngestAsync(5);
+        var investigatorCount = await _repo.CountInvestigatorsAsync();
+
+        var savedAgain = await service.IngestAsync(5);
         Assert.AreEqual(5, savedAgain, "Re-ingestion should still process five studies.");
-        Assert.AreEqual(5, await _repository.CountStudiesAsync(), "Re-ingestion should not duplicate studies.");
-        Assert.AreEqual(_investigatorCount, await _repository.CountInvestigatorsAsync(), "Investigator count should remain stable after re-ingestion.");
+        Assert.AreEqual(5, await _repo.CountStudiesAsync(), "Re-ingestion should not duplicate studies.");
+        Assert.AreEqual(investigatorCount, await _repo.CountInvestigatorsAsync(), "Investigator count should remain stable after re-ingestion.");
     }
 }

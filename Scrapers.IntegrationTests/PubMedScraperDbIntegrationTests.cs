@@ -1,5 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Scrapers.IntegrationTests.Utilities;
+using Scrapers.Testing;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
 using System;
@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Scrapers.IntegrationTests
 {
     [TestClass]
-    public class PubMedScraperDbIntegrationTests : EphemeralDbTestBase
+    public class PubMedScraperDbIntegrationTests : DbTestBase
     {
         [TestMethod]
         public async Task IngestPubMedPapersAsync_SkipsIncompleteStudies()

@@ -1,35 +1,19 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Coordinators;
+using Scrapers.Testing;
 using System.Threading.Tasks;
 
-namespace Scrapers.IntegrationTests
+namespace Scrapers.IntegrationTests;
+
+[TestClass]
+public class PipelineRunnerIntegrationTests : DbTestBase
 {
-    [TestClass]
-    public class PipelineRunnerIntegrationTests
+    [TestMethod]
+    public async Task RunPipeline_WithLiveApis_VerifiesRecordCounts()
     {
-        private static string? _originalConnectionString;
-
-        [TestInitialize]
-        public void Init()
-        {
-            _originalConnectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-        }
-
-        [TestCleanup]
-        public void Cleanup()
-        {
-            if (_originalConnectionString != null)
-            {
-                Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", _originalConnectionString);
-            }
-            else
-            {
-                Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", null);
-            }
-        }
-
-        [TestMethod]
-        public async Task RunPipeline_WithLiveApis_VerifiesRecordCounts()
+        var originalConnectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
+        Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", ConnectionString);
+        try
         {
             PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
 
@@ -37,6 +21,10 @@ namespace Scrapers.IntegrationTests
             Assert.IsTrue(result.InvestigatorCount > 0, "Expected at least one investigator across the ingested studies.");
             Assert.IsNull(result.Errors, "No validation errors expected. Errors: " +
                 (result.Errors != null ? string.Join("; ", result.Errors) : "none"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", originalConnectionString);
         }
     }
 }
