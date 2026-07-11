@@ -85,9 +85,9 @@ jobs:
            # Create fresh directory
            ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
              "mkdir -p /var/www/ct-data/current"
-           # Copy binaries (use absolute paths to ensure files are found)
-           scp -i ~/.ssh/deploy_key -r "${PWD}/publish/data-api"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
-           scp -i ~/.ssh/deploy_key -r "${PWD}/publish/frontend"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
+            # Copy binaries (use absolute paths to ensure files are found)
+            scp -i ~/.ssh/deploy_key -r "$PWD/publish/data-api"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
+            scp -i ~/.ssh/deploy_key -r "$PWD/publish/frontend"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
 
       - name: Update environment file and restart services
         run: |
