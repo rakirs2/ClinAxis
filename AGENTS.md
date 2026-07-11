@@ -8,6 +8,7 @@ This repository has strict expectations for automated or human agents contributi
 
 ## Testing Conventions
 1. **Test Framework**: use MSTest only (`Microsoft.NET.Test.Sdk`, `MSTest.TestAdapter`, `MSTest.TestFramework`). Do not introduce xUnit/NUnit/etc.
+2. **Repository/Service Fields**: Declare `StudyRepository` (and similar test dependencies) as `private` fields initialized in `[TestInitialize]`, not created inline in each test method. This is safe because MSTest creates a **new class instance per test method**, so each test gets its own field state — no concurrency concerns.
 2. **Per-API Coverage**:
    - For every external API we call, add:
      - A unit test class that uses fake HTTP handlers with real captured payloads.
