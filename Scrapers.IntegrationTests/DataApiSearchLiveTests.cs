@@ -38,13 +38,13 @@ public sealed class DataApiSearchLiveTests
         };
         await _repo.UpdateStudiesWithClinicalTrialsAsync(new[] { record });
 
-        using var response = await Client.GetAsync(
+        using HttpResponseMessage response = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?search=liver+cancer&page=1&pageSize=10"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);
 
-        var data = doc.RootElement.GetProperty("data");
+        JsonElement data = doc.RootElement.GetProperty("data");
         Assert.IsTrue(data.GetArrayLength() > 0, "Search should return at least one result");
 
         var found = data.EnumerateArray().Any(s =>

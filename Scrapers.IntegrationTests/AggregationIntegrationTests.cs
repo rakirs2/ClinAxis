@@ -39,23 +39,23 @@ public sealed class AggregationIntegrationTests : DbTestBase
         var service = new AggregationService(_repo);
         await service.AggregateAsync();
 
-        List<PiAggregationEntity> piRows = await Context.PiAggregations
+        var piRows = await Context.PiAggregations
             .OrderByDescending(p => p.StudyCount)
             .ToListAsync();
 
         Assert.AreEqual(3, piRows.Count, "Should have one row per unique PI name.");
 
-        PiAggregationEntity alice = piRows[0];
+        var alice = piRows[0];
         Assert.AreEqual("Alice Smith", alice.InvestigatorName);
         Assert.AreEqual(2, alice.StudyCount);
         Assert.IsTrue(alice.StudyNctIds.Contains("NCT00000001", StringComparison.Ordinal));
         Assert.IsTrue(alice.StudyNctIds.Contains("NCT00000002", StringComparison.Ordinal));
 
-        PiAggregationEntity bob = piRows[1];
+        var bob = piRows[1];
         Assert.AreEqual("Bob Jones", bob.InvestigatorName);
         Assert.AreEqual(1, bob.StudyCount);
 
-        PiAggregationEntity carol = piRows[2];
+        var carol = piRows[2];
         Assert.AreEqual("Carol White", carol.InvestigatorName);
         Assert.AreEqual(1, carol.StudyCount);
     }
@@ -81,21 +81,21 @@ public sealed class AggregationIntegrationTests : DbTestBase
         var service = new AggregationService(_repo);
         await service.AggregateAsync();
 
-        List<CategoryAggregationEntity> catRows = await Context.CategoryAggregations
+        var catRows = await Context.CategoryAggregations
             .OrderByDescending(c => c.StudyCount)
             .ToListAsync();
 
-        CategoryAggregationEntity? diabetesRow = catRows.FirstOrDefault(c => c.CategoryName == "DIABETES");
+        var diabetesRow = catRows.FirstOrDefault(c => c.CategoryName == "DIABETES");
         Assert.IsNotNull(diabetesRow, "DIABETES should appear in aggregations.");
         Assert.AreEqual("condition", diabetesRow!.CategoryType);
         Assert.AreEqual(1, diabetesRow.StudyCount);
 
-        CategoryAggregationEntity? insulinRow = catRows.FirstOrDefault(c => c.CategoryName == "insulin-therapy");
+        var insulinRow = catRows.FirstOrDefault(c => c.CategoryName == "insulin-therapy");
         Assert.IsNotNull(insulinRow, "insulin-therapy should appear in aggregations.");
         Assert.AreEqual("keyword", insulinRow!.CategoryType);
         Assert.AreEqual(1, insulinRow.StudyCount);
 
-        CategoryAggregationEntity? phase3Row = catRows.FirstOrDefault(c => c.CategoryName == "PHASE3");
+        var phase3Row = catRows.FirstOrDefault(c => c.CategoryName == "PHASE3");
         Assert.IsNotNull(phase3Row, "PHASE3 should appear in aggregations.");
         Assert.AreEqual("phase", phase3Row!.CategoryType);
         Assert.AreEqual(1, phase3Row.StudyCount);

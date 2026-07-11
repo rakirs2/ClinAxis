@@ -39,7 +39,7 @@ public sealed class StudyRepositoryTests : DbTestBase
     [TestMethod]
     public async Task UpsertStudiesAsync_IsIdempotent()
     {
-        ClinicalTrialRecord record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
+        var record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
             new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" });
 
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
@@ -52,15 +52,15 @@ public sealed class StudyRepositoryTests : DbTestBase
     [TestMethod]
     public async Task SearchStudiesAsync_FindsByTitleSubstring()
     {
-        ClinicalTrialRecord record = CreateRecord("NCT00999999", "Pregabalin for Neuropathic Pain Relief Trial", "COMPLETED",
+        var record = CreateRecord("NCT00999999", "Pregabalin for Neuropathic Pain Relief Trial", "COMPLETED",
             new Investigator { Name = "Eve Adams", Affiliation = "Pain Clinic", Role = "PRINCIPAL_INVESTIGATOR" });
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
 
-        IReadOnlyList<StudyEntity> results = await _repo.GetStudiesPagedAsync(1, 10, search: "pregabalin");
+        var results = await _repo.GetStudiesPagedAsync(1, 10, search: "pregabalin");
         Assert.AreEqual(1, results.Count);
         Assert.AreEqual("NCT00999999", results[0].NctId);
 
-        IReadOnlyList<StudyEntity> noResults = await _repo.GetStudiesPagedAsync(1, 10, search: "zzzznotfound");
+        var noResults = await _repo.GetStudiesPagedAsync(1, 10, search: "zzzznotfound");
         Assert.AreEqual(0, noResults.Count);
     }
 
@@ -76,11 +76,11 @@ public sealed class StudyRepositoryTests : DbTestBase
         ];
         await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        IReadOnlyList<StudyEntity> recruiting = await _repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING");
+        var recruiting = await _repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING");
         Assert.AreEqual(1, recruiting.Count);
         Assert.AreEqual("NCT00000101", recruiting[0].NctId);
 
-        IReadOnlyList<StudyEntity> completed = await _repo.GetStudiesPagedAsync(1, 10, status: "COMPLETED");
+        var completed = await _repo.GetStudiesPagedAsync(1, 10, status: "COMPLETED");
         Assert.AreEqual(1, completed.Count);
         Assert.AreEqual("NCT00000102", completed[0].NctId);
     }
@@ -99,7 +99,7 @@ public sealed class StudyRepositoryTests : DbTestBase
         ];
         await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        IReadOnlyList<StudyEntity> activeOrRecruiting = await _repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING,ACTIVE");
+        var activeOrRecruiting = await _repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING,ACTIVE");
         Assert.AreEqual(2, activeOrRecruiting.Count);
     }
 
