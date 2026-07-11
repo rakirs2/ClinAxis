@@ -16,7 +16,7 @@ public sealed class AggregationSchemaGuardTests : DbTestBase
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
-        await context.Database.MigrateAsync();
+        await context.Database.EnsureCreatedAsync();
 
         DbConnection connection = context.Database.GetDbConnection();
         await connection.OpenAsync();
@@ -50,7 +50,7 @@ public sealed class AggregationSchemaGuardTests : DbTestBase
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
-        await context.Database.MigrateAsync();
+        await context.Database.EnsureCreatedAsync();
 
         DbConnection connection = context.Database.GetDbConnection();
         await connection.OpenAsync();

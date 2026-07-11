@@ -49,11 +49,11 @@ public abstract class DbTestBase
             Database = dbName
         }.ConnectionString;
 
-        // Run migrations on this fresh database
+        // Create schema based on EF Core model (no migrations needed until production)
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         using var ctx = new ClinicalTrialsContext(opts);
-        await ctx.Database.MigrateAsync().ConfigureAwait(false);
+        await ctx.Database.EnsureCreatedAsync().ConfigureAwait(false);
 
         Context = new ClinicalTrialsContext(opts);
     }
