@@ -36,7 +36,7 @@ public sealed class SnapshotDb : IAsyncDisposable
     {
         if (!_persist)
         {
-            await _container.DisposeAsync();
+            await _container.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

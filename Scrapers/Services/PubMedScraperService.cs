@@ -31,7 +31,7 @@ namespace Scrapers.Services
 
             var totalPapers = 0;
 
-            await using (var context = new ClinicalTrialsContext(contextOptions))
+            using (var context = new ClinicalTrialsContext(contextOptions))
             {
                 var studiesWithPmids = await context.Studies
                     .Where(s => !s.IsIncomplete && s.OverallStatus != "COMPLETED")
@@ -49,7 +49,7 @@ namespace Scrapers.Services
                     foreach (var pmid in pmids)
                     {
                         var existing = await context.PubmedStudies.AnyAsync(
-                            p => p.StudyNctId == study.NctId && p.Pmid == pmid, cancellationToken);
+                            p => p.StudyNctId == study.NctId && p.Pmid == pmid, cancellationToken).ConfigureAwait(false);
                         if (existing)
                         {
                             continue;
