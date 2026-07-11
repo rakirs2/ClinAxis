@@ -9,10 +9,14 @@ builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5003") });
 
+builder.Services.AddHealthChecks();
+
 WebApplication app = builder.Build();
 
 app.UseAntiforgery();
 app.UseStaticFiles();
+
+app.MapHealthChecks("/health");
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
