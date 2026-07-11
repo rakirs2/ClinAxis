@@ -11,4 +11,7 @@
     <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
+  </ItemGroup>
 </Project>

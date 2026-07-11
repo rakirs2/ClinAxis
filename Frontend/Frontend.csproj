@@ -7,4 +7,11 @@
     <RootNamespace>Frontend</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Remove="wwwroot/_framework/**/*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
+  </ItemGroup>
 </Project>

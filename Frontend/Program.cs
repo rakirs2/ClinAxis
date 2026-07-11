@@ -18,3 +18,8 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+namespace Frontend
+{
+    partial class Program { }
+}
