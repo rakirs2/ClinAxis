@@ -11,7 +11,11 @@ var connectionString = ConnectionStringProvider.Default;
 var startupRepo = new StudyRepository(connectionString);
 await startupRepo.EnsureSchemaAsync();
 
+builder.Services.AddHealthChecks();
+
 WebApplication app = builder.Build();
+
+app.MapHealthChecks("/health");
 
 app.MapGet("/api/studies", async (int? page, int? pageSize, string? search, string? status, string? phase) =>
 {
