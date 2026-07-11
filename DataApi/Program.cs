@@ -39,6 +39,25 @@ app.MapGet("/api/studies/{nctId}", async (string nctId) =>
     return study is null ? Results.NotFound(new { error = "Study not found" }) : Results.Ok(StudyMapper.ToDetail(study));
 });
 
+app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search) =>
+{
+    var repo = new StudyRepository(connectionString);
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+    IReadOnlyList<InvestigatorSummary> investigators = await repo.GetInvestigatorsPagedAsync(p, ps, search);
+    var total = await repo.CountInvestigatorsFilteredAsync(search);
+
+    return Results.Ok(new
+    {
+        data = investigators,
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
 app.MapGet("/api/pipeline-runs", async (int? page, int? pageSize) =>
 {
     var repo = new StudyRepository(connectionString);

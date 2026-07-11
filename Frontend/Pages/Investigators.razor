@@ -1,0 +1,152 @@
+@page "/investigators"
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<h1>Principal Investigators</h1>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <input @bind="search" @bind:event="oninput" class="form-control" placeholder="Search by investigator name"
+               @onkeydown="HandleKeyDown" />
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary" @onclick="SearchInvestigators" disabled="@loading">Search</button>
+    </div>
+</div>
+
+@if (loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (investigators is not null)
+{
+    @if (investigators.Count == 0)
+    {
+        <p class="text-muted">No investigators found.</p>
+    }
+    else
+    {
+        <p class="text-muted">Showing @investigators.Count of @total investigators</p>
+
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Affiliation</th>
+                    <th>Study Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var inv in investigators)
+                {
+                    <tr>
+                        <td><a href="/?search=@Uri.EscapeDataString(inv.name ?? "")">@inv.name</a></td>
+                        <td>@inv.affiliation</td>
+                        <td>@inv.studyCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <nav>
+            <ul class="pagination">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    private string search = "";
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int total;
+    private int totalPages;
+    private bool loading;
+    private string? error;
+    private List<InvestigatorItem>? investigators;
+
+    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchInvestigators();
+        }
+    }
+
+    private async Task SearchInvestigators()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        await LoadPage(page);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        loading = true;
+        error = null;
+        currentPage = page;
+
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            string url = $"/api/investigators?page={page}&pageSize={pageSize}";
+            if (!string.IsNullOrEmpty(search))
+            {
+                url += $"&search={Uri.EscapeDataString(search)}";
+            }
+            var response = await client.GetFromJsonAsync<InvestigatorListResponse>(url);
+            if (response is not null)
+            {
+                investigators = response.data;
+                total = response.total;
+                totalPages = response.totalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load investigators: {ex.Message}";
+            investigators = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private class InvestigatorListResponse
+    {
+        public List<InvestigatorItem>? data { get; set; }
+        public int total { get; set; }
+        public int page { get; set; }
+        public int pageSize { get; set; }
+        public int totalPages { get; set; }
+    }
+
+    private class InvestigatorItem
+    {
+        public string? name { get; set; }
+        public string? affiliation { get; set; }
+        public int studyCount { get; set; }
+    }
+}

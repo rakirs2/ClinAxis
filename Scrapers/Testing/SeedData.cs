@@ -12,6 +12,38 @@ internal static class SeedData
         OverallStatus = "ACTIVE"
     };
 
+    internal static readonly InvestigatorEntity Investigator1 = new()
+    {
+        StudyNctId = "NCT00000002",
+        Name = "Dr. Alice Johnson",
+        Affiliation = "Pain Research Institute",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator2 = new()
+    {
+        StudyNctId = "NCT00000002",
+        Name = "Dr. Bob Williams",
+        Affiliation = "Pain Research Institute",
+        Role = "SUB_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator3 = new()
+    {
+        StudyNctId = "NCT00000003",
+        Name = "Dr. Alice Johnson",
+        Affiliation = "Cardio Health Center",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator4 = new()
+    {
+        StudyNctId = "NCT00000004",
+        Name = "Dr. Carol Davis",
+        Affiliation = "Asthma Care Institute",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
     internal static readonly StudyEntity Study2 = new()
     {
         NctId = "NCT00000002",
@@ -59,6 +91,7 @@ internal static class SeedData
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
         ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5);
+        ctx.Investigators.AddRange(Investigator1, Investigator2, Investigator3, Investigator4);
         await ctx.SaveChangesAsync();
     }
 }
