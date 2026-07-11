@@ -11,6 +11,9 @@ public sealed class FrontendProxySearchLiveTests
     private StudyRepository _repo = null!;
     private static readonly HttpClient Client = new();
 
+    // Need to determine HttpLive status — these tests require Frontend on :5001 + DataApi on :5003.
+    // Planned fix (PR 7, #34): use WebApplicationFactory<Program> + Testcontainers.PostgreSql
+    // so they self-host in-process and work with a single Run click.
     [TestInitialize]
     public async Task InitializeAsync()
     {
@@ -20,6 +23,7 @@ public sealed class FrontendProxySearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task ProxySearch_ReturnsMatchingResults()
     {
         var record = new ClinicalTrialRecord
@@ -50,6 +54,7 @@ public sealed class FrontendProxySearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task ProxySearch_ReturnsSameShapeAsDataApi()
     {
         using var proxyResponse = await Client.GetAsync(

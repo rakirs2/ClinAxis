@@ -11,6 +11,9 @@ public sealed class DataApiSearchLiveTests
     private StudyRepository _repo = null!;
     private static readonly HttpClient Client = new();
 
+    // Need to determine HttpLive status — these tests require DataApi running on :5003.
+    // Planned fix (PR 7, #34): use WebApplicationFactory<Program> + Testcontainers.PostgreSql
+    // so they self-host in-process and work with a single Run click.
     [TestInitialize]
     public async Task InitializeAsync()
     {
@@ -20,6 +23,7 @@ public sealed class DataApiSearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_ReturnsMatchingResults()
     {
         ClinicalTrialRecord record = new()
@@ -50,6 +54,7 @@ public sealed class DataApiSearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_EmptySearchReturnsStudies()
     {
         using HttpResponseMessage response = await Client.GetAsync(
@@ -66,6 +71,7 @@ public sealed class DataApiSearchLiveTests
 
     [TestMethod]
     [TestCategory("HttpLive")]
+    [Ignore("Need to determine HttpLive status — see issue #34")]
     public async Task SearchStudiesViaApi_ResponseShapeMatchesSchema()
     {
         using HttpResponseMessage response = await Client.GetAsync(
