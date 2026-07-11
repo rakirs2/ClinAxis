@@ -6,6 +6,11 @@ echo "Clinical Trial Data — Droplet Setup"
 echo "=========================================="
 echo ""
 
+# Add PostgreSQL official repository
+echo "Adding PostgreSQL repository..."
+sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - > /dev/null 2>&1
+
 # Update and install dependencies
 echo "Updating system packages..."
 apt-get update > /dev/null 2>&1
