@@ -42,9 +42,9 @@ public sealed class FrontendProxySearchLiveTests
             new Uri("http://localhost:5001/api-proxy/studies?search=pancreatic+cancer&page=1&pageSize=10"));
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
-        using JsonDocument doc = JsonDocument.Parse(body);
+        using var doc = JsonDocument.Parse(body);
 
-        JsonElement data = doc.RootElement.GetProperty("data");
+        var data = doc.RootElement.GetProperty("data");
         Assert.IsTrue(data.GetArrayLength() > 0, "Proxy search should return at least one result");
 
         var found = data.EnumerateArray().Any(s =>
@@ -61,21 +61,21 @@ public sealed class FrontendProxySearchLiveTests
             new Uri("http://localhost:5001/api-proxy/studies?search=cancer&page=1&pageSize=2"));
         proxyResponse.EnsureSuccessStatusCode();
         var proxyBody = await proxyResponse.Content.ReadAsStringAsync();
-        using JsonDocument proxyDoc = JsonDocument.Parse(proxyBody);
+        using var proxyDoc = JsonDocument.Parse(proxyBody);
 
-        using HttpResponseMessage apiResponse = await Client.GetAsync(
+        using var apiResponse = await Client.GetAsync(
             new Uri("http://localhost:5003/api/studies?search=cancer&page=1&pageSize=2"));
         apiResponse.EnsureSuccessStatusCode();
         var apiBody = await apiResponse.Content.ReadAsStringAsync();
-        using JsonDocument apiDoc = JsonDocument.Parse(apiBody);
+        using var apiDoc = JsonDocument.Parse(apiBody);
 
         Assert.AreEqual(apiDoc.RootElement.GetProperty("total").GetInt32(),
             proxyDoc.RootElement.GetProperty("total").GetInt32(),
             "Proxy and API should return same total");
 
-        List<string?> proxyIds = proxyDoc.RootElement.GetProperty("data").EnumerateArray()
+        var proxyIds = proxyDoc.RootElement.GetProperty("data").EnumerateArray()
             .Select(s => s.GetProperty("nctId").GetString()).ToList();
-        List<string?> apiIds = apiDoc.RootElement.GetProperty("data").EnumerateArray()
+        var apiIds = apiDoc.RootElement.GetProperty("data").EnumerateArray()
             .Select(s => s.GetProperty("nctId").GetString()).ToList();
 
         CollectionAssert.AreEquivalent(apiIds, proxyIds, "Proxy and API should return same studies");
