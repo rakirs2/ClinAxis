@@ -125,3 +125,8 @@ app.MapGet("/api/aggregations", async () =>
 });
 
 await app.RunAsync();
+
+namespace DataApi
+{
+    partial class Program { }
+}
