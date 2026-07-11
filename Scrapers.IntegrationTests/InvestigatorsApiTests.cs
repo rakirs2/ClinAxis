@@ -50,7 +50,7 @@ public sealed class InvestigatorsApiTests : DbTestBase
         foreach (var inv in investigators)
         {
             Assert.IsFalse(string.IsNullOrWhiteSpace(inv?.Name), "Investigator name should not be null or empty");
-            var hasTitle = (inv?.Name?.Contains("Dr.") ?? false) || (inv?.Name?.Contains("Prof.") ?? false);
+            var hasTitle = (inv?.Name?.Contains("Dr.", StringComparison.Ordinal) ?? false) || (inv?.Name?.Contains("Prof.", StringComparison.Ordinal) ?? false);
             Assert.IsTrue(hasTitle, "Investigator name should contain academic title");
             Assert.IsTrue(inv?.StudyCount > 0, "Investigator should have at least one study");
         }
@@ -184,7 +184,7 @@ public sealed class InvestigatorsApiTests : DbTestBase
         
         // Verify academic titles in names
         var investWithTitles = investigators
-            .Where(inv => (inv?.Name?.Contains("Dr.") ?? false) || (inv?.Name?.Contains("Prof.") ?? false))
+            .Where(inv => (inv?.Name?.Contains("Dr.", StringComparison.Ordinal) ?? false) || (inv?.Name?.Contains("Prof.", StringComparison.Ordinal) ?? false))
             .Count();
         
         Assert.IsTrue(investWithTitles > 0, "Investigators should have academic titles (Dr., Prof., etc.)");
@@ -208,7 +208,7 @@ public sealed class InvestigatorsApiTests : DbTestBase
         // Verify degrees in names
         var validDegrees = new[] { "MD", "PhD", "MSc", "DM" };
         var investWithDegrees = investigators
-            .Where(inv => validDegrees.Any(degree => inv?.Name?.Contains(degree) ?? false))
+            .Where(inv => validDegrees.Any(degree => inv?.Name?.Contains(degree, StringComparison.Ordinal) ?? false))
             .Count();
         
         Assert.IsTrue(investWithDegrees > 0, "Investigators should have degrees (MD, PhD, MSc, DM, etc.)");
@@ -244,7 +244,7 @@ public sealed class InvestigatorsApiTests : DbTestBase
 
         // Assert
         Assert.IsTrue(results.Count > 0, "Should find investigators with partial name match");
-        Assert.IsTrue(results.All(inv => inv?.Name?.Contains("Smith") ?? false), "All results should contain search term");
+        Assert.IsTrue(results.All(inv => inv?.Name?.Contains("Smith", StringComparison.Ordinal) ?? false), "All results should contain search term");
     }
 
     [TestMethod]
