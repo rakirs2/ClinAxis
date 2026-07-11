@@ -5,13 +5,165 @@
 
 <h1>Study Search</h1>
 
-<div class="row mb-3">
-    <div class="col-md-6">
-        <input @bind="search" @bind:event="oninput" class="form-control" placeholder="Search by title or NCT ID"
-               @onkeydown="HandleKeyDown" />
+<!-- Filter Panel -->
+<div class="card mb-4">
+    <div class="card-header">
+        <button class="btn btn-link" @onclick="ToggleFilters" style="text-decoration: none; color: inherit;">
+            @(showFilters ? "▼" : "►") Advanced Filters
+        </button>
     </div>
-    <div class="col-md-2">
-        <button class="btn btn-primary" @onclick="SearchStudies" disabled="@loading">Search</button>
+    
+    @if (showFilters)
+    {
+        <div class="card-body">
+            <!-- Keyword Search -->
+            <div class="mb-3">
+                <label class="form-label">Keywords</label>
+                <input @bind="search" @bind:event="oninput" class="form-control" 
+                       placeholder="Search by title, description, or NCT ID" @onkeydown="HandleKeyDown" />
+            </div>
+
+            <!-- Status & Phase (two columns) -->
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <select multiple @bind="selectedStatuses" class="form-select" size="4">
+                        <option value="">-- Any Status --</option>
+                        <option value="RECRUITING">Recruiting</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="ENROLLING_BY_INVITATION">Enrolling by Invitation</option>
+                        <option value="NOT_YET_RECRUITING">Not Yet Recruiting</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="TERMINATED">Terminated</option>
+                        <option value="SUSPENDED">Suspended</option>
+                        <option value="WITHDRAWN">Withdrawn</option>
+                    </select>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phase</label>
+                    <select multiple @bind="selectedPhases" class="form-select" size="4">
+                        <option value="">-- Any Phase --</option>
+                        <option value="Phase 1">Phase 1</option>
+                        <option value="Phase 2">Phase 2</option>
+                        <option value="Phase 3">Phase 3</option>
+                        <option value="Phase 4">Phase 4</option>
+                        <option value="Early Phase 1">Early Phase 1</option>
+                    </select>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+            </div>
+
+            <!-- Conditions with autocomplete -->
+            <div class="mb-3">
+                <label class="form-label">Conditions</label>
+                <input @bind="conditionInput" 
+                       @onfocus="LoadConditionsIfNeeded"
+                       @onkeyup="OnConditionInput"
+                       class="form-control" 
+                       placeholder="Type to search conditions...">
+                
+                <!-- Autocomplete dropdown -->
+                @if (showConditionDropdown && filteredConditions != null && filteredConditions.Count > 0)
+                {
+                    <div class="list-group mt-1" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto;">
+                        @foreach (var cond in filteredConditions.Take(10))
+                        {
+                            <button type="button" class="list-group-item list-group-item-action" @onclick="() => SelectCondition(cond)">
+                                @cond
+                            </button>
+                        }
+                    </div>
+                }
+                
+                <!-- Selected conditions as Bootstrap badges -->
+                @if (selectedConditions.Count > 0)
+                {
+                    <div class="mt-2">
+                        @foreach (var cond in selectedConditions)
+                        {
+                            <span class="badge bg-secondary me-2 mb-2" 
+                                  role="button" 
+                                  style="cursor: pointer;"
+                                  @onclick="() => RemoveCondition(cond)"
+                                  title="Click to remove">
+                                @cond ×
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Locations -->
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Country</label>
+                    <select @bind="selectedCountry" class="form-select">
+                        <option value="">-- Any Country --</option>
+                        @if (availableCountries != null)
+                        {
+                            @foreach (var c in availableCountries)
+                            {
+                                <option value="@c">@c</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">State</label>
+                    <select @bind="selectedState" class="form-select">
+                        <option value="">-- Any State --</option>
+                        @if (availableStates != null)
+                        {
+                            @foreach (var s in availableStates)
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <!-- Enrollment Range -->
+            <div class="mb-3 mt-3">
+                <label class="form-label">Enrollment Range</label>
+                <div class="row">
+                    <div class="col-md-6">
+                        <input type="number" @bind="enrollmentMin" class="form-control" placeholder="Min" min="0" />
+                    </div>
+                    <div class="col-md-6">
+                        <input type="number" @bind="enrollmentMax" class="form-control" placeholder="Max" min="0" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date Range -->
+            <div class="mb-3">
+                <label class="form-label">Start Date Range</label>
+                <div class="row">
+                    <div class="col-md-6">
+                        <input type="date" @bind="startDateFrom" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <input type="date" @bind="startDateTo" class="form-control" />
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" @onclick="SearchStudies" disabled="@loading">
+                @if (loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                Search
+            </button>
+            <button class="btn btn-secondary ms-2" @onclick="ClearFilters">Clear Filters</button>
+        </div>
+    }
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <button class="btn btn-outline-primary" @onclick="ToggleFilters">
+            @(showFilters ? "Hide" : "Show") Filters
+        </button>
     </div>
 </div>
 
@@ -80,6 +232,25 @@ else if (studies is not null)
 
 @code {
     private string search = "";
+    private List<string> selectedConditions = new();
+    private List<string> selectedStatuses = new();
+    private List<string> selectedPhases = new();
+    private string selectedCountry = "";
+    private string selectedState = "";
+    private int? enrollmentMin;
+    private int? enrollmentMax;
+    private DateTime? startDateFrom;
+    private DateTime? startDateTo;
+
+    private string conditionInput = "";
+    private bool showConditionDropdown = false;
+    private List<string>? filteredConditions;
+    private List<string>? allConditions;
+    private List<string>? availableCountries;
+    private List<string>? availableStates;
+
+    private bool showFilters = false;
+
     private int currentPage = 1;
     private int pageSize = 20;
     private int total;
@@ -87,6 +258,97 @@ else if (studies is not null)
     private bool loading;
     private string? error;
     private List<StudySummary>? studies;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConditionsIfNeeded();
+        await LoadLocationsIfNeeded();
+    }
+
+    private async Task LoadConditionsIfNeeded()
+    {
+        if (allConditions == null)
+        {
+            try
+            {
+                HttpClient client = HttpClientFactory.CreateClient("DataApi");
+                var response = await client.GetFromJsonAsync<ConditionsResponse>("/api/distinct-conditions");
+                allConditions = response?.data ?? new();
+            }
+            catch { }
+        }
+    }
+
+    private async Task LoadLocationsIfNeeded()
+    {
+        if (availableCountries == null)
+        {
+            try
+            {
+                HttpClient client = HttpClientFactory.CreateClient("DataApi");
+                var response = await client.GetFromJsonAsync<LocationsResponse>("/api/distinct-locations");
+                availableCountries = response?.countries ?? new();
+                availableStates = response?.states ?? new();
+            }
+            catch { }
+        }
+    }
+
+    private void ToggleFilters()
+    {
+        showFilters = !showFilters;
+    }
+
+    private void OnConditionInput(KeyboardEventArgs e)
+    {
+        if (string.IsNullOrEmpty(conditionInput))
+        {
+            showConditionDropdown = false;
+            filteredConditions = null;
+            return;
+        }
+
+        showConditionDropdown = true;
+        if (allConditions != null)
+        {
+            var searchTerm = conditionInput.ToLower();
+            filteredConditions = allConditions
+                .Where(c => c.ToLower().Contains(searchTerm) && !selectedConditions.Contains(c))
+                .ToList();
+        }
+    }
+
+    private void SelectCondition(string condition)
+    {
+        if (!selectedConditions.Contains(condition))
+        {
+            selectedConditions.Add(condition);
+        }
+        conditionInput = "";
+        showConditionDropdown = false;
+        filteredConditions = null;
+    }
+
+    private void RemoveCondition(string condition)
+    {
+        selectedConditions.Remove(condition);
+    }
+
+    private void ClearFilters()
+    {
+        search = "";
+        selectedConditions.Clear();
+        selectedStatuses.Clear();
+        selectedPhases.Clear();
+        selectedCountry = "";
+        selectedState = "";
+        enrollmentMin = null;
+        enrollmentMax = null;
+        startDateFrom = null;
+        startDateTo = null;
+        conditionInput = "";
+        studies = null;
+    }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -115,8 +377,47 @@ else if (studies is not null)
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<StudyListResponse>(
-                $"/api/studies?page={page}&pageSize={pageSize}&search={Uri.EscapeDataString(search)}");
+            
+            // Build query string with all filters
+            var queryParams = new List<string>
+            {
+                $"page={page}",
+                $"pageSize={pageSize}"
+            };
+
+            if (!string.IsNullOrEmpty(search))
+                queryParams.Add($"search={Uri.EscapeDataString(search)}");
+
+            if (selectedStatuses.Count > 0)
+                queryParams.Add($"status={Uri.EscapeDataString(string.Join(",", selectedStatuses))}");
+
+            if (selectedPhases.Count > 0)
+                queryParams.Add($"phase={Uri.EscapeDataString(string.Join(",", selectedPhases))}");
+
+            if (selectedConditions.Count > 0)
+                queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", selectedConditions))}");
+
+            if (!string.IsNullOrEmpty(selectedCountry))
+                queryParams.Add($"country={Uri.EscapeDataString(selectedCountry)}");
+
+            if (!string.IsNullOrEmpty(selectedState))
+                queryParams.Add($"state={Uri.EscapeDataString(selectedState)}");
+
+            if (enrollmentMin.HasValue)
+                queryParams.Add($"enrollmentMin={enrollmentMin}");
+
+            if (enrollmentMax.HasValue)
+                queryParams.Add($"enrollmentMax={enrollmentMax}");
+
+            if (startDateFrom.HasValue)
+                queryParams.Add($"startDateFrom={startDateFrom:yyyy-MM-dd}");
+
+            if (startDateTo.HasValue)
+                queryParams.Add($"startDateTo={startDateTo:yyyy-MM-dd}");
+
+            var queryString = string.Join("&", queryParams);
+            var response = await client.GetFromJsonAsync<StudyListResponse>($"/api/studies?{queryString}");
+            
             if (response is not null)
             {
                 studies = response.data;
@@ -160,5 +461,18 @@ else if (studies is not null)
         public string? overallStatus { get; set; }
         public List<string>? conditions { get; set; }
         public List<string>? phases { get; set; }
+    }
+
+    private class ConditionsResponse
+    {
+        public List<string>? data { get; set; }
+    }
+
+    private class LocationsResponse
+    {
+        public List<string>? countries { get; set; }
+        public List<string>? states { get; set; }
+        public List<string>? cities { get; set; }
+        public List<string>? facilities { get; set; }
     }
 }
