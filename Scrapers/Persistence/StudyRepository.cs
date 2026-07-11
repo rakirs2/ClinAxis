@@ -290,6 +290,95 @@ namespace Scrapers.Persistence
             return await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Get a single investigator by UUID with their basic information.
+        /// </summary>
+        public async Task<InvestigatorEntity?> GetInvestigatorByUuidAsync(Guid uuid, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.Investigators
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Uuid == uuid, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Get all studies for a specific investigator, with support for filtering and pagination.
+        /// </summary>
+        public async Task<IReadOnlyList<StudyEntity>> GetStudiesByInvestigatorUuidAsync(Guid uuid, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+            
+            using ClinicalTrialsContext context = CreateContext();
+            
+            // Start by filtering to only studies where this investigator is involved
+            var query = context.Studies
+                .Include(s => s.Investigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.PubmedStudies)
+                .AsNoTracking()
+                .Where(s => s.Investigators != null && s.Investigators.Any(i => i.Uuid == uuid));
+
+            // Apply the same filtering logic as SearchStudiesAsync
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                query = query.Where(s => s.OverallStatus != null && criteria.Statuses.Contains(s.OverallStatus));
+            }
+
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase != null && criteria.Phases.Contains(p.Phase)));
+            }
+
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+            }
+
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
+            }
+
+            // Apply pagination
+            var skip = (criteria.Page - 1) * criteria.PageSize;
+            query = query
+                .OrderBy(s => s.BriefTitle)
+                .Skip(skip)
+                .Take(criteria.PageSize);
+
+            return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesWithAuthorsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -402,7 +491,7 @@ namespace Scrapers.Persistence
 
             // Apply filters in order (helps query planner use indices)
 
-            // 1. Keyword search (case-insensitive)
+            // 1. Keyword search (case-insensitive) - searches title, summary, NCT ID, and investigator names
             if (!string.IsNullOrWhiteSpace(criteria.Keyword))
             {
                 var keyword = $"%{criteria.Keyword}%";
@@ -732,6 +821,7 @@ namespace Scrapers.Persistence
                 .GroupBy(i => new { i.Name, i.Affiliation })
                 .Select(g => new InvestigatorSummary
                 {
+                    Uuid = g.First().Uuid,  // Use the UUID from the first investigator in the group
                     Name = g.Key.Name,
                     Affiliation = g.Key.Affiliation,
                     StudyCount = g.Select(i => i.StudyNctId).Distinct().Count()
@@ -785,6 +875,7 @@ namespace Scrapers.Persistence
 
     public class InvestigatorSummary
     {
+        public Guid Uuid { get; set; }
         public string? Name { get; set; }
         public string? Affiliation { get; set; }
         public int StudyCount { get; set; }

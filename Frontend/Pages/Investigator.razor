@@ -1,0 +1,392 @@
+@page "/investigator/{InvestigatorId}"
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid">
+    @if (loading)
+    {
+        <div class="d-flex justify-content-center mt-4">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger">@error</div>
+        <button class="btn btn-secondary" @onclick="GoBack">Back to Investigators</button>
+    }
+    else if (investigator is not null)
+    {
+        <!-- Header with back button -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <button class="btn btn-link" @onclick="GoBack">&larr; Back to Investigators</button>
+            </div>
+        </div>
+
+        <!-- Investigator Details Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h2>@investigator.name</h2>
+                        <p class="text-muted mb-1"><strong>Role:</strong> @(investigator.role?.Replace("_", " ") ?? "Unknown")</p>
+                        <p class="text-muted mb-3"><strong>Affiliation:</strong> @(investigator.affiliation ?? "Unknown")</p>
+                        
+                        <!-- Statistics Cards -->
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@investigator.studyCount</h5>
+                                        <p class="card-text small">Studies</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Co-Investigators Section -->
+        @if (investigator.coInvestigators?.Count > 0)
+        {
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Co-Investigators (@investigator.coInvestigators.Count)</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush">
+                                @foreach (var coInv in investigator.coInvestigators)
+                                {
+                                    <li class="list-group-item">@coInv</li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Research Focus Areas Section -->
+        @if (investigator.conditionsFocusAreas?.Count > 0)
+        {
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Research Focus Areas (@investigator.conditionsFocusAreas.Count)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div>
+                                @foreach (var condition in investigator.conditionsFocusAreas)
+                                {
+                                    <span class="badge bg-info me-2 mb-2">@condition</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Statistics Section -->
+        @if (investigator.statistics is not null)
+        {
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Studies by Status</h5>
+                        </div>
+                        <div class="card-body">
+                            @if (investigator.statistics.byStatus?.Count > 0)
+                            {
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var status in investigator.statistics.byStatus)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between">
+                                            <span>@status.Key</span>
+                                            <span class="badge bg-primary">@status.Value</span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No status data available</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Studies by Phase</h5>
+                        </div>
+                        <div class="card-body">
+                            @if (investigator.statistics.byPhase?.Count > 0)
+                            {
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var phase in investigator.statistics.byPhase)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between">
+                                            <span>@(string.IsNullOrEmpty(phase.Key) ? "Not Specified" : phase.Key)</span>
+                                            <span class="badge bg-primary">@phase.Value</span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No phase data available</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Studies Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <h5 class="mb-0">Studies (@studyCount)</h5>
+                            </div>
+                            <div class="col-md-4">
+                                <input @bind="searchFilter" @bind:event="oninput" class="form-control form-control-sm" placeholder="Filter by title..." />
+                            </div>
+                            <div class="col-md-4">
+                                <select @bind="selectedSort" class="form-select form-select-sm">
+                                    <option value="">Sort by...</option>
+                                    <option value="title">Title</option>
+                                    <option value="status">Status</option>
+                                    <option value="phase">Phase</option>
+                                    <option value="enrollment">Enrollment</option>
+                                    <option value="startDate">Start Date</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (studiesLoading)
+                        {
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+                            </div>
+                        }
+                        else if (studies?.Count > 0)
+                        {
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Status</th>
+                                        <th>Phase</th>
+                                        <th>Enrollment</th>
+                                        <th>Start Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var study in studies)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a href="/study/@study.nctId">@study.briefTitle</a>
+                                            </td>
+                                            <td>@(study.overallStatus?.Replace("_", " ") ?? "Unknown")</td>
+                                            <td>
+                                                @if (study.phases?.Count > 0)
+                                                {
+                                                    @string.Join(", ", study.phases)
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">N/A</span>
+                                                }
+                                            </td>
+                                            <td>@(study.enrollmentCount?.ToString() ?? "N/A")</td>
+                                            <td>@(study.startDate?.ToString("yyyy-MM-dd") ?? "N/A")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+
+                            <!-- Pagination -->
+                            <nav>
+                                <ul class="pagination">
+                                    <li class="page-item @(studyCurrentPage <= 1 ? "disabled" : "")">
+                                        <button class="page-link" @onclick="() => LoadStudies(studyCurrentPage - 1)">Previous</button>
+                                    </li>
+                                    @for (int i = 1; i <= studyTotalPages; i++)
+                                    {
+                                        <li class="page-item @(i == studyCurrentPage ? "active" : "")">
+                                            <button class="page-link" @onclick="() => LoadStudies(i)">@i</button>
+                                        </li>
+                                    }
+                                    <li class="page-item @(studyCurrentPage >= studyTotalPages ? "disabled" : "")">
+                                        <button class="page-link" @onclick="() => LoadStudies(studyCurrentPage + 1)">Next</button>
+                                    </li>
+                                </ul>
+                            </nav>
+                        }
+                        else
+                        {
+                            <p class="text-muted">No studies found.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? InvestigatorId { get; set; }
+
+    private InvestigatorDetail? investigator;
+    private List<StudyItem>? studies;
+    private bool loading = true;
+    private bool studiesLoading = false;
+    private string? error;
+    private int studyCurrentPage = 1;
+    private int studyPageSize = 20;
+    private int studyCount = 0;
+    private int studyTotalPages = 0;
+    private string searchFilter = "";
+    private string selectedSort = "";
+    private Guid investigatorUuid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(InvestigatorId) || !Guid.TryParse(InvestigatorId, out investigatorUuid))
+        {
+            error = "Invalid investigator ID";
+            loading = false;
+            return;
+        }
+
+        await LoadInvestigator();
+        await LoadStudies(1);
+    }
+
+    private async Task LoadInvestigator()
+    {
+        try
+        {
+            loading = true;
+            var httpClient = HttpClientFactory.CreateClient();
+            httpClient.BaseAddress = new Uri("http://localhost:5003");
+            
+            investigator = await httpClient.GetFromJsonAsync<InvestigatorDetail>($"/api/investigators/{investigatorUuid}");
+            
+            if (investigator == null)
+            {
+                error = "Investigator not found";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading investigator: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task LoadStudies(int page)
+    {
+        try
+        {
+            studiesLoading = true;
+            var httpClient = HttpClientFactory.CreateClient();
+            httpClient.BaseAddress = new Uri("http://localhost:5003");
+            
+            var query = $"/api/investigators/{investigatorUuid}/studies?page={page}&pageSize={studyPageSize}";
+            
+            if (!string.IsNullOrEmpty(searchFilter))
+            {
+                query += $"&search={Uri.EscapeDataString(searchFilter)}";
+            }
+            
+            if (!string.IsNullOrEmpty(selectedSort))
+            {
+                query += $"&sort={selectedSort}";
+            }
+
+            var response = await httpClient.GetFromJsonAsync<StudyResponseWrapper>(query);
+            
+            if (response != null)
+            {
+                studies = response.data;
+                studyCount = response.total;
+                studyCurrentPage = response.page;
+                studyTotalPages = response.totalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading studies: {ex.Message}";
+        }
+        finally
+        {
+            studiesLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/investigators");
+    }
+
+    private class InvestigatorDetail
+    {
+        public Guid uuid { get; set; }
+        public string? name { get; set; }
+        public string? role { get; set; }
+        public string? affiliation { get; set; }
+        public int studyCount { get; set; }
+        public List<string>? coInvestigators { get; set; }
+        public List<string>? conditionsFocusAreas { get; set; }
+        public Statistics? statistics { get; set; }
+    }
+
+    private class Statistics
+    {
+        public Dictionary<string, int>? byStatus { get; set; }
+        public Dictionary<string, int>? byPhase { get; set; }
+    }
+
+    private class StudyResponseWrapper
+    {
+        public List<StudyItem>? data { get; set; }
+        public int total { get; set; }
+        public int page { get; set; }
+        public int pageSize { get; set; }
+        public int totalPages { get; set; }
+    }
+
+    private class StudyItem
+    {
+        public string? nctId { get; set; }
+        public string? briefTitle { get; set; }
+        public string? overallStatus { get; set; }
+        public string? studyType { get; set; }
+        public int? enrollmentCount { get; set; }
+        public DateTime? startDate { get; set; }
+        public DateTime? completionDate { get; set; }
+        public bool isIncomplete { get; set; }
+        public int investigatorCount { get; set; }
+        public int pubmedPaperCount { get; set; }
+        public List<string>? conditions { get; set; }
+        public List<string>? phases { get; set; }
+    }
+}
