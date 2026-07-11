@@ -60,4 +60,50 @@ public sealed class StudyListingSnapshotTests
 
         Assert.AreEqual(0, results.Count);
     }
+
+    [TestMethod]
+    public async Task Investigators_ListAll()
+    {
+        await using SnapshotDb snapshot = new();
+        var repo = new StudyRepository(snapshot.ConnectionString);
+
+        IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10);
+
+        Assert.AreEqual(4, results.Count);
+    }
+
+    [TestMethod]
+    public async Task Investigators_SearchByName()
+    {
+        await using SnapshotDb snapshot = new();
+        var repo = new StudyRepository(snapshot.ConnectionString);
+
+        IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10, search: "Bob");
+
+        Assert.AreEqual(1, results.Count);
+        Assert.AreEqual("Dr. Bob Williams", results[0].Name);
+    }
+
+    [TestMethod]
+    public async Task Investigators_SearchWithNoMatch_ReturnsEmpty()
+    {
+        await using SnapshotDb snapshot = new();
+        var repo = new StudyRepository(snapshot.ConnectionString);
+
+        IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10, search: "zzzzz");
+
+        Assert.AreEqual(0, results.Count);
+    }
+
+    [TestMethod]
+    public async Task Investigators_CountFiltered()
+    {
+        await using SnapshotDb snapshot = new();
+        var repo = new StudyRepository(snapshot.ConnectionString);
+
+        Assert.AreEqual(4, await repo.CountInvestigatorsFilteredAsync());
+
+        Assert.AreEqual(1, await repo.CountInvestigatorsFilteredAsync(search: "Carol"));
+        Assert.AreEqual(2, await repo.CountInvestigatorsFilteredAsync(search: "Alice"));
+    }
 }
