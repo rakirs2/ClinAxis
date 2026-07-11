@@ -98,24 +98,19 @@ jobs:
           sleep 5
           EOSSH
 
-       - name: Health check
-         run: |
-           for i in {1..10}; do
-             echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}/"
-             HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" http://${{ secrets.DEPLOY_HOST }}/ 2>&1)
-             HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -1)
-             BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
-             echo "Response code: $HTTP_CODE"
-             echo "Response body (first 200 chars): ${BODY:0:200}"
-             if [ "$HTTP_CODE" = "200" ]; then
-               echo "Health check passed (HTTP $HTTP_CODE)"
-               exit 0
-             fi
-             echo "Retrying in 5s..."
-             sleep 5
-           done
-           echo "Health check failed after 10 attempts"
-           exit 1
+      - name: Health check
+        run: |
+          for i in {1..10}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L http://${{ secrets.DEPLOY_HOST }}/)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            echo "Attempt $i/10: HTTP $HTTP_CODE - retrying in 5s..."
+            sleep 5
+          done
+          echo "Health check failed after 10 attempts"
+          exit 1
 
       - name: Promote (cleanup rollback)
         if: success()
