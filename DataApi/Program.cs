@@ -11,6 +11,10 @@ var connectionString = ConnectionStringProvider.Default;
 var startupRepo = new StudyRepository(connectionString);
 await startupRepo.EnsureSchemaAsync();
 
+// Seed database with test data if empty
+var seeder = new DatabaseSeeder(connectionString);
+await seeder.SeedIfEmptyAsync();
+
 builder.Services.AddHealthChecks();
 
 WebApplication app = builder.Build();
