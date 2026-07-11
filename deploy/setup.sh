@@ -47,10 +47,15 @@ chmod 700 /home/ct-deploy/.ssh
 chmod 600 /home/ct-deploy/.ssh/authorized_keys
 chown -R ct-deploy:ct-deploy /home/ct-deploy/.ssh
 
-# Create app directory
+# Create app directory with proper permissions
 echo "Creating application directory..."
 mkdir -p /var/www/ct-data
 chown -R ct-deploy:ct-deploy /var/www/ct-data
+chmod -R 755 /var/www/ct-data
+# Pre-create the 'current' subdirectory as ct-deploy to validate permissions
+sudo -u ct-deploy mkdir -p /var/www/ct-data/current
+echo "Verifying ct-deploy can write to app directory..."
+sudo -u ct-deploy touch /var/www/ct-data/current/.deploy-test && rm /var/www/ct-data/current/.deploy-test
 
 # Create environment file
 echo "Creating environment file..."
