@@ -11,12 +11,18 @@ namespace Scrapers.IntegrationTests;
 [TestClass]
 public sealed class AggregationIntegrationTests : DbTestBase
 {
+    private StudyRepository _repo = null!;
+
+    [TestInitialize]
+    public void TestInit()
+    {
+        _repo = new StudyRepository(ConnectionString);
+    }
+
     [TestMethod]
     [TestCategory("Integration")]
     public async Task AggregateAsync_ComputesPiCounts()
     {
-        var repository = new StudyRepository(ConnectionString);
-
         ClinicalTrialRecord[] records =
         [
             CreateRecord("NCT00000001", "Study Alpha", "RECRUITING",
@@ -28,9 +34,9 @@ public sealed class AggregationIntegrationTests : DbTestBase
                 new Investigator { Name = "Carol White", Affiliation = "Beta Corp", Role = "PI" })
         ];
 
-        await repository.UpdateStudiesWithClinicalTrialsAsync(records);
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        var service = new AggregationService(repository);
+        var service = new AggregationService(_repo);
         await service.AggregateAsync();
 
         List<PiAggregationEntity> piRows = await Context.PiAggregations
@@ -58,8 +64,6 @@ public sealed class AggregationIntegrationTests : DbTestBase
     [TestCategory("Integration")]
     public async Task AggregateAsync_ComputesCategoryCounts()
     {
-        var repository = new StudyRepository(ConnectionString);
-
         ClinicalTrialRecord[] records =
         [
             CreateRecord("NCT00000001", "Heart Study", "RECRUITING",
@@ -72,9 +76,9 @@ public sealed class AggregationIntegrationTests : DbTestBase
                 new Investigator { Name = "Bob Jones", Affiliation = "Acme", Role = "PI" })
         ];
 
-        await repository.UpdateStudiesWithClinicalTrialsAsync(records);
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
 
-        var service = new AggregationService(repository);
+        var service = new AggregationService(_repo);
         await service.AggregateAsync();
 
         List<CategoryAggregationEntity> catRows = await Context.CategoryAggregations

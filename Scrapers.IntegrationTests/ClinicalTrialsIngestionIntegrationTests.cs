@@ -8,18 +8,25 @@ namespace Scrapers.IntegrationTests;
 [TestClass]
 public sealed class ClinicalTrialsIngestionIntegrationTests : DbTestBase
 {
+    private StudyRepository _repo = null!;
+
+    [TestInitialize]
+    public void TestInit()
+    {
+        _repo = new StudyRepository(ConnectionString);
+    }
+
     [TestMethod]
     [TestCategory("Integration")]
     public async Task IngestionPersistsRequestedCount()
     {
-        var repository = new StudyRepository(ConnectionString);
-        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), repository);
+        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repo);
 
         var saved = await service.IngestAsync(5);
-        var investigatorCount = await repository.CountInvestigatorsAsync();
+        var investigatorCount = await _repo.CountInvestigatorsAsync();
 
         Assert.AreEqual(5, saved, "Ingestion should report five persisted studies.");
-        Assert.AreEqual(5, await repository.CountStudiesAsync(), "Database should contain five studies after ingestion.");
+        Assert.AreEqual(5, await _repo.CountStudiesAsync(), "Database should contain five studies after ingestion.");
         Assert.IsTrue(investigatorCount > 0, "Investigators table should have at least one row after ingestion.");
     }
 
@@ -27,15 +34,14 @@ public sealed class ClinicalTrialsIngestionIntegrationTests : DbTestBase
     [TestCategory("Integration")]
     public async Task IngestionIsIdempotent()
     {
-        var repository = new StudyRepository(ConnectionString);
-        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), repository);
+        var service = new ClinicalTrialsIngestionService(new ClinicalTrialsGov(), _repo);
 
         var saved = await service.IngestAsync(5);
-        var investigatorCount = await repository.CountInvestigatorsAsync();
+        var investigatorCount = await _repo.CountInvestigatorsAsync();
 
         var savedAgain = await service.IngestAsync(5);
         Assert.AreEqual(5, savedAgain, "Re-ingestion should still process five studies.");
-        Assert.AreEqual(5, await repository.CountStudiesAsync(), "Re-ingestion should not duplicate studies.");
-        Assert.AreEqual(investigatorCount, await repository.CountInvestigatorsAsync(), "Investigator count should remain stable after re-ingestion.");
+        Assert.AreEqual(5, await _repo.CountStudiesAsync(), "Re-ingestion should not duplicate studies.");
+        Assert.AreEqual(investigatorCount, await _repo.CountInvestigatorsAsync(), "Investigator count should remain stable after re-ingestion.");
     }
 }
