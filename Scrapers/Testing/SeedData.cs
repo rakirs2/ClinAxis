@@ -88,9 +88,112 @@ internal static class SeedData
         Phases = [new StudyPhaseEntity { Phase = "PHASE1" }]
     };
 
+    internal static readonly StudyEntity Study6 = new()
+    {
+        NctId = "NCT00000006",
+        BriefTitle = "Diabetes Type 2 Management Study",
+        OverallStatus = "RECRUITING",
+        EnrollmentCount = 300,
+        StartDate = new DateOnly(2024, 1, 15),
+        Conditions = [new StudyConditionEntity { Condition = "Type 2 Diabetes" }],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "United States", State = "CA", City = "San Francisco", Facility = "UCSF Medical Center" },
+            new StudyLocationEntity { Country = "United States", State = "NY", City = "New York", Facility = "Columbia Presbyterian" }
+        ]
+    };
+
+    internal static readonly StudyEntity Study7 = new()
+    {
+        NctId = "NCT00000007",
+        BriefTitle = "Depression Treatment Trial - Germany",
+        OverallStatus = "ACTIVE",
+        EnrollmentCount = 120,
+        StartDate = new DateOnly(2023, 6, 1),
+        Conditions = [new StudyConditionEntity { Condition = "Major Depression" }],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE2" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "Germany", State = "Berlin", City = "Berlin", Facility = "Charité Hospital" }
+        ]
+    };
+
+    internal static readonly StudyEntity Study8 = new()
+    {
+        NctId = "NCT00000008",
+        BriefTitle = "Alzheimer's Disease Biomarker Study",
+        OverallStatus = "RECRUITING",
+        EnrollmentCount = 500,
+        StartDate = new DateOnly(2024, 3, 10),
+        Conditions = 
+        [
+            new StudyConditionEntity { Condition = "Alzheimer's Disease" },
+            new StudyConditionEntity { Condition = "Cognitive Impairment" }
+        ],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "United States", State = "MA", City = "Boston", Facility = "Massachusetts General Hospital" },
+            new StudyLocationEntity { Country = "United States", State = "CA", City = "Los Angeles", Facility = "UCLA" },
+            new StudyLocationEntity { Country = "United States", State = "IL", City = "Chicago", Facility = "Northwestern University" }
+        ]
+    };
+
+    internal static readonly StudyEntity Study9 = new()
+    {
+        NctId = "NCT00000009",
+        BriefTitle = "Hypertension Management in Canada",
+        OverallStatus = "COMPLETED",
+        EnrollmentCount = 250,
+        StartDate = new DateOnly(2022, 9, 1),
+        Conditions = [new StudyConditionEntity { Condition = "Hypertension" }],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE4" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "Canada", State = "Ontario", City = "Toronto", Facility = "Toronto General Hospital" },
+            new StudyLocationEntity { Country = "Canada", State = "British Columbia", City = "Vancouver", Facility = "Vancouver Hospital" }
+        ]
+    };
+
+    internal static readonly StudyEntity Study10 = new()
+    {
+        NctId = "NCT00000010",
+        BriefTitle = "Small Enrollment Low Phase Study",
+        OverallStatus = "NOT_YET_RECRUITING",
+        EnrollmentCount = 20,
+        StartDate = new DateOnly(2025, 1, 1),
+        Conditions = [new StudyConditionEntity { Condition = "Rare Genetic Disorder" }],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE1" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "United States", State = "TX", City = "Houston", Facility = "Texas Medical Center" }
+        ]
+    };
+
+    internal static readonly StudyEntity Study11 = new()
+    {
+        NctId = "NCT00000011",
+        BriefTitle = "Large Enrollment Phase 3 Multi-Site Study",
+        OverallStatus = "RECRUITING",
+        EnrollmentCount = 5000,
+        StartDate = new DateOnly(2023, 1, 15),
+        Conditions =
+        [
+            new StudyConditionEntity { Condition = "Hypertension" },
+            new StudyConditionEntity { Condition = "Type 2 Diabetes" }
+        ],
+        Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "United States", State = "NY", City = "New York", Facility = "Cornell Weill Medical" },
+            new StudyLocationEntity { Country = "United States", State = "CA", City = "San Diego", Facility = "UCSD Medical Center" }
+        ]
+    };
+
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
-        ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5);
+        ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5, Study6, Study7, Study8, Study9, Study10, Study11);
         ctx.Investigators.AddRange(Investigator1, Investigator2, Investigator3, Investigator4);
         await ctx.SaveChangesAsync().ConfigureAwait(false);
     }
