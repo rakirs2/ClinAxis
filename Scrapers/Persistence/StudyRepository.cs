@@ -467,7 +467,9 @@ namespace Scrapers.Persistence
                     (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
                     (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
                     (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
-                    EF.Functions.ILike(s.NctId, keyword));
+                    EF.Functions.ILike(s.NctId, keyword) ||
+                    (s.Investigators != null && s.Investigators.Any(inv => 
+                        inv.Name != null && EF.Functions.ILike(inv.Name, keyword))));
             }
 
             // 2. Status filter (multi-select)
