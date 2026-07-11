@@ -7,6 +7,7 @@ namespace Scrapers.Persistence.Entities
     {
         [Key]
         public int Id { get; set; }
+        public Guid Uuid { get; set; } = Guid.NewGuid();
         public string StudyNctId { get; set; } = string.Empty;
         public string? Name { get; set; }
         public string? Role { get; set; }
