@@ -9,14 +9,14 @@ ClinicalTrialData fetches studies from ClinicalTrials.gov and PubMed, stores the
 ```
 ClinicalTrialData/
 ├── Scrapers/               # Core library: entities, repositories, scraping services
-├── DataAggregators/        # PI & category aggregation logic
+├── Scrapers/Testing/       # Shared test utilities (EphemeralDbTestBase, SnapshotDb, SeedData)
 ├── DataApi/                # ASP.NET Core Minimal API (port 5003)
 ├── Frontend/               # Blazor Server UI (port 5001)
+├── IngestionApp/           # Console app for running the full pipeline
 ├── Scrapers.Tests/         # Unit tests with fake HTTP handlers
 ├── Scrapers.IntegrationTests/  # Live API + PostgreSQL integration tests
-├── DataAggregators.Tests/  # Aggregation unit tests
 ├── Frontend.Tests/         # bUnit + MockHttp tests for Blazor pages
-└── IngestionApp/           # Console app for running the full pipeline
+└── .opencode/plans/        # Decision log and execution plans for agents
 ```
 
 ## Data Flow
@@ -25,36 +25,30 @@ ClinicalTrialData/
 ClinicalTrials.gov  ──►  ClinicalTrialsGovService  ──►  PostgreSQL
        │                                                      ▲
 PubMed  ───────────►  PubMedScraperService  ──────────────────┤
-                                                              │
-                          AggregationService  ────────────────┤
-                                                              │
-                          DataApi  ───────────────────────────┘
-                              │
-                          Frontend (Blazor Server)
+                                                               │
+                           AggregationService  ────────────────┤
+                                                               │
+                           DataApi  ───────────────────────────┘
+                               │
+                           Frontend (Blazor Server, Interactive Server)
 ```
 
 ## Deployment
 
-The system is designed to run on two DigitalOcean droplets:
+The system runs on a single DigitalOcean Droplet:
 
-### Droplet 1 — Database
-- PostgreSQL 15+
-- Single `clinical_trial_data` database
-- Configured to accept connections from Droplet 2's IP
-
-### Droplet 2 — Application
-- .NET 10 runtime
-- DataApi (port 5003) behind nginx reverse-proxy to port 80/443
-- Frontend (port 5001) behind same nginx
-- Systemd units for DataApi and Frontend
-- Daily cron for ingestion via `IngestionApp`
+- **PostgreSQL**: Docker container on the droplet (or managed DO PostgreSQL)
+- **DataApi**: `dotnet publish --self-contained -r linux-x64` → SCP → systemd service. Listens on localhost:5003.
+- **Frontend**: Same publish/SCP/systemd pattern. **Kestrel serves HTTPS directly on port 80/443.** TLS via .NET's built-in HTTPS + Let's Encrypt cert.
+- **IngestionApp**: Runs via cron or systemd timer for scheduled data ingestion
+- **No nginx.** Keep the stack minimal.
 
 ## Ports
 
-| Service   | Port |
-|-----------|------|
-| DataApi   | 5003 |
-| Frontend  | 5001 |
+| Service   | Port | Notes |
+|-----------|------|-------|
+| Frontend  | 80/443 | Public entry point. Kestrel directly, TLS via .NET HTTPS + Let's Encrypt. |
+| DataApi   | 5003 | Internal, not exposed publicly. Frontend proxies requests. |
 
 (5000 is reserved by macOS AirPlay Receiver / Control Center.)
 
@@ -66,12 +60,27 @@ The system is designed to run on two DigitalOcean droplets:
 | GET    | /api/studies/{nctId}        | Single study detail           |
 | GET    | /api/pipeline-runs          | Pipeline execution history    |
 | GET    | /api/stats                  | Aggregate counts              |
+| GET    | /api/telemetry              | Full system telemetry         |
+| GET    | /api/aggregations           | PI + category aggregation data|
+
+## Test Infrastructure
+
+Three database testing modes, all using `EphemeralPostgresDatabase` (Npgsql-based, no CLI tools):
+
+| Mode | Class | Lifecycle | Use |
+|------|-------|-----------|-----|
+| Ephemeral | `EphemeralDbTestBase` | Temp DB per class, transaction rollback per method | Fast integration tests |
+| Snapshot | `SnapshotDb` | Temp DB seeded with golden data | Deterministic assertions |
+| Persistent | `SnapshotDb(persist:true)` | Fixed DB name, survives test run | Manual inspection |
+
+Test utilities live in `Scrapers/Testing/` and are shared via `InternalsVisibleTo`. No duplication.
 
 ## Key Technologies
 
 - **.NET 10** — target framework
-- **Entity Framework Core** — schema migrations
-- **PostgreSQL** — persistence
+- **Blazor Server with Interactive Server** — frontend with SignalR real-time capability
+- **Entity Framework Core 10.x** — schema migrations via code
+- **PostgreSQL 15+** — persistence via Npgsql
 - **bUnit** — Blazor component testing
 - **MSTest** — test framework
 - **Bootstrap 5** — UI styling
