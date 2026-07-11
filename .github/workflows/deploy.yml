@@ -60,10 +60,10 @@ jobs:
         run: dotnet restore
 
       - name: Publish DataApi
-        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/data-api --no-restore
+        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/data-api
 
       - name: Publish Frontend
-        run: dotnet publish Frontend/ -c Release -r linux-x64 --self-contained -o publish/frontend --no-restore
+        run: dotnet publish Frontend/ -c Release -r linux-x64 --self-contained -o publish/frontend
 
       - name: Setup SSH key
         run: |
