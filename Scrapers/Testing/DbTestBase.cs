@@ -21,7 +21,7 @@ public abstract class DbTestBase
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
-        await container.StartAsync();
+        await container.StartAsync().ConfigureAwait(false);
         _container = container;
         _adminConnectionString = container.GetConnectionString();
     }
@@ -29,7 +29,7 @@ public abstract class DbTestBase
     [TestInitialize]
     public async Task Init()
     {
-        await Initialize.Value;
+        await Initialize.Value.ConfigureAwait(false);
 
         // Each test method gets its own database for isolation
         // (StudyRepository creates its own connections, so txn rollback won't cover it)
@@ -38,11 +38,11 @@ public abstract class DbTestBase
         {
             Database = "postgres"
         };
-        await using var adminConn = new NpgsqlConnection(adminBuilder.ConnectionString);
-        await adminConn.OpenAsync();
-        await using NpgsqlCommand createCmd = adminConn.CreateCommand();
+        using var adminConn = new NpgsqlConnection(adminBuilder.ConnectionString);
+        await adminConn.OpenAsync().ConfigureAwait(false);
+        using NpgsqlCommand createCmd = adminConn.CreateCommand();
         createCmd.CommandText = $"CREATE DATABASE \"{dbName}\"";
-        await createCmd.ExecuteNonQueryAsync();
+        await createCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
 
         ConnectionString = new NpgsqlConnectionStringBuilder(_adminConnectionString)
         {
@@ -52,8 +52,8 @@ public abstract class DbTestBase
         // Run migrations on this fresh database
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
-        await using var ctx = new ClinicalTrialsContext(opts);
-        await ctx.Database.MigrateAsync();
+        using var ctx = new ClinicalTrialsContext(opts);
+        await ctx.Database.MigrateAsync().ConfigureAwait(false);
 
         Context = new ClinicalTrialsContext(opts);
     }
@@ -63,7 +63,7 @@ public abstract class DbTestBase
     {
         if (Context != null)
         {
-            await Context.DisposeAsync();
+            await Context.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

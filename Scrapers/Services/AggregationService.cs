@@ -19,10 +19,10 @@ namespace Scrapers.Services
 
         public async Task AggregateAsync(CancellationToken cancellationToken = default)
         {
-            IReadOnlyList<StudyEntity> studies = await _repository.GetAllStudiesWithFullDataAsync(cancellationToken);
+            IReadOnlyList<StudyEntity> studies = await _repository.GetAllStudiesWithFullDataAsync(cancellationToken).ConfigureAwait(false);
 
-            await AggregatePiCountsAsync(studies, cancellationToken);
-            await AggregateCategoryCountsAsync(studies, cancellationToken);
+            await AggregatePiCountsAsync(studies, cancellationToken).ConfigureAwait(false);
+            await AggregateCategoryCountsAsync(studies, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task AggregatePiCountsAsync(IReadOnlyList<StudyEntity> studies, CancellationToken cancellationToken)
@@ -76,7 +76,7 @@ namespace Scrapers.Services
                 .OrderByDescending(a => a.StudyCount)
                 .ToList();
 
-            await _repository.ReplacePiAggregationsAsync(aggregations, cancellationToken);
+            await _repository.ReplacePiAggregationsAsync(aggregations, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task AggregateCategoryCountsAsync(IReadOnlyList<StudyEntity> studies, CancellationToken cancellationToken)
@@ -162,7 +162,7 @@ namespace Scrapers.Services
                 .OrderByDescending(a => a.StudyCount)
                 .ToList();
 
-            await _repository.ReplaceCategoryAggregationsAsync(aggregations, cancellationToken);
+            await _repository.ReplaceCategoryAggregationsAsync(aggregations, cancellationToken).ConfigureAwait(false);
         }
     }
 }

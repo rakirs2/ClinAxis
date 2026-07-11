@@ -92,6 +92,6 @@ internal static class SeedData
     {
         ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5);
         ctx.Investigators.AddRange(Investigator1, Investigator2, Investigator3, Investigator4);
-        await ctx.SaveChangesAsync();
+        await ctx.SaveChangesAsync().ConfigureAwait(false);
     }
 }
