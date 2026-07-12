@@ -22,6 +22,7 @@ namespace Scrapers.Persistence
         public DbSet<DataSourceStateEntity> DataSourceStates => Set<DataSourceStateEntity>();
         public DbSet<SourceFetchHistoryEntity> SourceFetchHistories => Set<SourceFetchHistoryEntity>();
         public DbSet<ScraperPivotEntity> ScraperPivots => Set<ScraperPivotEntity>();
+        public DbSet<CmsProviderEntity> CmsProviders => Set<CmsProviderEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -60,10 +61,15 @@ namespace Scrapers.Persistence
                 entity.ToTable("investigators");
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.Uuid).HasColumnName("uuid");
                 entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
                 entity.Property(e => e.Name).HasColumnName("name");
                 entity.Property(e => e.Role).HasColumnName("role");
                 entity.Property(e => e.Affiliation).HasColumnName("affiliation");
+                entity.Property(e => e.Npi).HasColumnName("npi").HasMaxLength(10);
+                entity.Property(e => e.NpiLookupAt).HasColumnName("npi_lookup_at");
+                entity.Property(e => e.Orcid).HasColumnName("orcid").HasMaxLength(19);
+                entity.Property(e => e.OrcidLookupAt).HasColumnName("orcid_lookup_at");
 
                 entity.HasOne(e => e.Study)
                     .WithMany(s => s.Investigators)
@@ -328,6 +334,35 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 
                 entity.HasIndex(e => e.Name).IsUnique();
+            });
+
+            modelBuilder.Entity<CmsProviderEntity>(entity =>
+            {
+                entity.ToTable("cms_providers");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.Uuid).HasColumnName("uuid");
+                entity.Property(e => e.Npi).HasColumnName("npi").HasMaxLength(10);
+                entity.Property(e => e.ProviderName).HasColumnName("provider_name");
+                entity.Property(e => e.Gender).HasColumnName("gender").HasMaxLength(10);
+                entity.Property(e => e.Credential).HasColumnName("credential").HasMaxLength(20);
+                entity.Property(e => e.MedicalSchoolName).HasColumnName("medical_school_name");
+                entity.Property(e => e.GraduationYear).HasColumnName("graduation_year");
+                entity.Property(e => e.PrimarySpecialty).HasColumnName("primary_specialty");
+                entity.Property(e => e.SecondarySpecialty).HasColumnName("secondary_specialty");
+                entity.Property(e => e.OrganizationLegalName).HasColumnName("organization_legal_name");
+                entity.Property(e => e.PracticeAddressCity).HasColumnName("practice_address_city");
+                entity.Property(e => e.PracticeAddressState).HasColumnName("practice_address_state").HasMaxLength(2);
+                entity.Property(e => e.PracticeAddressZip).HasColumnName("practice_address_zip").HasMaxLength(10);
+                entity.Property(e => e.MedicareParticipation).HasColumnName("medicare_participation").HasMaxLength(20);
+                entity.Property(e => e.TotalMedicareServices).HasColumnName("total_medicare_services");
+                entity.Property(e => e.TotalMedicarePayments).HasColumnName("total_medicare_payments");
+                entity.Property(e => e.TotalMedicareBeneficiaries).HasColumnName("total_medicare_beneficiaries");
+
+                entity.HasIndex(e => e.Npi).IsUnique();
+                entity.HasIndex(e => e.Uuid);
+                entity.HasIndex(e => e.PrimarySpecialty);
+                entity.HasIndex(e => e.PracticeAddressState);
             });
         }
     }

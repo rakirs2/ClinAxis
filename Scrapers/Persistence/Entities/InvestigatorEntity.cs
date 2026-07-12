@@ -7,11 +7,15 @@ namespace Scrapers.Persistence.Entities
     {
         [Key]
         public int Id { get; set; }
-        public Guid Uuid { get; set; } = Guid.NewGuid();
+        public Guid Uuid { get; set; }
         public string StudyNctId { get; set; } = string.Empty;
         public string? Name { get; set; }
         public string? Role { get; set; }
         public string? Affiliation { get; set; }
+        public string? Npi { get; set; }
+        public DateTime? NpiLookupAt { get; set; }
+        public string? Orcid { get; set; }
+        public DateTime? OrcidLookupAt { get; set; }
 
         [ForeignKey(nameof(StudyNctId))]
         public StudyEntity? Study { get; set; }

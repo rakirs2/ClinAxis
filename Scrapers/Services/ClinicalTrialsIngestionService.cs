@@ -14,7 +14,10 @@ public class ClinicalTrialsIngestionService
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
 
-    public async Task<int> IngestAsync(int count, CancellationToken cancellationToken = default)
+    public async Task<int> IngestAsync(int count,
+        Func<IReadOnlyList<(Guid Uuid, string Name, string? Affiliation)>,
+             Task<Dictionary<Guid, (string? Npi, string? Orcid)>>>? enrichPersons = null,
+        CancellationToken cancellationToken = default)
     {
         if (count <= 0)
         {
@@ -27,7 +30,7 @@ public class ClinicalTrialsIngestionService
 
         await _client.GetTrialRecordsBatchedAsync(count, async batch =>
         {
-            var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, cancellationToken).ConfigureAwait(false);
+            var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, enrichPersons, cancellationToken).ConfigureAwait(false);
             totalIngested += ingested;
         }, cancellationToken).ConfigureAwait(false);
 

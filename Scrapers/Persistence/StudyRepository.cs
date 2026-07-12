@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
+using Scrapers.Utilities;
 
 namespace Scrapers.Persistence
 {
@@ -32,7 +33,11 @@ namespace Scrapers.Persistence
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
+        public async Task<int> UpdateStudiesWithClinicalTrialsAsync(
+            IEnumerable<ClinicalTrialRecord> records,
+            Func<IReadOnlyList<(Guid Uuid, string Name, string? Affiliation)>,
+                 Task<Dictionary<Guid, (string? Npi, string? Orcid)>>>? enrichPersons = null,
+            CancellationToken cancellationToken = default)
         {
             var recordList = records?.ToList();
             if (recordList == null || recordList.Count == 0)
@@ -41,6 +46,9 @@ namespace Scrapers.Persistence
             }
 
             using ClinicalTrialsContext context = CreateContext();
+
+            var personEnrichments = new Dictionary<Guid, (string? Npi, string? Orcid)>();
+
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -91,12 +99,37 @@ namespace Scrapers.Persistence
                     entity.Investigators!.Clear();
                     foreach (Investigator investigator in officials!)
                     {
+                        var personUuid = PersonUuid.Compute(investigator!.Name, investigator.Affiliation);
+
+                        if (!personEnrichments.ContainsKey(personUuid))
+                        {
+                            var existing = await context.Investigators
+                                .Where(i => i.Uuid == personUuid && i.Npi != null)
+                                .Select(i => new { i.Npi, i.Orcid })
+                                .FirstOrDefaultAsync(cancellationToken)
+                                .ConfigureAwait(false);
+
+                            if (existing is not null)
+                            {
+                                personEnrichments[personUuid] = (existing.Npi, existing.Orcid);
+                            }
+                            else
+                            {
+                                personEnrichments[personUuid] = (null, null);
+                            }
+                        }
+
+                        var (npi, orcid) = personEnrichments[personUuid];
+
                         entity.Investigators.Add(new InvestigatorEntity
                         {
                             StudyNctId = record.NctId!,
                             Name = investigator!.Name!,
                             Affiliation = investigator.Affiliation,
-                            Role = investigator.Role
+                            Role = investigator.Role,
+                            Uuid = personUuid,
+                            Npi = npi,
+                            Orcid = orcid
                         });
                     }
 
@@ -136,7 +169,6 @@ namespace Scrapers.Persistence
                         }
                     }
 
-                    // Populate locations from API response (fix data loss bug)
                     entity.Locations!.Clear();
                     if (record.Locations != null && record.Locations.Count > 0)
                     {
@@ -158,8 +190,96 @@ namespace Scrapers.Persistence
                 }
             }
 
+            if (enrichPersons is not null)
+            {
+                var uniqueUuids = recordList
+                    .Where(r => r.OverallOfficials != null)
+                    .SelectMany(r => r.OverallOfficials!)
+                    .Where(i => i?.Name != null)
+                    .Select(i => PersonUuid.Compute(i.Name, i.Affiliation))
+                    .Distinct()
+                    .ToList();
+
+                var enrichmentResults = await LoadEnrichmentsAsync(context, uniqueUuids, enrichPersons, cancellationToken).ConfigureAwait(false);
+                foreach (var (uuid, npi, orcid, lookedUp) in enrichmentResults)
+                {
+                    if (!lookedUp) continue;
+
+                    personEnrichments[uuid] = (npi, orcid);
+
+                    var rows = await context.Investigators
+                        .Where(i => i.Uuid == uuid)
+                        .ToListAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    foreach (var row in rows)
+                    {
+                        row.Npi = npi;
+                        row.NpiLookupAt = DateTime.UtcNow;
+                        row.Orcid = orcid;
+                    }
+                }
+            }
+
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return recordList.Count;
+        }
+
+        private static async Task<List<(Guid Uuid, string? Npi, string? Orcid, bool LookedUp)>> LoadEnrichmentsAsync(
+            ClinicalTrialsContext context,
+            List<Guid> uniqueUuids,
+            Func<IReadOnlyList<(Guid Uuid, string Name, string? Affiliation)>,
+                Task<Dictionary<Guid, (string? Npi, string? Orcid)>>> enrichPersons,
+            CancellationToken cancellationToken)
+        {
+            var existing = await context.Investigators
+                .Where(i => uniqueUuids.Contains(i.Uuid) && i.Npi != null)
+                .Select(i => new { i.Uuid, i.Npi, i.Orcid })
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var existingMap = existing
+                .GroupBy(e => e.Uuid)
+                .Select(g => g.First())
+                .ToDictionary(e => e.Uuid, e => (e.Npi, e.Orcid));
+
+            var toLookup = uniqueUuids
+                .Where(u => !existingMap.ContainsKey(u))
+                .Select(u => (Uuid: u,
+                    Name: context.Investigators
+                        .Where(i => i.Uuid == u)
+                        .Select(i => i.Name!)
+                        .FirstOrDefault() ?? "",
+                    Affiliation: context.Investigators
+                        .Where(i => i.Uuid == u)
+                        .Select(i => i.Affiliation)
+                        .FirstOrDefault()))
+                .Where(p => !string.IsNullOrEmpty(p.Name))
+                .ToList();
+
+            var lookupResults = toLookup.Count > 0
+                ? await enrichPersons(toLookup).ConfigureAwait(false)
+                : new Dictionary<Guid, (string? Npi, string? Orcid)>();
+
+            var results = new List<(Guid Uuid, string? Npi, string? Orcid, bool LookedUp)>();
+            foreach (var uuid in uniqueUuids)
+            {
+                if (existingMap.TryGetValue(uuid, out var existingVal))
+                {
+                    results.Add((uuid, existingVal.Npi, existingVal.Orcid, false));
+                }
+                else if (lookupResults.TryGetValue(uuid, out var lookupVal))
+                {
+                    results.Add((uuid, lookupVal.Npi, lookupVal.Orcid, true));
+                }
+                else
+                {
+                    results.Add((uuid, null, null, false));
+                }
+            }
+
+            return results;
         }
 
         private static void MapRecordToEntity(ClinicalTrialRecord record, StudyEntity entity, bool incomplete)
@@ -936,10 +1056,12 @@ namespace Scrapers.Persistence
                 .GroupBy(i => new { i.Name, i.Affiliation })
                 .Select(g => new InvestigatorSummary
                 {
-                    Uuid = g.First().Uuid,  // Use the UUID from the first investigator in the group
+                    Uuid = g.First().Uuid,
                     Name = g.Key.Name,
                     Affiliation = g.Key.Affiliation,
-                    StudyCount = g.Select(i => i.StudyNctId).Distinct().Count()
+                    StudyCount = g.Select(i => i.StudyNctId).Distinct().Count(),
+                    Npi = g.First().Npi,
+                    Orcid = g.First().Orcid
                 })
                 .OrderByDescending(x => x.StudyCount)
                 .Skip((page - 1) * pageSize)
@@ -960,6 +1082,129 @@ namespace Scrapers.Persistence
             }
 
             return await query.Select(i => new { i.Name, i.Affiliation }).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> UpsertCmsProvidersAsync(IReadOnlyList<CmsProviderEntity> providers, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(providers);
+            using ClinicalTrialsContext context = CreateContext();
+            var count = 0;
+            foreach (var provider in providers)
+            {
+                var existing = await context.CmsProviders
+                    .FirstOrDefaultAsync(p => p.Npi == provider.Npi, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (existing is not null)
+                {
+                    existing.Uuid = provider.Uuid;
+                    existing.ProviderName = provider.ProviderName ?? existing.ProviderName;
+                    existing.Gender = provider.Gender ?? existing.Gender;
+                    existing.Credential = provider.Credential ?? existing.Credential;
+                    existing.MedicalSchoolName = provider.MedicalSchoolName ?? existing.MedicalSchoolName;
+                    existing.GraduationYear = provider.GraduationYear ?? existing.GraduationYear;
+                    existing.PrimarySpecialty = provider.PrimarySpecialty ?? existing.PrimarySpecialty;
+                    existing.SecondarySpecialty = provider.SecondarySpecialty ?? existing.SecondarySpecialty;
+                    existing.OrganizationLegalName = provider.OrganizationLegalName ?? existing.OrganizationLegalName;
+                    existing.PracticeAddressCity = provider.PracticeAddressCity ?? existing.PracticeAddressCity;
+                    existing.PracticeAddressState = provider.PracticeAddressState ?? existing.PracticeAddressState;
+                    existing.PracticeAddressZip = provider.PracticeAddressZip ?? existing.PracticeAddressZip;
+                    existing.MedicareParticipation = provider.MedicareParticipation ?? existing.MedicareParticipation;
+                    existing.TotalMedicareServices = provider.TotalMedicareServices ?? existing.TotalMedicareServices;
+                    existing.TotalMedicarePayments = provider.TotalMedicarePayments ?? existing.TotalMedicarePayments;
+                    existing.TotalMedicareBeneficiaries = provider.TotalMedicareBeneficiaries ?? existing.TotalMedicareBeneficiaries;
+                }
+                else
+                {
+                    context.CmsProviders.Add(provider);
+                }
+                count++;
+            }
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return count;
+        }
+
+        public async Task<CmsProviderEntity?> GetCmsProviderByNpiAsync(string npi, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.CmsProviders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Npi == npi, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<CmsProviderEntity?> GetCmsProviderByPersonUuidAsync(Guid uuid, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.CmsProviders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Uuid == uuid, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<CmsProviderSummary>> SearchCmsProvidersAsync(
+            int page, int pageSize,
+            string? search = null, string? specialty = null, string? state = null,
+            CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<CmsProviderEntity> query = context.CmsProviders.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(p => EF.Functions.ILike(p.ProviderName!, $"%{search}%"));
+            }
+            if (!string.IsNullOrWhiteSpace(specialty))
+            {
+                query = query.Where(p => p.PrimarySpecialty != null && EF.Functions.ILike(p.PrimarySpecialty, $"%{specialty}%"));
+            }
+            if (!string.IsNullOrWhiteSpace(state))
+            {
+                query = query.Where(p => p.PracticeAddressState == state);
+            }
+
+            return await query
+                .OrderBy(p => p.ProviderName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(p => new CmsProviderSummary
+                {
+                    Id = p.Id,
+                    Uuid = p.Uuid,
+                    Npi = p.Npi,
+                    ProviderName = p.ProviderName,
+                    PrimarySpecialty = p.PrimarySpecialty,
+                    PracticeAddressCity = p.PracticeAddressCity,
+                    PracticeAddressState = p.PracticeAddressState,
+                    MedicareParticipation = p.MedicareParticipation
+                })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<int> CountCmsProvidersFilteredAsync(
+            string? search = null, string? specialty = null, string? state = null,
+            CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<CmsProviderEntity> query = context.CmsProviders.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(p => EF.Functions.ILike(p.ProviderName!, $"%{search}%"));
+            }
+            if (!string.IsNullOrWhiteSpace(specialty))
+            {
+                query = query.Where(p => p.PrimarySpecialty != null && EF.Functions.ILike(p.PrimarySpecialty, $"%{specialty}%"));
+            }
+            if (!string.IsNullOrWhiteSpace(state))
+            {
+                query = query.Where(p => p.PracticeAddressState == state);
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> GetRecentScrapeEventCountAsync(TimeSpan within, CancellationToken cancellationToken = default)
@@ -994,5 +1239,19 @@ namespace Scrapers.Persistence
         public string? Name { get; set; }
         public string? Affiliation { get; set; }
         public int StudyCount { get; set; }
+        public string? Npi { get; set; }
+        public string? Orcid { get; set; }
+    }
+
+    public class CmsProviderSummary
+    {
+        public int Id { get; set; }
+        public Guid Uuid { get; set; }
+        public string Npi { get; set; } = string.Empty;
+        public string? ProviderName { get; set; }
+        public string? PrimarySpecialty { get; set; }
+        public string? PracticeAddressCity { get; set; }
+        public string? PracticeAddressState { get; set; }
+        public string? MedicareParticipation { get; set; }
     }
 }

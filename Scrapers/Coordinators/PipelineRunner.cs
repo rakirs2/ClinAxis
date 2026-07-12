@@ -33,7 +33,7 @@ namespace Scrapers.Coordinators
             {
                 var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 100);
                 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
-                await clinicalTrialsIngestionService.IngestAsync(clinicalTrialsCount, cancellationToken).ConfigureAwait(false);
+                await clinicalTrialsIngestionService.IngestAsync(clinicalTrialsCount, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 var pubMedScraperService = new PubMedScraperService(connectionString);
                 await pubMedScraperService.IngestPubMedPapersAsync(cancellationToken).ConfigureAwait(false);

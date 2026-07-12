@@ -69,6 +69,104 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("category_aggregations", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.CmsProviderEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Credential")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("credential");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("gender");
+
+                    b.Property<int?>("GraduationYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("graduation_year");
+
+                    b.Property<string>("MedicalSchoolName")
+                        .HasColumnType("text")
+                        .HasColumnName("medical_school_name");
+
+                    b.Property<string>("MedicareParticipation")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("medicare_participation");
+
+                    b.Property<string>("Npi")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("npi");
+
+                    b.Property<string>("OrganizationLegalName")
+                        .HasColumnType("text")
+                        .HasColumnName("organization_legal_name");
+
+                    b.Property<string>("PracticeAddressCity")
+                        .HasColumnType("text")
+                        .HasColumnName("practice_address_city");
+
+                    b.Property<string>("PracticeAddressState")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("practice_address_state");
+
+                    b.Property<string>("PracticeAddressZip")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("practice_address_zip");
+
+                    b.Property<string>("PrimarySpecialty")
+                        .HasColumnType("text")
+                        .HasColumnName("primary_specialty");
+
+                    b.Property<string>("ProviderName")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_name");
+
+                    b.Property<string>("SecondarySpecialty")
+                        .HasColumnType("text")
+                        .HasColumnName("secondary_specialty");
+
+                    b.Property<int?>("TotalMedicareBeneficiaries")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_medicare_beneficiaries");
+
+                    b.Property<decimal?>("TotalMedicarePayments")
+                        .HasColumnType("numeric")
+                        .HasColumnName("total_medicare_payments");
+
+                    b.Property<int?>("TotalMedicareServices")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_medicare_services");
+
+                    b.Property<Guid>("Uuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Npi")
+                        .IsUnique();
+
+                    b.HasIndex("PracticeAddressState");
+
+                    b.HasIndex("PrimarySpecialty");
+
+                    b.HasIndex("Uuid");
+
+                    b.ToTable("cms_providers", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.DataSourceStateEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -132,6 +230,24 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
+                    b.Property<string>("Npi")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("npi");
+
+                    b.Property<DateTime?>("NpiLookupAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("npi_lookup_at");
+
+                    b.Property<string>("Orcid")
+                        .HasMaxLength(19)
+                        .HasColumnType("character varying(19)")
+                        .HasColumnName("orcid");
+
+                    b.Property<DateTime?>("OrcidLookupAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("orcid_lookup_at");
+
                     b.Property<string>("Role")
                         .HasColumnType("text")
                         .HasColumnName("role");
@@ -143,7 +259,8 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("study_nct_id");
 
                     b.Property<Guid>("Uuid")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("uuid");
 
                     b.HasKey("Id");
 
