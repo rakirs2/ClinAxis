@@ -21,4 +21,10 @@ internal static class FixtureLoader
         var path = Path.Combine(AppContext.BaseDirectory, "Data", "NppesNpiRegistry", fileName);
         return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
     }
+
+    public static string LoadOrcidApiJson(string fileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Data", "OrcidApi", fileName);
+        return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
+    }
 }

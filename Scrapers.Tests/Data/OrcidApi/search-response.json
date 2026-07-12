@@ -1,0 +1,21 @@
+{
+  "result": [
+    {
+      "orcid-identifier": {
+        "uri": "https://orcid.org/0000-0001-2345-6789",
+        "path": "0000-0001-2345-6789",
+        "host": "orcid.org"
+      },
+      "display-name": "David Jacoby"
+    },
+    {
+      "orcid-identifier": {
+        "uri": "https://orcid.org/0000-0002-8765-4321",
+        "path": "0000-0002-8765-4321",
+        "host": "orcid.org"
+      },
+      "display-name": "David R Jacoby"
+    }
+  ],
+  "num-found": 2
+}
