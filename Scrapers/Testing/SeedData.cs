@@ -15,7 +15,7 @@ internal static class SeedData
     internal static readonly InvestigatorEntity Investigator1 = new()
     {
         StudyNctId = "NCT00000002",
-        Name = "Dr. Alice Johnson",
+        Name = "Dr. Alice Johnson, MD, PhD",
         Affiliation = "Pain Research Institute",
         Role = "PRINCIPAL_INVESTIGATOR"
     };
@@ -23,7 +23,7 @@ internal static class SeedData
     internal static readonly InvestigatorEntity Investigator2 = new()
     {
         StudyNctId = "NCT00000002",
-        Name = "Dr. Bob Williams",
+        Name = "Prof. Bob Williams, MD",
         Affiliation = "Pain Research Institute",
         Role = "SUB_INVESTIGATOR"
     };
@@ -31,7 +31,7 @@ internal static class SeedData
     internal static readonly InvestigatorEntity Investigator3 = new()
     {
         StudyNctId = "NCT00000003",
-        Name = "Dr. Alice Johnson",
+        Name = "Dr. Alice Johnson, MD, PhD",
         Affiliation = "Cardio Health Center",
         Role = "PRINCIPAL_INVESTIGATOR"
     };
@@ -39,9 +39,82 @@ internal static class SeedData
     internal static readonly InvestigatorEntity Investigator4 = new()
     {
         StudyNctId = "NCT00000004",
-        Name = "Dr. Carol Davis",
+        Name = "Prof. Carol Davis, PhD",
         Affiliation = "Asthma Care Institute",
         Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    // Additional investigators for pagination and search tests
+    internal static readonly InvestigatorEntity Investigator5 = new()
+    {
+        StudyNctId = "NCT00000006",
+        Name = "Dr. James Smith, MD",
+        Affiliation = "Diabetes Research Center",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator6 = new()
+    {
+        StudyNctId = "NCT00000006",
+        Name = "Prof. Dr. Sarah Campbell, MSc",
+        Affiliation = "Diabetes Research Center",
+        Role = "SUB_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator7 = new()
+    {
+        StudyNctId = "NCT00000007",
+        Name = "Dr. Michael Chen, PhD",
+        Affiliation = "Berlin Mental Health Institute",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator8 = new()
+    {
+        StudyNctId = "NCT00000008",
+        Name = "Prof. Robert Miller, MD, MSc",
+        Affiliation = "Neurology Research Center",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator9 = new()
+    {
+        StudyNctId = "NCT00000008",
+        Name = "Dr. Anna Martinez, PhD",
+        Affiliation = "Neurology Research Center",
+        Role = "SUB_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator10 = new()
+    {
+        StudyNctId = "NCT00000009",
+        Name = "Dr. David Williams, MD",
+        Affiliation = "Canadian Cardiovascular Institute",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator11 = new()
+    {
+        StudyNctId = "NCT00000010",
+        Name = "Prof. Emily Brown, MD, PhD",
+        Affiliation = "Genetic Disorder Research Center",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator12 = new()
+    {
+        StudyNctId = "NCT00000011",
+        Name = "Dr. Christopher Lee, MSc",
+        Affiliation = "Multi-Site Research Network",
+        Role = "PRINCIPAL_INVESTIGATOR"
+    };
+
+    internal static readonly InvestigatorEntity Investigator13 = new()
+    {
+        StudyNctId = "NCT00000011",
+        Name = "Prof. Jennifer Garcia, MD, MSc",
+        Affiliation = "Multi-Site Research Network",
+        Role = "SUB_INVESTIGATOR"
     };
 
     internal static readonly StudyEntity Study2 = new()
@@ -194,7 +267,10 @@ internal static class SeedData
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
         ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5, Study6, Study7, Study8, Study9, Study10, Study11);
-        ctx.Investigators.AddRange(Investigator1, Investigator2, Investigator3, Investigator4);
+        ctx.Investigators.AddRange(
+            Investigator1, Investigator2, Investigator3, Investigator4, Investigator5, Investigator6,
+            Investigator7, Investigator8, Investigator9, Investigator10, Investigator11, Investigator12,
+            Investigator13);
         await ctx.SaveChangesAsync().ConfigureAwait(false);
     }
 }
