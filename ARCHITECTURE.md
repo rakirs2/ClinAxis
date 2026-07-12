@@ -38,24 +38,121 @@ PubMed  ───────────►  PubMedScraperService  ────
 
 **Critical rule: Only DataApi reads/writes to PostgreSQL.** Frontend, IngestionApp, and tests all go through DataApi's REST API or share the `Scrapers` library (which DataApi also uses). No DbContext or SQL outside DataApi.
 
-## Deployment
+## Deployment Architecture
 
-The system runs on a single DigitalOcean Droplet:
+ClinicalTrialData uses independent service deployments to allow redeploying any service (DataApi, Frontend, or IngestionApp) without interrupting the others on the same DigitalOcean instance.
 
-- **PostgreSQL**: Docker container on the droplet (or managed DO PostgreSQL)
-- **DataApi**: `dotnet publish --self-contained -r linux-x64` → SCP → systemd service. Listens on localhost:5003.
-- **Frontend**: Same publish/SCP/systemd pattern. **Kestrel serves HTTPS directly on port 80/443.** TLS via .NET's built-in HTTPS + Let's Encrypt cert.
-- **IngestionApp**: Runs via cron or systemd timer for scheduled data ingestion
-- **No nginx.** Keep the stack minimal.
+### Problem & Solution
 
-## Ports
+**Problem**: All three services running on a single droplet means redeploying the scraper service would require stopping the API and Frontend, creating unnecessary downtime.
 
-| Service   | Port | Notes |
-|-----------|------|-------|
-| Frontend  | 80/443 | Public entry point. Kestrel directly, TLS via .NET HTTPS + Let's Encrypt. |
-| DataApi   | 5003 | Internal, not exposed publicly. Frontend calls DataApi via HttpClient. |
+**Solution**: Three independent GitHub Actions workflows with path-based triggers ensure only the changed service redeploys:
 
-(5000 is reserved by macOS AirPlay Receiver / Control Center.)
+```
+┌─────────────────────────────────────────────────────────────┐
+│              GitHub Actions Workflows                       │
+├────────────────┬──────────────────┬───────────────────────┤
+│ deploy-dataapi │ deploy-frontend  │ deploy-ingestion      │
+│ (DataApi/**)   │ (Frontend/**)    │ (IngestionApp/**)     │
+└────────┬───────┴────────┬─────────┴──────────┬────────────┘
+         │                │                    │
+         └────────────────┼────────────────────┘
+                          │
+                      SSH to Droplet
+                          │
+         ┌────────────────┼────────────────────┐
+         │                │                    │
+    ┌────▼────┐      ┌────▼────┐         ┌────▼──────┐
+    │ systemd │      │ systemd │         │ systemd   │
+    │  API    │      │Frontend │         │Ingestion  │
+    │ :5003   │      │ :5001   │         │(bg job)   │
+    └─────────┘      └─────────┘         └───────────┘
+         │                │                    │
+         └────────────────┼────────────────────┘
+                          │
+                      Nginx Proxy
+                    (port 80/443)
+```
+
+### Key Benefits
+
+- **Independent restarts**: Scraper redeploy doesn't affect API/Frontend
+- **Faster deployments**: Only changed service rebuilds and redeploys
+- **Reduced risk**: One service failing doesn't cascade to others
+- **Simple rollback**: Revert and re-run workflow for failed service
+- **Parallel deployments**: Multiple services can deploy simultaneously
+
+## Production Infrastructure
+
+ClinicalTrialData runs on a single DigitalOcean Ubuntu droplet with the following architecture:
+
+### Droplet Configuration
+
+- **Instance**: Single DigitalOcean Droplet (Ubuntu)
+- **Services**: Three independent .NET processes managed by systemd
+- **Reverse Proxy**: Nginx (routes external traffic to backend services on ports 80/443)
+- **Database**: PostgreSQL (local instance, shared by all services)
+
+### Service Ports
+
+| Service | Port | Role |
+|---------|------|------|
+| DataApi | 5003 | REST API for study data (internal, proxied by nginx) |
+| Frontend | 5001 | Blazor Server UI (internal, proxied by nginx) |
+| IngestionApp | - | Background scraper service (no exposed port) |
+| PostgreSQL | 5432 | Database (localhost only, not exposed) |
+
+### Systemd Services
+
+Each service runs as a systemd service for automatic restart and lifecycle management:
+
+- `clinicaltrialdata-api.service` — DataApi (ASP.NET Core)
+- `clinicaltrialdata-frontend.service` — Frontend (Blazor Server)
+- `clinicaltrialdata-ingestion.service` — IngestionApp (BackgroundServices)
+
+Services can be managed independently:
+```bash
+sudo systemctl restart clinicaltrialdata-api     # Restart only DataApi
+sudo systemctl status clinicaltrialdata-*        # Check all services
+sudo journalctl -u clinicaltrialdata-api -f      # Live logs
+```
+
+### Deployment Directories
+
+```
+/opt/clinicaltrialdata/
+├── api/                    # DataApi binaries
+├── frontend/               # Frontend binaries
+├── ingestion/              # IngestionApp binaries
+└── releases/               # Version history (optional)
+```
+
+### GitHub Actions Integration
+
+Deployments are triggered automatically via three GitHub Actions workflows:
+- **deploy-dataapi.yml** — Triggers on changes to `DataApi/**` or manual dispatch
+- **deploy-frontend.yml** — Triggers on changes to `Frontend/**` or manual dispatch
+- **deploy-ingestion.yml** — Triggers on changes to `IngestionApp/**` or manual dispatch
+
+Each workflow:
+1. Checks out code and builds in Release mode (`dotnet publish --self-contained -r linux-x64`)
+2. Publishes binary to deployment directory via SSH
+3. Restarts the corresponding systemd service
+4. Verifies service health before completing
+
+### Authentication & Secrets
+
+Droplet authentication is configured via GitHub Secrets:
+- `DEPLOY_HOST` — Droplet IP address or hostname
+- `DEPLOY_USER` — SSH user (ubuntu or root)
+- `DEPLOY_SSH_KEY` — Private SSH key for authentication
+- `PROD_DB_CONNECTION` — PostgreSQL connection string for production database
+
+### Database
+
+PostgreSQL runs on the same instance (`localhost:5432`) and is shared by all three services. The connection string is passed via environment variable `PROD_DB_CONNECTION` (set in systemd service files).
+
+All three services connect to the same `clinical_trial_data` database, with the IngestionApp performing schema migrations on startup if needed.
 
 ## API Endpoints
 
