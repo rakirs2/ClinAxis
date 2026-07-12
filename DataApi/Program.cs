@@ -21,14 +21,61 @@ WebApplication app = builder.Build();
 
 app.MapHealthChecks("/health");
 
-app.MapGet("/api/studies", async (int? page, int? pageSize, string? search, string? status, string? phase) =>
+// Endpoints for advanced search filter options
+app.MapGet("/api/distinct-conditions", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var conditions = await repo.GetDistinctConditionsAsync();
+    return Results.Ok(conditions);
+});
+
+app.MapGet("/api/distinct-locations", async (string? country, string? state, string? city) =>
+{
+    var repo = new StudyRepository(connectionString);
+    var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync(country, state, city);
+    return Results.Ok(new
+    {
+        countries,
+        states,
+        cities,
+        facilities
+    });
+});
+
+app.MapGet("/api/studies", async (
+    int? page, int? pageSize,
+    string? keyword,
+    string? status, string? phase,
+    string? condition,
+    string? country, string? state, string? city, string? facility,
+    int? enrollmentMin, int? enrollmentMax,
+    DateTime? startDateFrom, DateTime? startDateTo) =>
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
     var ps = Math.Clamp(pageSize ?? 20, 1, 100);
 
-    IReadOnlyList<StudyEntity> studies = await repo.GetStudiesPagedAsync(p, ps, search, status, phase);
-    var total = await repo.CountStudiesFilteredAsync(search, status, phase);
+    // Build search criteria from query parameters
+    var criteria = new StudySearchCriteria
+    {
+        Keyword = keyword,
+        Statuses = ParseCsvParam(status),
+        Phases = ParseCsvParam(phase),
+        Conditions = ParseCsvParam(condition),
+        Countries = ParseCsvParam(country),
+        States = ParseCsvParam(state),
+        Cities = ParseCsvParam(city),
+        Facilities = ParseCsvParam(facility),
+        EnrollmentMin = enrollmentMin,
+        EnrollmentMax = enrollmentMax,
+        StartDateFrom = startDateFrom,
+        StartDateTo = startDateTo,
+        Page = p,
+        PageSize = ps
+    };
+
+    var studies = await repo.SearchStudiesAsync(criteria);
+    var total = await repo.CountStudiesFilteredAsync(criteria);
 
     return Results.Ok(new
     {
@@ -248,6 +295,17 @@ app.MapGet("/api/aggregations", async () =>
 });
 
 await app.RunAsync();
+
+/// <summary>
+/// Parse comma-separated query parameter into list of values.
+/// </summary>
+static IReadOnlyList<string>? ParseCsvParam(string? param)
+{
+    if (string.IsNullOrWhiteSpace(param))
+        return null;
+
+    return param.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
 
 namespace DataApi
 {
