@@ -76,12 +76,10 @@ public sealed class EventProcessingService : BackgroundService
         }
     }
 
-    private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
-    {
-        // For now, just log that we received the event
-        System.Diagnostics.Debug.WriteLine($"Processing event: {
-
-.EventType} with data: {@event.Data}");
+     private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
+     {
+         // For now, just log that we received the event
+         System.Diagnostics.Debug.WriteLine($"Processing event: {@event.EventType} with data: {@event.Data}");
 
         // Future implementations will dispatch to specific handlers
         switch (@event.EventType)
