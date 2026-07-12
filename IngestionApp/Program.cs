@@ -8,7 +8,7 @@ using Scrapers.Services.EventQueue;
 var cs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(cs))
 {
-    await Console.Error.WriteLineAsync("POSTGRES_CONNECTION_STRING not set.");
+    await Console.Error.WriteLineAsync("POSTGRES_CONNECTION_STRING not set.").ConfigureAwait(false);
     return 1;
 }
 
@@ -16,7 +16,7 @@ var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
 
 // Ensure database schema is created
 var repo = new StudyRepository(cs);
-await repo.EnsureSchemaAsync();
+await repo.EnsureSchemaAsync().ConfigureAwait(false);
 
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
@@ -51,6 +51,6 @@ var host = Host.CreateDefaultBuilder(args)
     .Build();
 
 // Run the host (blocking call, runs until cancelled)
-await host.RunAsync();
+await host.RunAsync().ConfigureAwait(false);
 
 return 0;
