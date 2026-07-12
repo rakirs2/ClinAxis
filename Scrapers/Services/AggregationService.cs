@@ -27,7 +27,7 @@ namespace Scrapers.Services
 
         private async Task AggregatePiCountsAsync(IReadOnlyList<StudyEntity> studies, CancellationToken cancellationToken)
         {
-            var piMap = new Dictionary<string, (HashSet<string> StudyIds, HashSet<string> Affiliations, int PubmedCount)>(
+            var piMap = new Dictionary<string, (HashSet<string> StudyIds, HashSet<string> Affiliations, int PubmedCount, int TrialCount, int ReviewCount, int OtherCount)>(
                 StringComparer.OrdinalIgnoreCase);
 
             foreach (StudyEntity study in studies)
@@ -38,6 +38,35 @@ namespace Scrapers.Services
                 }
 
                 var pubmedCount = study.PubmedStudies?.Count ?? 0;
+                var trialCount = 0;
+                var reviewCount = 0;
+                var otherCount = 0;
+
+                if (study.PubmedStudies != null)
+                {
+                    foreach (PubmedStudyEntity paper in study.PubmedStudies)
+                    {
+                        if (string.IsNullOrWhiteSpace(paper.PublicationTypes))
+                        {
+                            otherCount++;
+                            continue;
+                        }
+
+                        var types = paper.PublicationTypes;
+                        if (types.Contains("Trial", StringComparison.OrdinalIgnoreCase))
+                        {
+                            trialCount++;
+                        }
+                        else if (types.Contains("Review", StringComparison.OrdinalIgnoreCase))
+                        {
+                            reviewCount++;
+                        }
+                        else
+                        {
+                            otherCount++;
+                        }
+                    }
+                }
 
                 foreach (InvestigatorEntity investigator in study.Investigators)
                 {
@@ -46,9 +75,9 @@ namespace Scrapers.Services
                         continue;
                     }
 
-                    if (!piMap.TryGetValue(investigator.Name, out (HashSet<string> StudyIds, HashSet<string> Affiliations, int PubmedCount) entry))
+                    if (!piMap.TryGetValue(investigator.Name, out var entry))
                     {
-                        entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
+                        entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0, 0, 0, 0);
                     }
 
                     entry.StudyIds.Add(study.NctId);
@@ -57,6 +86,9 @@ namespace Scrapers.Services
                         entry.Affiliations.Add(investigator.Affiliation);
                     }
                     entry.PubmedCount += pubmedCount;
+                    entry.TrialCount += trialCount;
+                    entry.ReviewCount += reviewCount;
+                    entry.OtherCount += otherCount;
                     piMap[investigator.Name] = entry;
                 }
             }
@@ -70,6 +102,9 @@ namespace Scrapers.Services
                         : null,
                     StudyCount = kvp.Value.StudyIds.Count,
                     PubmedPaperCount = kvp.Value.PubmedCount,
+                    PubmedTrialCount = kvp.Value.TrialCount,
+                    PubmedReviewCount = kvp.Value.ReviewCount,
+                    PubmedOtherCount = kvp.Value.OtherCount,
                     StudyNctIds = string.Join(",", kvp.Value.StudyIds.OrderBy(id => id)),
                     ComputedAt = DateTime.UtcNow
                 })

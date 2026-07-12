@@ -451,4 +451,23 @@ Testcontainers manages PostgreSQL automatically — no manual `docker compose` n
 
 ---
 
+### PR 7: PubMed Enrichment + Event-Driven Pipeline (IN PROGRESS — branch `feature/pubmed-enrichment-event-driven`)
+**Goal:** Enrich studies with PubMed metadata (MeSH, keywords, publication types, URLs), link authors to investigators, and restructure the ingestion pipeline as event-driven BackgroundServices with a PostgreSQL-backed event queue.
+
+**Architecture:** ClinicalTrials.gov crawl → enqueues `study.updated` event → PubMed crawl claims event, processes papers → enqueues `pubmed.complete` event → Aggregation claims event, recomputes aggregations. Each source is a `BackgroundService` in a `Host.CreateDefaultBuilder` host.
+
+**Completed:**
+1. New entities: `SourceCrawlStateEntity`, `PipelineEventEntity`
+2. Updated entities: `StudyEntity` (ClinicalTrialsUpdatedAt, PubMedUpdatedAt), `StudyAuthorEntity` (NcbiId, InvestigatorUuid FK), `PubmedStudyEntity` (Url as Uri, PublicationTypes, MeSHTerms, Keywords), `PiAggregationEntity` (PubmedTrialCount, PubmedReviewCount, PubmedOtherCount)
+3. Repository: 10 new methods for event queue (claim/complete/fail), crawl state, timestamps
+4. `ClinicalTrialsGov` + `ClinicalTrialsIngestionService`: accept `updatedSince` param → `?filter.updatedSince=`
+5. `PubMedScraperService`: full rewrite with `ProcessStudyAsync`, multi-identifier parsing (ORCID + NCBI), author filtering, metadata extraction, author-investigator linking
+6. `AggregationService`: computes pubmed trial/review/other breakdown from `PublicationTypes`
+7. Three `BackgroundService` implementations: `ClinicalTrialsCrawlService`, `PubMedCrawlService`, `AggregationCrawlService`
+8. `IngestionApp/Program.cs`: rewritten as `Host.CreateDefaultBuilder` + `AddHostedService`
+9. Deleted: `PipelineRunner.cs`, `IngestionCoordinatorService.cs` (replaced by BackgroundServices)
+10. `StudyMapper.cs` + `InvestigatorMapper.cs`: added url, publicationTypes, meshTerms, keywords to pubmed papers; added `publications` array to investigator detail
+
+**Verification:** `dotnet build` (0 errors, 0 warnings), `dotnet test` (73/73 pass)
+
 *This document is updated as execution progresses. Failed approaches are noted alongside with rationale.*

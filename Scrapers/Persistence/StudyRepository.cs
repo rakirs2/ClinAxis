@@ -164,6 +164,7 @@ namespace Scrapers.Persistence
 
         private static void MapRecordToEntity(ClinicalTrialRecord record, StudyEntity entity, bool incomplete)
         {
+            entity.ClinicalTrialsUpdatedAt = DateTime.UtcNow;
             entity.BriefTitle = record.BriefTitle;
             entity.OfficialTitle = record.OfficialTitle;
             entity.OverallStatus = record.OverallStatus;
@@ -853,6 +854,176 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             return await context.ScrapeEvents
                 .CountAsync(e => e.Timestamp >= since, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<SourceCrawlStateEntity?> GetSourceCrawlStateAsync(string sourceName, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.SourceCrawlStates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SourceName == sourceName, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task UpsertSourceCrawlStateAsync(SourceCrawlStateEntity state, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(state);
+
+            using ClinicalTrialsContext context = CreateContext();
+            SourceCrawlStateEntity? existing = await context.SourceCrawlStates
+                .FirstOrDefaultAsync(s => s.SourceName == state.SourceName, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (existing != null)
+            {
+                existing.LastCursor = state.LastCursor;
+                existing.LastStartedAt = state.LastStartedAt;
+                existing.LastSuccessAt = state.LastSuccessAt;
+                existing.TotalRecordsFetched = state.TotalRecordsFetched;
+                existing.Status = state.Status;
+                existing.ErrorMessage = state.ErrorMessage;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                state.CreatedAt = DateTime.UtcNow;
+                state.UpdatedAt = DateTime.UtcNow;
+                context.SourceCrawlStates.Add(state);
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task UpdateStudyCrawlTimestampAsync(string nctId, string source, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            StudyEntity? study = await context.Studies.FindAsync(new object[] { nctId }, cancellationToken).ConfigureAwait(false);
+            if (study == null)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            if (source == "ClinicalTrials")
+            {
+                study.ClinicalTrialsUpdatedAt = now;
+            }
+            else if (source == "PubMed")
+            {
+                study.PubMedUpdatedAt = now;
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<string>> GetStudyNctIdsNeedingCrawlAsync(string source, int limit, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            IQueryable<StudyEntity> query = context.Studies.AsNoTracking();
+
+            if (source == "PubMed")
+            {
+                query = query.Where(s => s.PubMedUpdatedAt == null && !s.IsIncomplete);
+            }
+            else if (source == "ClinicalTrials")
+            {
+                query = query.Where(s => s.ClinicalTrialsUpdatedAt == null);
+            }
+
+            return await query
+                .Select(s => s.NctId)
+                .Take(limit)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<long> EnqueueEventAsync(PipelineEventEntity evt, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(evt);
+
+            using ClinicalTrialsContext context = CreateContext();
+            context.PipelineEvents.Add(evt);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return evt.Id;
+        }
+
+        public async Task<PipelineEventEntity?> ClaimNextEventAsync(string[] eventTypes, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var eventTypeList = eventTypes.ToList();
+            PipelineEventEntity? evt = await context.PipelineEvents
+                .Where(e => e.Status == "pending" && eventTypeList.Contains(e.EventType))
+                .OrderBy(e => e.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (evt == null)
+            {
+                return null;
+            }
+
+            evt.Status = "processing";
+            evt.PickedUpAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            return evt;
+        }
+
+        public async Task CompleteEventAsync(long eventId, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            PipelineEventEntity? evt = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken).ConfigureAwait(false);
+            if (evt != null)
+            {
+                evt.Status = "completed";
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public async Task FailEventAsync(long eventId, string error, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            PipelineEventEntity? evt = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken).ConfigureAwait(false);
+            if (evt != null)
+            {
+                evt.Status = "failed";
+                evt.ErrorMessage = error;
+                evt.RetryCount++;
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public async Task<int> GetPendingEventCountAsync(string eventType, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.PipelineEvents
+                .CountAsync(e => e.Status == "pending" && e.EventType == eventType, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<SourceCrawlStateEntity>> GetAllCrawlStatesAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.SourceCrawlStates
+                .AsNoTracking()
+                .OrderBy(s => s.SourceName)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task<object> GetEventQueueStatsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var pending = await context.PipelineEvents
+                .CountAsync(e => e.Status == "pending", cancellationToken).ConfigureAwait(false);
+            var processing = await context.PipelineEvents
+                .CountAsync(e => e.Status == "processing", cancellationToken).ConfigureAwait(false);
+            var completed = await context.PipelineEvents
+                .CountAsync(e => e.Status == "completed", cancellationToken).ConfigureAwait(false);
+            var failed = await context.PipelineEvents
+                .CountAsync(e => e.Status == "failed", cancellationToken).ConfigureAwait(false);
+            return new { pending, processing, completed, failed };
         }
 
         private ClinicalTrialsContext CreateContext()

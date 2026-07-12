@@ -229,6 +229,29 @@ app.MapGet("/api/telemetry", async () =>
     });
 });
 
+app.MapGet("/api/crawl-state", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    IReadOnlyList<SourceCrawlStateEntity> states = await repo.GetAllCrawlStatesAsync();
+    return Results.Ok(states.Select(s => new
+    {
+        sourceName = s.SourceName,
+        lastCursor = s.LastCursor,
+        lastStartedAt = s.LastStartedAt,
+        lastSuccessAt = s.LastSuccessAt,
+        totalRecordsFetched = s.TotalRecordsFetched,
+        status = s.Status,
+        errorMessage = s.ErrorMessage
+    }));
+});
+
+app.MapGet("/api/event-queue/stats", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var stats = await repo.GetEventQueueStatsAsync();
+    return Results.Ok(stats);
+});
+
 app.MapGet("/api/aggregations", async () =>
 {
     var repo = new StudyRepository(connectionString);

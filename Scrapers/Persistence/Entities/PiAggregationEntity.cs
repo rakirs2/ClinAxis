@@ -11,6 +11,9 @@ namespace Scrapers.Persistence.Entities
         public string? Affiliation { get; set; }
         public int StudyCount { get; set; }
         public int PubmedPaperCount { get; set; }
+        public int PubmedTrialCount { get; set; }
+        public int PubmedReviewCount { get; set; }
+        public int PubmedOtherCount { get; set; }
         public string StudyNctIds { get; set; } = string.Empty;
         public DateTime ComputedAt { get; set; } = DateTime.UtcNow;
     }

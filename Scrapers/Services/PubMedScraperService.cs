@@ -25,78 +25,134 @@ namespace Scrapers.Services
 
         public async Task<int> IngestPubMedPapersAsync(CancellationToken cancellationToken = default)
         {
+            var repo = new StudyRepository(_connectionString);
+            var nctIds = await repo.GetStudyNctIdsNeedingCrawlAsync("PubMed", int.MaxValue, cancellationToken).ConfigureAwait(false);
+            var total = 0;
+
+            foreach (var nctId in nctIds)
+            {
+                total += await ProcessStudyAsync(nctId, cancellationToken).ConfigureAwait(false);
+            }
+
+            return total;
+        }
+
+        public async Task<int> ProcessStudyAsync(string nctId, CancellationToken cancellationToken = default)
+        {
             DbContextOptions<ClinicalTrialsContext> contextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
                 .UseNpgsql(_connectionString)
                 .Options;
 
-            var totalPapers = 0;
+            using var context = new ClinicalTrialsContext(contextOptions);
 
-            using (var context = new ClinicalTrialsContext(contextOptions))
+            List<string> pmids = await FetchPmidsFromClinicalTrialsGovAsync(nctId, cancellationToken).ConfigureAwait(false);
+            var newPapers = 0;
+
+            foreach (var pmid in pmids)
             {
-                var studiesWithPmids = await context.Studies
-                    .Where(s => !s.IsIncomplete && s.OverallStatus != "COMPLETED")
-                    .Select(s => new { s.NctId })
-                    .ToListAsync(cancellationToken).ConfigureAwait(false);
-
-                foreach (var study in studiesWithPmids)
+                var existing = await context.PubmedStudies.AnyAsync(
+                    p => p.StudyNctId == nctId && p.Pmid == pmid, cancellationToken).ConfigureAwait(false);
+                if (existing)
                 {
-                    List<string> pmids = await FetchPmidsFromClinicalTrialsGovAsync(study.NctId, cancellationToken).ConfigureAwait(false);
-                    if (pmids.Count == 0)
-                    {
-                        continue;
-                    }
-
-                    foreach (var pmid in pmids)
-                    {
-                        var existing = await context.PubmedStudies.AnyAsync(
-                            p => p.StudyNctId == study.NctId && p.Pmid == pmid, cancellationToken).ConfigureAwait(false);
-                        if (existing)
-                        {
-                            continue;
-                        }
-
-                        PaperDetail? paperDetail = await FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
-
-                        var pubmedStudy = new PubmedStudyEntity
-                        {
-                            StudyNctId = study.NctId,
-                            Pmid = pmid,
-                            Doi = paperDetail?.Doi,
-                            Title = paperDetail?.Title,
-                            Journal = paperDetail?.Journal,
-                            PublicationDate = paperDetail?.PublicationDate,
-                            Abstract = paperDetail?.Abstract,
-                            IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
-                            CreatedAt = DateTime.UtcNow
-                        };
-
-                        context.PubmedStudies.Add(pubmedStudy);
-                        totalPapers++;
-
-                        if (paperDetail?.Authors != null)
-                        {
-                            foreach (AuthorInfo author in paperDetail.Authors)
-                            {
-                                context.StudyAuthors.Add(new StudyAuthorEntity
-                                {
-                                    StudyNctId = study.NctId,
-                                    Pmid = pmid,
-                                    LastName = author.LastName,
-                                    ForeName = author.ForeName,
-                                    Orcid = author.Orcid
-                                });
-                            }
-                        }
-                    }
+                    continue;
                 }
 
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                PaperDetail? paperDetail = await FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                if (paperDetail == null)
+                {
+                    continue;
+                }
+
+                var pubmedStudy = new PubmedStudyEntity
+                {
+                    StudyNctId = nctId,
+                    Pmid = pmid,
+                    Doi = paperDetail.Doi,
+                    Title = paperDetail.Title,
+                    Journal = paperDetail.Journal,
+                    PublicationDate = paperDetail.PublicationDate,
+                    Abstract = paperDetail.Abstract,
+                    IsNonEnglish = paperDetail.IsNonEnglish,
+                    Url = new Uri($"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"),
+                    PublicationTypes = paperDetail.PublicationTypes,
+                    MeSHTerms = paperDetail.MeSHTerms,
+                    Keywords = paperDetail.Keywords,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                context.PubmedStudies.Add(pubmedStudy);
+                newPapers++;
+
+                if (paperDetail.Authors != null)
+                {
+                    foreach (AuthorInfo author in paperDetail.Authors)
+                    {
+                        context.StudyAuthors.Add(new StudyAuthorEntity
+                        {
+                            StudyNctId = nctId,
+                            Pmid = pmid,
+                            LastName = author.LastName,
+                            ForeName = author.ForeName,
+                            Orcid = author.Orcid,
+                            NcbiId = author.NcbiId
+                        });
+                    }
+                }
             }
 
-            return totalPapers;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            await LinkAuthorsToInvestigatorsAsync(context, nctId, cancellationToken).ConfigureAwait(false);
+
+            var repo = new StudyRepository(_connectionString);
+            await repo.UpdateStudyCrawlTimestampAsync(nctId, "PubMed", cancellationToken).ConfigureAwait(false);
+
+            return newPapers;
         }
 
-        private static async Task<List<string>> FetchPmidsFromClinicalTrialsGovAsync(string nctId, CancellationToken cancellationToken)
+        private static async Task LinkAuthorsToInvestigatorsAsync(ClinicalTrialsContext context, string nctId, CancellationToken cancellationToken)
+        {
+            List<StudyAuthorEntity> authors = await context.StudyAuthors
+                .Where(a => a.StudyNctId == nctId && a.InvestigatorUuid == null)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+            if (authors.Count == 0)
+            {
+                return;
+            }
+
+            List<InvestigatorEntity> investigators = await context.Investigators
+                .Where(i => i.StudyNctId == nctId)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+            foreach (StudyAuthorEntity author in authors)
+            {
+                if (!string.IsNullOrWhiteSpace(author.Orcid))
+                {
+                    InvestigatorEntity? match = investigators.FirstOrDefault(i =>
+                        !string.IsNullOrWhiteSpace(i.Name) &&
+                        i.Name.Contains(author.LastName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        author.InvestigatorUuid = match.Uuid;
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(author.NcbiId))
+                {
+                    InvestigatorEntity? match = investigators.FirstOrDefault(i =>
+                        !string.IsNullOrWhiteSpace(i.Name) &&
+                        i.Name.Contains(author.LastName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        author.InvestigatorUuid = match.Uuid;
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        internal static async Task<List<string>> FetchPmidsFromClinicalTrialsGovAsync(string nctId, CancellationToken cancellationToken)
         {
             var pmids = new List<string>();
             var url = $"https://clinicaltrials.gov/api/v2/studies/{nctId}";
@@ -131,7 +187,7 @@ namespace Scrapers.Services
             return pmids;
         }
 
-        private static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
+        internal static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
         {
             var url = $"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={pmid}&retmode=xml&rettype=abstract";
 
@@ -145,7 +201,7 @@ namespace Scrapers.Services
             return ParsePubmedXml(xml);
         }
 
-        private static PaperDetail? ParsePubmedXml(string xml)
+        internal static PaperDetail? ParsePubmedXml(string xml)
         {
             var doc = new System.Xml.XmlDocument();
             doc.LoadXml(xml);
@@ -172,18 +228,9 @@ namespace Scrapers.Services
                 {
                     var m = month switch
                     {
-                        "Jan" => 1,
-                        "Feb" => 2,
-                        "Mar" => 3,
-                        "Apr" => 4,
-                        "May" => 5,
-                        "Jun" => 6,
-                        "Jul" => 7,
-                        "Aug" => 8,
-                        "Sep" => 9,
-                        "Oct" => 10,
-                        "Nov" => 11,
-                        "Dec" => 12,
+                        "Jan" => 1, "Feb" => 2, "Mar" => 3, "Apr" => 4,
+                        "May" => 5, "Jun" => 6, "Jul" => 7, "Aug" => 8,
+                        "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
                         _ => 1
                     };
                     var d = int.TryParse(day, out var dayVal) ? dayVal : 1;
@@ -217,20 +264,119 @@ namespace Scrapers.Services
                     }
 
                     var lastName = authorNode["LastName"]?.InnerText;
-                    var firstName = authorNode["ForeName"]?.InnerText;
+                    var foreName = authorNode["ForeName"]?.InnerText;
 
                     string? orcid = null;
-                    if (authorNode["Identifier"] is { } identifier)
+                    string? ncbiId = null;
+                    if (authorNode.SelectNodes("Identifier") is XmlNodeList identifiers)
                     {
-                        orcid = identifier.InnerText;
+                        foreach (XmlNode idNode in identifiers)
+                        {
+                            var source = idNode.Attributes?["Source"]?.Value;
+                            if (string.Equals(source, "ORCID", StringComparison.OrdinalIgnoreCase))
+                            {
+                                orcid = idNode.InnerText;
+                            }
+                            else if (string.Equals(source, "NCBI", StringComparison.OrdinalIgnoreCase))
+                            {
+                                ncbiId = idNode.InnerText;
+                            }
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(orcid) && string.IsNullOrWhiteSpace(ncbiId))
+                    {
+                        continue;
                     }
 
                     authors.Add(new AuthorInfo
                     {
                         LastName = lastName,
-                        ForeName = firstName,
-                        Orcid = orcid
+                        ForeName = foreName,
+                        Orcid = orcid,
+                        NcbiId = ncbiId
                     });
+                }
+            }
+
+            string? publicationTypes = null;
+            XmlNode? publicationTypeList = article.SelectSingleNode("PublicationTypeList");
+            if (publicationTypeList != null)
+            {
+                var types = new List<string>();
+                foreach (XmlNode ptNode in publicationTypeList.ChildNodes)
+                {
+                    if (ptNode.Name == "PublicationType")
+                    {
+                        types.Add(ptNode.InnerText);
+                    }
+                }
+                if (types.Count > 0)
+                {
+                    publicationTypes = string.Join(", ", types);
+                }
+            }
+
+            string? meshTerms = null;
+            XmlNode? meshHeadingList = article.SelectSingleNode("MeshHeadingList");
+            if (meshHeadingList != null)
+            {
+                var terms = new List<string>();
+                foreach (XmlNode heading in meshHeadingList.ChildNodes)
+                {
+                    if (heading.Name != "MeshHeading")
+                    {
+                        continue;
+                    }
+
+                    var descriptor = heading.SelectSingleNode("DescriptorName")?.InnerText;
+                    if (string.IsNullOrWhiteSpace(descriptor))
+                    {
+                        continue;
+                    }
+
+                    var qualifiers = new List<string>();
+                    if (heading.SelectNodes("QualifierName") is XmlNodeList qualifierNodes)
+                    {
+                        foreach (XmlNode q in qualifierNodes)
+                        {
+                            var qName = q.InnerText;
+                            if (!string.IsNullOrWhiteSpace(qName))
+                            {
+                                qualifiers.Add(qName);
+                            }
+                        }
+                    }
+
+                    terms.Add(qualifiers.Count > 0
+                        ? $"{descriptor}/{string.Join(", ", qualifiers)}"
+                        : descriptor);
+                }
+                if (terms.Count > 0)
+                {
+                    meshTerms = string.Join(", ", terms);
+                }
+            }
+
+            string? keywords = null;
+            XmlNode? keywordList = article.SelectSingleNode("KeywordList");
+            if (keywordList != null)
+            {
+                var kwList = new List<string>();
+                foreach (XmlNode kwNode in keywordList.ChildNodes)
+                {
+                    if (kwNode.Name == "Keyword")
+                    {
+                        var kw = kwNode.InnerText;
+                        if (!string.IsNullOrWhiteSpace(kw))
+                        {
+                            kwList.Add(kw);
+                        }
+                    }
+                }
+                if (kwList.Count > 0)
+                {
+                    keywords = string.Join(", ", kwList);
                 }
             }
 
@@ -242,11 +388,14 @@ namespace Scrapers.Services
                 Doi = doi,
                 Abstract = abstractText,
                 IsNonEnglish = isNonEnglish,
-                Authors = authors.Count > 0 ? authors : null
+                Authors = authors.Count > 0 ? authors : null,
+                PublicationTypes = publicationTypes,
+                MeSHTerms = meshTerms,
+                Keywords = keywords
             };
         }
 
-        private sealed class PaperDetail
+        internal sealed class PaperDetail
         {
             public string? Title { get; set; }
             public string? Journal { get; set; }
@@ -255,13 +404,17 @@ namespace Scrapers.Services
             public string? Abstract { get; set; }
             public bool IsNonEnglish { get; set; }
             public List<AuthorInfo>? Authors { get; set; }
+            public string? PublicationTypes { get; set; }
+            public string? MeSHTerms { get; set; }
+            public string? Keywords { get; set; }
         }
 
-        private sealed class AuthorInfo
+        internal sealed class AuthorInfo
         {
             public string? LastName { get; set; }
             public string? ForeName { get; set; }
             public string? Orcid { get; set; }
+            public string? NcbiId { get; set; }
         }
     }
 }

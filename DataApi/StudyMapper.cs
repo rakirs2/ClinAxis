@@ -61,7 +61,11 @@ internal static class StudyMapper
                 journal = p.Journal,
                 publicationDate = p.PublicationDate,
                 abstractText = p.Abstract,
-                isNonEnglish = p.IsNonEnglish
+                isNonEnglish = p.IsNonEnglish,
+                url = p.Url?.ToString(),
+                publicationTypes = p.PublicationTypes,
+                meshTerms = p.MeSHTerms,
+                keywords = p.Keywords
             }).ToList()
         };
     }

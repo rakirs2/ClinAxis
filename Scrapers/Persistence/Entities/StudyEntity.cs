@@ -25,6 +25,8 @@ namespace Scrapers.Persistence.Entities
         public DateOnly? StudyFirstPostDate { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsIncomplete { get; set; }
+        public DateTime? ClinicalTrialsUpdatedAt { get; set; }
+        public DateTime? PubMedUpdatedAt { get; set; }
 
         public ICollection<InvestigatorEntity>? Investigators { get; set; }
         public ICollection<PubmedStudyEntity>? PubmedStudies { get; set; }

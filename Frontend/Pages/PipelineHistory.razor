@@ -4,6 +4,40 @@
 
 <h1>Pipeline History</h1>
 
+<h3 class="mt-4">Current Progress</h3>
+@if (eventQueueStats is null)
+{
+    <p class="text-muted">Loading progress...</p>
+}
+else
+{
+    var total = eventQueueStats.pending + eventQueueStats.processing + eventQueueStats.completed + eventQueueStats.failed;
+    if (total > 0)
+    {
+        var pctComplete = (double)eventQueueStats.completed / total * 100;
+        <div style="max-width: 600px">
+            <div class="mb-1 d-flex justify-content-between">
+                <span>@eventQueueStats.completed completed</span>
+                <span>@eventQueueStats.pending pending</span>
+            </div>
+            <div class="progress" style="height: 24px;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: @(pctComplete)%">@($"{pctComplete:F0}%")</div>
+                <div class="progress-bar bg-warning" role="progressbar" style="width: @((double)eventQueueStats.processing / total * 100)%"></div>
+                <div class="progress-bar bg-danger" role="progressbar" style="width: @((double)eventQueueStats.failed / total * 100)%"></div>
+            </div>
+            <div class="mt-1 d-flex justify-content-between small text-muted">
+                <span>@eventQueueStats.processing processing</span>
+                <span>@eventQueueStats.failed failed</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <p class="text-muted">No events in queue.</p>
+    }
+}
+
+<h3 class="mt-4">Completed Runs</h3>
 @if (runs is null)
 {
     <p class="text-muted">Loading...</p>
@@ -45,11 +79,25 @@ else
 
 @code {
     private List<PipelineRun>? runs;
+    private EventQueueStats? eventQueueStats;
 
     protected override async Task OnInitializedAsync()
     {
-        var result = await Client.GetFromJsonAsync<PipelineListResponse>("/api/pipeline-runs");
-        runs = result?.data;
+        try
+        {
+            var result = await Client.GetFromJsonAsync<PipelineListResponse>("/api/pipeline-runs");
+            runs = result?.data;
+        }
+        catch
+        {
+        }
+        try
+        {
+            eventQueueStats = await Client.GetFromJsonAsync<EventQueueStats>("/api/event-queue/stats");
+        }
+        catch
+        {
+        }
     }
 
     private static RenderFragment StatusBadge(string? status) => builder =>
@@ -74,5 +122,13 @@ else
         public int? totalStudies { get; set; }
         public int? totalInvestigators { get; set; }
         public int? totalPubmedPapers { get; set; }
+    }
+
+    private class EventQueueStats
+    {
+        public int pending { get; set; }
+        public int processing { get; set; }
+        public int completed { get; set; }
+        public int failed { get; set; }
     }
 }

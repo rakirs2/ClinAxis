@@ -17,6 +17,10 @@ namespace Scrapers.Persistence.Entities
         public DateTime? PublicationDate { get; set; }
         public string? Abstract { get; set; }
         public bool IsNonEnglish { get; set; }
+        public Uri? Url { get; set; }
+        public string? PublicationTypes { get; set; }
+        public string? MeSHTerms { get; set; }
+        public string? Keywords { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [ForeignKey(nameof(StudyNctId))]

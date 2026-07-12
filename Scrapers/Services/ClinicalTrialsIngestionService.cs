@@ -1,4 +1,6 @@
-﻿using Scrapers.Models.ClinicalTrialsGov;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Scrapers.Persistence;
 
 namespace Scrapers.Services;
@@ -14,7 +16,7 @@ public class ClinicalTrialsIngestionService
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }
 
-    public async Task<int> IngestAsync(int count, CancellationToken cancellationToken = default)
+    public async Task<int> IngestAsync(int count, DateTime? updatedSince = null, CancellationToken cancellationToken = default)
     {
         if (count <= 0)
         {
@@ -29,7 +31,7 @@ public class ClinicalTrialsIngestionService
         {
             var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, cancellationToken).ConfigureAwait(false);
             totalIngested += ingested;
-        }, cancellationToken).ConfigureAwait(false);
+        }, updatedSince, cancellationToken).ConfigureAwait(false);
 
         return totalIngested;
     }

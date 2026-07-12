@@ -12,6 +12,8 @@ namespace Scrapers.Persistence.Entities
         public string? LastName { get; set; }
         public string? ForeName { get; set; }
         public string? Orcid { get; set; }
+        public string? NcbiId { get; set; }
+        public Guid? InvestigatorUuid { get; set; }
 
         [ForeignKey(nameof(StudyNctId))]
         public StudyEntity? Study { get; set; }

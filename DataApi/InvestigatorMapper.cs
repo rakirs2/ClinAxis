@@ -88,6 +88,26 @@ internal static class InvestigatorMapper
             }
         }
 
+        var publications = studyList
+            .Where(s => s.PubmedStudies != null)
+            .SelectMany(s => s.PubmedStudies!)
+            .Select(p => new
+            {
+                pmid = p.Pmid,
+                doi = p.Doi,
+                title = p.Title,
+                journal = p.Journal,
+                publicationDate = p.PublicationDate,
+                abstractText = p.Abstract,
+                isNonEnglish = p.IsNonEnglish,
+                url = p.Url?.ToString(),
+                publicationTypes = p.PublicationTypes,
+                meshTerms = p.MeSHTerms,
+                keywords = p.Keywords,
+                studyNctId = p.StudyNctId
+            })
+            .ToList();
+
         return new
         {
             uuid = i.Uuid,
@@ -97,6 +117,7 @@ internal static class InvestigatorMapper
             studyCount = studyList.Count,
             coInvestigators = coInvestigators.OrderBy(x => x).ToList(),
             conditionsFocusAreas = conditions.OrderBy(x => x).ToList(),
+            publications,
             statistics = new
             {
                 byStatus = statuses.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value),

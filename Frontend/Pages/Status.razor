@@ -12,7 +12,7 @@
     </small>
 </div>
 
-@if (telemetry is null)
+@if (telemetry is null && crawlStates is null)
 {
     <div class="d-flex justify-content-center mt-4">
         <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -25,11 +25,11 @@ else
             <h3 class="mt-4">Database</h3>
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
-                    <tr><th>Studies</th><td>@(telemetry.db?.totalStudies ?? 0)</td></tr>
-                    <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
-                    <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
-                    <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
-                    <tr><th>Authors</th><td>@(telemetry.db?.totalAuthors ?? 0)</td></tr>
+                    <tr><th>Studies</th><td>@(telemetry?.db?.totalStudies ?? 0)</td></tr>
+                    <tr><th>Investigators</th><td>@(telemetry?.db?.totalInvestigators ?? 0)</td></tr>
+                    <tr><th>PubMed Papers</th><td>@(telemetry?.db?.totalPubmedPapers ?? 0)</td></tr>
+                    <tr><th>Keywords</th><td>@(telemetry?.db?.totalKeywords ?? 0)</td></tr>
+                    <tr><th>Authors</th><td>@(telemetry?.db?.totalAuthors ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -37,15 +37,77 @@ else
             <h3 class="mt-4">Aggregations</h3>
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
-                    <tr><th>PI Aggregations</th><td>@(telemetry.aggregations?.piAggregationCount ?? 0)</td></tr>
-                    <tr><th>Category Aggregations</th><td>@(telemetry.aggregations?.categoryAggregationCount ?? 0)</td></tr>
+                    <tr><th>PI Aggregations</th><td>@(telemetry?.aggregations?.piAggregationCount ?? 0)</td></tr>
+                    <tr><th>Category Aggregations</th><td>@(telemetry?.aggregations?.categoryAggregationCount ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+    <h3 class="mt-4">Crawl State</h3>
+    @if (crawlStates is null || crawlStates.Count == 0)
+    {
+        <p class="text-muted">No crawl state recorded yet.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-striped" style="max-width: 800px">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Last Started</th>
+                    <th>Last Completed</th>
+                    <th>Records</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in crawlStates)
+                {
+                    <tr>
+                        <td><strong>@s.sourceName</strong></td>
+                        <td>@CrawlStatusBadge(s.status)</td>
+                        <td>@FormatDate(s.lastStartedAt)</td>
+                        <td>@FormatDate(s.lastSuccessAt)</td>
+                        <td>@s.totalRecordsFetched</td>
+                        <td class="text-danger">@(s.status == "Failed" ? s.errorMessage : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h3 class="mt-4">Event Queue</h3>
+    @if (eventQueueStats is null)
+    {
+        <p class="text-muted">No event queue data.</p>
+    }
+    else
+    {
+        var total = eventQueueStats.pending + eventQueueStats.processing + eventQueueStats.completed + eventQueueStats.failed;
+        var pctComplete = total > 0 ? (double)eventQueueStats.completed / total * 100 : 0;
+        <div class="row" style="max-width: 600px">
+            <div class="col">
+                <div class="mb-1 d-flex justify-content-between">
+                    <span>@eventQueueStats.completed completed</span>
+                    <span>@eventQueueStats.pending pending</span>
+                </div>
+                <div class="progress" style="height: 24px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: @(pctComplete)%">@($"{pctComplete:F0}%")</div>
+                    <div class="progress-bar bg-warning" role="progressbar" style="width: @((double)eventQueueStats.processing / total * 100)%"></div>
+                    <div class="progress-bar bg-danger" role="progressbar" style="width: @((double)eventQueueStats.failed / total * 100)%"></div>
+                </div>
+                <div class="mt-1 d-flex justify-content-between small text-muted">
+                    <span>@eventQueueStats.processing processing</span>
+                    <span>@eventQueueStats.failed failed</span>
+                </div>
+            </div>
+        </div>
+    }
+
     <h3 class="mt-4">Recent Pipeline Runs</h3>
-    @if (telemetry.pipelineRuns is null || telemetry.pipelineRuns.Count == 0)
+    @if (telemetry?.pipelineRuns is null || telemetry.pipelineRuns.Count == 0)
     {
         <p class="text-muted">No pipeline runs recorded.</p>
     }
@@ -81,7 +143,7 @@ else
     }
 
     <h3 class="mt-4">Scrape Events (last 20)</h3>
-    @if (telemetry.recentEvents is null || telemetry.recentEvents.Count == 0)
+    @if (telemetry?.recentEvents is null || telemetry.recentEvents.Count == 0)
     {
         <p class="text-muted">No scrape events recorded.</p>
     }
@@ -119,33 +181,48 @@ else
 
 @code {
     private TelemetryResponse? telemetry;
+    private List<CrawlStateItem>? crawlStates;
+    private EventQueueStats? eventQueueStats;
     private string lastUpdated = "";
     private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadTelemetry();
+        await LoadAll();
         _timer = new Timer(async _ =>
         {
             await InvokeAsync(async () =>
             {
-                await LoadTelemetry();
+                await LoadAll();
                 StateHasChanged();
             });
         }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
-    private async Task LoadTelemetry()
+    private async Task LoadAll()
     {
         try
         {
             telemetry = await Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry");
-            lastUpdated = DateTime.Now.ToString("HH:mm:ss");
         }
         catch
         {
-            // Keep showing last successful data
         }
+        try
+        {
+            crawlStates = await Client.GetFromJsonAsync<List<CrawlStateItem>>("/api/crawl-state");
+        }
+        catch
+        {
+        }
+        try
+        {
+            eventQueueStats = await Client.GetFromJsonAsync<EventQueueStats>("/api/event-queue/stats");
+        }
+        catch
+        {
+        }
+        lastUpdated = DateTime.Now.ToString("HH:mm:ss");
     }
 
     private static string FormatDate(DateTime? dt) =>
@@ -158,6 +235,21 @@ else
             "Completed" => "success",
             "Failed" => "danger",
             "Running" => "info",
+            _ => "warning"
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge bg-{color}");
+        builder.AddContent(2, status);
+        builder.CloseElement();
+    };
+
+    private static RenderFragment CrawlStatusBadge(string? status) => builder =>
+    {
+        var color = status switch
+        {
+            "Running" => "info",
+            "Idle" => "success",
+            "Failed" => "danger",
             _ => "warning"
         };
         builder.OpenElement(0, "span");
@@ -230,5 +322,23 @@ else
     {
         public int piAggregationCount { get; set; }
         public int categoryAggregationCount { get; set; }
+    }
+
+    private class CrawlStateItem
+    {
+        public string? sourceName { get; set; }
+        public DateTime? lastStartedAt { get; set; }
+        public DateTime? lastSuccessAt { get; set; }
+        public int totalRecordsFetched { get; set; }
+        public string? status { get; set; }
+        public string? errorMessage { get; set; }
+    }
+
+    private class EventQueueStats
+    {
+        public int pending { get; set; }
+        public int processing { get; set; }
+        public int completed { get; set; }
+        public int failed { get; set; }
     }
 }
