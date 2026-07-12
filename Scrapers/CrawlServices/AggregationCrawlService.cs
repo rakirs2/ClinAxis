@@ -53,7 +53,7 @@ public class AggregationCrawlService : BackgroundService
                 await _repository.EnsureSchemaAsync(stoppingToken).ConfigureAwait(false);
 
                 PipelineEventEntity? evt = await _repository
-                    .ClaimNextEventAsync(["pubmed.complete", "study.updated"], stoppingToken)
+                    .ClaimNextEventAsync(["pubmed.complete"], stoppingToken)
                     .ConfigureAwait(false);
 
                 if (evt == null)
