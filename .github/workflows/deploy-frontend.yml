@@ -1,0 +1,70 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore Frontend/Frontend.csproj
+
+      - name: Build
+        run: dotnet build Frontend/Frontend.csproj --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish Frontend/Frontend.csproj --configuration Release --self-contained -r linux-x64 -o ./publish-frontend
+
+      - name: Deploy to DigitalOcean
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Stop the service
+          ssh -i ~/.ssh/id_rsa $DEPLOY_USER@$DEPLOY_HOST "sudo systemctl stop clinicaltrialdata-frontend" || true
+          
+          # Deploy new binaries
+          scp -r -i ~/.ssh/id_rsa ./publish-frontend/* $DEPLOY_USER@$DEPLOY_HOST:/opt/clinicaltrialdata/frontend/
+          
+          # Start the service
+          ssh -i ~/.ssh/id_rsa $DEPLOY_USER@$DEPLOY_HOST "sudo systemctl start clinicaltrialdata-frontend"
+          
+          # Health check - Frontend should respond on port 5001
+          for i in {1..10}; do
+            if ssh -i ~/.ssh/id_rsa $DEPLOY_USER@$DEPLOY_HOST "curl -s -o /dev/null -w '%{http_code}' http://localhost:5001/ | grep -qE '^[23][0-9]{2}$'"; then
+              echo "Frontend is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: Waiting for Frontend to be ready..."
+            sleep 5
+          done
+          
+          echo "Frontend failed to become healthy"
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
