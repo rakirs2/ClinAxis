@@ -11,17 +11,10 @@ echo "Adding PostgreSQL repository..."
 sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - > /dev/null 2>&1
 
-# Update system packages
+# Update and install dependencies
 echo "Updating system packages..."
 apt-get update > /dev/null 2>&1
-
-# Install PostgreSQL
-echo "Installing PostgreSQL..."
 apt-get install -y postgresql-15 postgresql-contrib-15 > /dev/null 2>&1
-
-# Install Supervisord
-echo "Installing Supervisord..."
-apt-get install -y supervisor > /dev/null 2>&1
 
 # Start PostgreSQL
 echo "Starting PostgreSQL..."
@@ -46,7 +39,7 @@ echo "Configuring sudo for ct-deploy..."
 echo "ct-deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ct-deploy > /dev/null
 chmod 440 /etc/sudoers.d/ct-deploy
 
-# Setup SSH for ct-deploy
+# Create SSH key directory and add public key
 echo "Setting up SSH for ct-deploy..."
 mkdir -p /home/ct-deploy/.ssh
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICKnMxPGGAc7sqOA2nQmF0N0jX6BCbJvE/2Ln8pSfskX ct-deploy@157.245.250.196" >> /home/ct-deploy/.ssh/authorized_keys
@@ -54,43 +47,35 @@ chmod 700 /home/ct-deploy/.ssh
 chmod 600 /home/ct-deploy/.ssh/authorized_keys
 chown -R ct-deploy:ct-deploy /home/ct-deploy/.ssh
 
-# Create application directories
-echo "Creating application directory structure..."
-mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}
-chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata
-chmod -R 755 /opt/clinicaltrialdata
-
-# Verify permissions
-echo "Verifying ct-deploy can write to app directories..."
-sudo -u ct-deploy touch /opt/clinicaltrialdata/.deploy-test && rm /opt/clinicaltrialdata/.deploy-test
-sudo -u ct-deploy touch /opt/clinicaltrialdata/api/.deploy-test && rm /opt/clinicaltrialdata/api/.deploy-test
-sudo -u ct-deploy touch /opt/clinicaltrialdata/frontend/.deploy-test && rm /opt/clinicaltrialdata/frontend/.deploy-test
-sudo -u ct-deploy touch /opt/clinicaltrialdata/ingestion/.deploy-test && rm /opt/clinicaltrialdata/ingestion/.deploy-test
+# Create app directory with proper permissions
+echo "Creating application directory..."
+mkdir -p /var/www/ct-data
+chown -R ct-deploy:ct-deploy /var/www/ct-data
+chmod -R 755 /var/www/ct-data
+# Pre-create the 'current' subdirectory as ct-deploy to validate permissions
+sudo -u ct-deploy mkdir -p /var/www/ct-data/current
+echo "Verifying ct-deploy can write to app directory..."
+sudo -u ct-deploy touch /var/www/ct-data/current/.deploy-test && rm /var/www/ct-data/current/.deploy-test
 
 # Create environment file
 echo "Creating environment file..."
 mkdir -p /etc
-cat > /etc/clinicaltrialdata.env <<EOF
+cat > /etc/ct-data-api.env <<EOF
 POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres
 EOF
-chmod 600 /etc/clinicaltrialdata.env
-chown root:root /etc/clinicaltrialdata.env
+chmod 600 /etc/ct-data-api.env
+chown root:root /etc/ct-data-api.env
 
-# Copy supervisor configurations
-echo "Installing Supervisord configurations..."
+# Install systemd units
+echo "Installing systemd units..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$SCRIPT_DIR/supervisor/"*.conf /etc/supervisor/conf.d/
-chown root:root /etc/supervisor/conf.d/clinicaltrialdata-*.conf
-chmod 644 /etc/supervisor/conf.d/clinicaltrialdata-*.conf
+cp "$SCRIPT_DIR/systemd/ct-data-api.service" /etc/systemd/system/
+cp "$SCRIPT_DIR/systemd/ct-frontend.service" /etc/systemd/system/
+systemctl daemon-reload
 
-# Start and enable Supervisord
-echo "Starting Supervisord..."
-systemctl start supervisor
-systemctl enable supervisor > /dev/null 2>&1
-
-# Reload Supervisord to pick up new configurations
-supervisorctl reread
-supervisorctl update
+# Enable services to auto-start
+systemctl enable ct-data-api > /dev/null 2>&1
+systemctl enable ct-frontend > /dev/null 2>&1
 
 # Print summary
 PROD_DB_CONNECTION="Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres"
@@ -104,33 +89,17 @@ echo "Add this to GitHub secrets as PROD_DB_CONNECTION:"
 echo ""
 echo "  $PROD_DB_CONNECTION"
 echo ""
-echo "Services managed by Supervisord:"
-echo "  - clinicaltrialdata-api (port 5003)"
-echo "  - clinicaltrialdata-frontend (port 5001)"
-echo "  - clinicaltrialdata-ingestion (background service)"
+echo "Services installed:"
+echo "  - ct-data-api (port 5003, localhost only)"
+echo "  - ct-frontend (port 80)"
 echo ""
 echo "Deploy user: ct-deploy"
-echo "App directory: /opt/clinicaltrialdata/"
-echo "Config directory: /etc/supervisor/conf.d/"
-echo ""
-echo "Manage services:"
-echo "  supervisorctl status                              # Check all services"
-echo "  supervisorctl restart clinicaltrialdata-api      # Restart one service"
-echo "  supervisorctl restart clinicaltrialdata-*        # Restart all services"
-echo ""
-echo "View logs:"
-echo "  tail -f /var/log/supervisor/clinicaltrialdata-api.log"
-echo "  tail -f /var/log/supervisor/clinicaltrialdata-frontend.log"
-echo "  tail -f /var/log/supervisor/clinicaltrialdata-ingestion.log"
+echo "App directory: /var/www/ct-data/"
 echo ""
 echo "Next steps:"
 echo "  1. Copy the PROD_DB_CONNECTION string above"
 echo "  2. Add it to GitHub secrets (Settings > Secrets > Actions)"
-echo "  3. Merge the setup PR to main"
+echo "  3. Merge PR 5 to main"
 echo "  4. GitHub Actions will deploy automatically"
-echo ""
-echo "Verify deployment:"
-echo "  curl http://localhost:5001/"
-echo "  curl http://localhost:5003/health"
 echo ""
 echo "=========================================="
