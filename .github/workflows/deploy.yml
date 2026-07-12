@@ -13,15 +13,18 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: clinical_trial_data_test
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          POSTGRES_DB: clinical_trial_data
         ports:
           - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
 
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +38,11 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      - name: Run all tests
-        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      - name: Unit Tests
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
+
+      - name: DB Integration Tests
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory!=HttpLive"
 
       - name: Upload test results
         if: always()
@@ -60,10 +66,13 @@ jobs:
         run: dotnet restore
 
       - name: Publish DataApi
-        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/data-api
+        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/dataapi
 
       - name: Publish Frontend
         run: dotnet publish Frontend/ -c Release -r linux-x64 --self-contained -o publish/frontend
+
+      - name: Publish IngestionApp
+        run: dotnet publish IngestionApp/ -c Release -r linux-x64 --self-contained -o publish/ingestion
 
       - name: Setup SSH key
         run: |
@@ -74,63 +83,65 @@ jobs:
 
       - name: Save current as rollback target
         run: |
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
-            "mkdir -p /var/www/ct-data && mv /var/www/ct-data/current /var/www/ct-data/previous 2>/dev/null || true"
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p /opt/clinicaltrialdata && for dir in api frontend ingestion; do mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
       - name: Copy binaries to Droplet
         run: |
-          # Remove old current directory if it exists
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
-            "rm -rf /var/www/ct-data/current 2>/dev/null || true"
-          # Create fresh directory
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
-            "mkdir -p /var/www/ct-data/current"
-          # Copy binaries (use absolute paths to ensure files are found)
-          scp -i ~/.ssh/deploy_key -r "$PWD/publish/data-api"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
-          scp -i ~/.ssh/deploy_key -r "$PWD/publish/frontend"/* ct-deploy@${{ secrets.DEPLOY_HOST }}:/var/www/ct-data/current/
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
 
-      - name: Update environment file and restart services
+      - name: Stop services and update environment
         run: |
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          echo "POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}" | sudo tee /etc/ct-data-api.env > /dev/null
-          sudo systemctl daemon-reload
-          sudo systemctl restart ct-data-api ct-frontend
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
           sleep 5
+          echo "POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}" | sudo tee /etc/clinicaltrialdata.env > /dev/null
+          EOSSH
+
+      - name: Start services
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl daemon-reload
+          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
+          sleep 10
           EOSSH
 
       - name: Health check
         run: |
-          echo "Waiting 15 seconds for application to fully initialize..."
-          sleep 15
-          for i in {1..10}; do
-            echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}:5001/health (Frontend)"
-            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" http://${{ secrets.DEPLOY_HOST }}:5001/health 2>&1)
-            HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -1)
-            BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
-            echo "Response code: $HTTP_CODE"
-            echo "Response body: $BODY"
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Health check passed - Frontend is healthy (HTTP $HTTP_CODE)"
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Checking service health..."
+          for i in {1..15}; do
+            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
+            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null || echo "000")
+            echo "Attempt $i/15: DataApi=$api_code Frontend=$frontend_code"
+            if [ "$api_code" = "200" ] && [ "$frontend_code" = "200" ]; then
+              echo "Health check passed - All services healthy"
               exit 0
             fi
-            echo "Frontend not yet healthy. Retrying in 5s..."
-            sleep 5
+            sleep 2
           done
-          echo "Health check failed after 10 attempts - Frontend did not become healthy"
+          echo "Health check failed after 15 attempts"
           exit 1
+          EOSSH
 
-      - name: Promote (cleanup rollback)
+      - name: Cleanup rollback
         if: success()
         run: |
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} \
-            "rm -rf /var/www/ct-data/previous 2>/dev/null || true"
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "for dir in api frontend ingestion; do rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
       - name: Rollback on failure
         if: failure()
         run: |
-          ssh -i ~/.ssh/deploy_key ct-deploy@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          echo "Rolling back..."
-          rm -rf /var/www/ct-data/current
-          mv /var/www/ct-data/previous /var/www/ct-data/current
-          sudo systemctl restart ct-data-api ct-frontend
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Rolling back to previous deployment..."
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          for dir in api frontend ingestion; do
+            [ -d "/opt/clinicaltrialdata/$dir.previous" ] && mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
+          done
+          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
           EOSSH
