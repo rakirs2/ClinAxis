@@ -27,4 +27,12 @@ internal static class FixtureLoader
         var path = Path.Combine(AppContext.BaseDirectory, "Data", "OrcidApi", fileName);
         return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
     }
+
+    public static Stream LoadCmsMedicareCsv(string fileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Data", "CmsMedicare", fileName);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Fixture not found: {path}");
+        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+    }
 }

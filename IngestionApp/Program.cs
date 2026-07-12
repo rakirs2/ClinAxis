@@ -47,6 +47,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new DeadLetterProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
             checkIntervalMinutes: 5));
+
+        services.AddHostedService(sp => new CmsEnrichmentService(
+            cs,
+            intervalDays: 7));
     })
     .Build();
 
