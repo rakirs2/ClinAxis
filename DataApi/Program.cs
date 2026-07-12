@@ -365,6 +365,57 @@ app.MapPost("/api/event-queue/dead-letter/{id}/ignore", async (int id) =>
     return Results.Ok(new { message = "Event marked as ignored" });
 });
 
+// CMS Provider endpoints
+app.MapGet("/api/providers", async (int? page, int? pageSize, string? search, string? specialty, string? state) =>
+{
+    var repo = new StudyRepository(connectionString);
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+
+    var providers = await repo.SearchCmsProvidersAsync(p, ps, search, specialty, state);
+    var total = await repo.CountCmsProvidersFilteredAsync(search, specialty, state);
+
+    return Results.Ok(new
+    {
+        data = providers,
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
+app.MapGet("/api/providers/{npi}", async (string npi) =>
+{
+    var repo = new StudyRepository(connectionString);
+    var provider = await repo.GetCmsProviderByNpiAsync(npi);
+
+    if (provider is null)
+        return Results.NotFound(new { error = "Provider not found" });
+
+    return Results.Ok(new
+    {
+        provider.Id,
+        provider.Uuid,
+        provider.Npi,
+        provider.ProviderName,
+        provider.Gender,
+        provider.Credential,
+        provider.MedicalSchoolName,
+        provider.GraduationYear,
+        provider.PrimarySpecialty,
+        provider.SecondarySpecialty,
+        provider.OrganizationLegalName,
+        provider.PracticeAddressCity,
+        provider.PracticeAddressState,
+        provider.PracticeAddressZip,
+        provider.MedicareParticipation,
+        provider.TotalMedicareServices,
+        provider.TotalMedicarePayments,
+        provider.TotalMedicareBeneficiaries
+    });
+});
+
 await app.RunAsync();
 
 /// <summary>

@@ -94,6 +94,8 @@ internal static class InvestigatorMapper
             name = i.Name,
             role = i.Role,
             affiliation = i.Affiliation,
+            npi = i.Npi,
+            orcid = i.Orcid,
             studyCount = studyList.Count,
             coInvestigators = coInvestigators.OrderBy(x => x).ToList(),
             conditionsFocusAreas = conditions.OrderBy(x => x).ToList(),
