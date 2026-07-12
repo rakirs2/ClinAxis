@@ -1,0 +1,158 @@
+@page "/provider/{Npi}"
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid">
+    @if (loading)
+    {
+        <div class="d-flex justify-content-center mt-4">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger">@error</div>
+        <button class="btn btn-secondary" @onclick="GoBack">Back to Providers</button>
+    }
+    else if (provider is not null)
+    {
+        <div class="row mb-4">
+            <div class="col-12">
+                <button class="btn btn-link" @onclick="GoBack">&larr; Back to Providers</button>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h2>@provider.providerName</h2>
+                        <p class="text-muted mb-1"><strong>NPI:</strong> @provider.npi</p>
+                        @if (!string.IsNullOrEmpty(provider.credential))
+                        {
+                            <p class="text-muted mb-1"><strong>Credential:</strong> @provider.credential</p>
+                        }
+                        @if (!string.IsNullOrEmpty(provider.gender))
+                        {
+                            <p class="text-muted mb-1"><strong>Gender:</strong> @(provider.gender == "M" ? "Male" : provider.gender == "F" ? "Female" : provider.gender)</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Practice Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr><th>Primary Specialty</th><td>@provider.primarySpecialty</td></tr>
+                                <tr><th>Secondary Specialty</th><td>@provider.secondarySpecialty</td></tr>
+                                <tr><th>Organization</th><td>@provider.organizationLegalName</td></tr>
+                                <tr><th>City</th><td>@provider.practiceAddressCity</td></tr>
+                                <tr><th>State</th><td>@provider.practiceAddressState</td></tr>
+                                <tr><th>ZIP</th><td>@provider.practiceAddressZip</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Education & Medicare</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr><th>Medical School</th><td>@provider.medicalSchoolName</td></tr>
+                                <tr><th>Graduation Year</th><td>@provider.graduationYear</td></tr>
+                                <tr><th>Medicare Participation</th><td>@provider.medicareParticipation</td></tr>
+                                <tr><th>Total Services</th><td>@provider.totalMedicareServices</td></tr>
+                                <tr><th>Total Payments</th><td>@(provider.totalMedicarePayments?.ToString("C2"))</td></tr>
+                                <tr><th>Total Beneficiaries</th><td>@provider.totalMedicareBeneficiaries</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Npi { get; set; }
+
+    private ProviderDetail? provider;
+    private bool loading;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Npi))
+        {
+            error = "Invalid provider NPI";
+            return;
+        }
+
+        await LoadProvider();
+    }
+
+    private async Task LoadProvider()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            provider = await client.GetFromJsonAsync<ProviderDetail>($"/api/providers/{Npi}");
+
+            if (provider == null)
+            {
+                error = "Provider not found";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading provider: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/providers");
+    }
+
+    private class ProviderDetail
+    {
+        public int id { get; set; }
+        public Guid uuid { get; set; }
+        public string? npi { get; set; }
+        public string? providerName { get; set; }
+        public string? gender { get; set; }
+        public string? credential { get; set; }
+        public string? medicalSchoolName { get; set; }
+        public int? graduationYear { get; set; }
+        public string? primarySpecialty { get; set; }
+        public string? secondarySpecialty { get; set; }
+        public string? organizationLegalName { get; set; }
+        public string? practiceAddressCity { get; set; }
+        public string? practiceAddressState { get; set; }
+        public string? practiceAddressZip { get; set; }
+        public string? medicareParticipation { get; set; }
+        public int? totalMedicareServices { get; set; }
+        public decimal? totalMedicarePayments { get; set; }
+        public int? totalMedicareBeneficiaries { get; set; }
+    }
+}

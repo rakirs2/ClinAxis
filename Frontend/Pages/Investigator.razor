@@ -31,7 +31,15 @@
                     <div class="card-body">
                         <h2>@investigator.name</h2>
                         <p class="text-muted mb-1"><strong>Role:</strong> @(investigator.role?.Replace("_", " ") ?? "Unknown")</p>
-                        <p class="text-muted mb-3"><strong>Affiliation:</strong> @(investigator.affiliation ?? "Unknown")</p>
+                        <p class="text-muted mb-1"><strong>Affiliation:</strong> @(investigator.affiliation ?? "Unknown")</p>
+                        @if (!string.IsNullOrEmpty(investigator.npi))
+                        {
+                            <p class="text-muted mb-1"><strong>NPI:</strong> @investigator.npi</p>
+                        }
+                        @if (!string.IsNullOrEmpty(investigator.orcid))
+                        {
+                            <p class="text-muted mb-1"><strong>ORCID:</strong> @investigator.orcid</p>
+                        }
                         
                         <!-- Statistics Cards -->
                         <div class="row mt-3">
@@ -353,6 +361,8 @@
         public string? name { get; set; }
         public string? role { get; set; }
         public string? affiliation { get; set; }
+        public string? npi { get; set; }
+        public string? orcid { get; set; }
         public int studyCount { get; set; }
         public List<string>? coInvestigators { get; set; }
         public List<string>? conditionsFocusAreas { get; set; }
