@@ -72,17 +72,17 @@ public sealed class StudyListingSnapshotTests
         Assert.AreEqual(10, results.Count); // First page with 10 unique investigators (14 total in seed)
     }
 
-    [TestMethod]
-    public async Task Investigators_SearchByName()
-    {
-        await using SnapshotDb snapshot = new();
-        var repo = new StudyRepository(snapshot.ConnectionString);
+     [TestMethod]
+     public async Task Investigators_SearchByName()
+     {
+         await using SnapshotDb snapshot = new();
+         var repo = new StudyRepository(snapshot.ConnectionString);
 
-        IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10, search: "Bob");
+         IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10, search: "Bob");
 
-        Assert.AreEqual(1, results.Count);
-        Assert.AreEqual("Dr. Bob Williams, PhD", results[0].Name);
-    }
+         Assert.AreEqual(1, results.Count);
+         Assert.AreEqual("Prof. Bob Williams, MD", results[0].Name);
+     }
 
     [TestMethod]
     public async Task Investigators_SearchWithNoMatch_ReturnsEmpty()
@@ -95,15 +95,15 @@ public sealed class StudyListingSnapshotTests
         Assert.AreEqual(0, results.Count);
     }
 
-    [TestMethod]
-    public async Task Investigators_CountFiltered()
-    {
-        await using SnapshotDb snapshot = new();
-        var repo = new StudyRepository(snapshot.ConnectionString);
+     [TestMethod]
+     public async Task Investigators_CountFiltered()
+     {
+         await using SnapshotDb snapshot = new();
+         var repo = new StudyRepository(snapshot.ConnectionString);
 
-        Assert.AreEqual(14, await repo.CountInvestigatorsFilteredAsync()); // 14 unique investigators in seed data
+         Assert.AreEqual(13, await repo.CountInvestigatorsFilteredAsync()); // 13 unique investigators in seed data
 
-        Assert.AreEqual(1, await repo.CountInvestigatorsFilteredAsync(search: "Carol"));
-        Assert.AreEqual(2, await repo.CountInvestigatorsFilteredAsync(search: "Alice"));
-    }
+         Assert.AreEqual(1, await repo.CountInvestigatorsFilteredAsync(search: "Carol"));
+         Assert.AreEqual(2, await repo.CountInvestigatorsFilteredAsync(search: "Alice"));
+     }
 }

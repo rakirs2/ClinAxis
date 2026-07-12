@@ -191,10 +191,10 @@ public sealed class InvestigatorsApiTests : DbTestBase
         // Assert
         Assert.IsTrue(investigators.Count > 0);
         
-        // Verify academic titles in names
-        var investWithTitles = investigators
-            .Where(inv => (inv?.Name?.Contains("Dr.") ?? false) || (inv?.Name?.Contains("Prof.") ?? false))
-            .Count();
+         // Verify academic titles in names
+         var investWithTitles = investigators
+             .Where(inv => (inv?.Name?.Contains("Dr.", StringComparison.Ordinal) ?? false) || (inv?.Name?.Contains("Prof.", StringComparison.Ordinal) ?? false))
+             .Count();
         
         Assert.IsTrue(investWithTitles > 0, "Investigators should have academic titles (Dr., Prof., etc.)");
         Assert.IsTrue(investWithTitles >= investigators.Count * 0.8, "At least 80% should have academic titles");
