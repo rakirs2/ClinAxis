@@ -8,12 +8,30 @@ builder.WebHost.UseUrls("http://0.0.0.0:5003");
 
 var connectionString = ConnectionStringProvider.Default;
 
+// Retry database connection during startup to handle transient DB delays
 var startupRepo = new StudyRepository(connectionString);
-await startupRepo.EnsureSchemaAsync();
+var maxRetries = 5;
+var retryDelay = TimeSpan.FromSeconds(3);
+for (int attempt = 1; attempt <= maxRetries; attempt++)
+{
+    try
+    {
+        await startupRepo.EnsureSchemaAsync();
+        break;
+    }
+    catch (Exception ex) when (attempt < maxRetries)
+    {
+        await Console.Error.WriteLineAsync($"Database connection failed (attempt {attempt}/{maxRetries}): {ex.Message}");
+        await Task.Delay(retryDelay);
+    }
+}
 
-// Seed database with test data if empty
-var seeder = new DatabaseSeeder(connectionString);
-await seeder.SeedIfEmptyAsync();
+// Seed database with test data only in non-Production environments
+if (!builder.Environment.IsProduction())
+{
+    var seeder = new DatabaseSeeder(connectionString);
+    await seeder.SeedIfEmptyAsync();
+}
 
 builder.Services.AddHealthChecks();
 

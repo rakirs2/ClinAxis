@@ -115,17 +115,28 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           echo "Checking service health..."
-          for i in {1..15}; do
+          # Check systemd service states first
+          echo "--- Service status ---"
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
+            status=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
+            echo "  $svc: $status"
+          done
+          echo "--- Health check ---"
+          for i in {1..20}; do
             api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
-            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null || echo "000")
-            echo "Attempt $i/15: DataApi=$api_code Frontend=$frontend_code"
+            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/health 2>/dev/null || echo "000")
+            echo "Attempt $i/20: DataApi=$api_code Frontend=$frontend_code"
             if [ "$api_code" = "200" ] && [ "$frontend_code" = "200" ]; then
               echo "Health check passed - All services healthy"
               exit 0
             fi
             sleep 2
           done
-          echo "Health check failed after 15 attempts"
+          echo "Health check failed - dumping service logs"
+          echo "--- DataApi journal ---"
+          sudo journalctl -u clinicaltrialdata-api --no-pager -n 20 2>/dev/null || true
+          echo "--- Frontend journal ---"
+          sudo journalctl -u clinicaltrialdata-frontend --no-pager -n 20 2>/dev/null || true
           exit 1
           EOSSH
 
