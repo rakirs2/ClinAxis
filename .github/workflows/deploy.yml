@@ -23,8 +23,8 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-     env:
-       POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres
+    env:
+      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
 
     steps:
       - uses: actions/checkout@v4
@@ -38,16 +38,11 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
-       - name: Unit Tests
-         run: >
-           dotnet test Scrapers.Tests/Scrapers.Tests.csproj
-           --configuration Release --no-build
+      - name: Unit Tests
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
 
-       - name: DB Integration Tests
-         run: >
-           dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
-           --configuration Release --no-build
-           --filter "TestCategory!=HttpLive"
+      - name: DB Integration Tests
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory!=HttpLive"
 
       - name: Upload test results
         if: always()
@@ -86,49 +81,34 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-       - name: Save current as rollback target
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-             "mkdir -p /opt/clinicaltrialdata && \
-              for dir in api frontend ingestion; do \
-                mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; \
-              done"
+      - name: Save current as rollback target
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "sudo mkdir -p /opt/clinicaltrialdata && for dir in api frontend ingestion; do mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
-       - name: Copy binaries to Droplet
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-             "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
+      - name: Copy binaries to Droplet
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
+          scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
 
-           APP_PATH="/opt/clinicaltrialdata"
-           HOST="ct-deploy@${{ secrets.DEPLOY_HOST }}"
-           KEY="~/.ssh/deploy_key"
+      - name: Stop services and update environment
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          sleep 5
+          echo "POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}" | sudo tee /etc/clinicaltrialdata.env > /dev/null
+          EOSSH
 
-           scp -r -i "$KEY" "$PWD/publish/dataapi"/* "$HOST:$APP_PATH/api/"
-           scp -r -i "$KEY" "$PWD/publish/frontend"/* "$HOST:$APP_PATH/frontend/"
-           scp -r -i "$KEY" "$PWD/publish/ingestion"/* "$HOST:$APP_PATH/ingestion/"
-
-       - name: Stop services and update environment
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-           sudo systemctl stop \
-             clinicaltrialdata-api \
-             clinicaltrialdata-frontend \
-             clinicaltrialdata-ingestion 2>/dev/null || true
-           sleep 5
-           PROD_DB=${{ secrets.PROD_DB_CONNECTION }}
-           echo "POSTGRES_CONNECTION_STRING=$PROD_DB" | sudo tee /etc/clinicaltrialdata.env > /dev/null
-           EOSSH
-
-       - name: Start services
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-           sudo systemctl daemon-reload
-           sudo systemctl start \
-             clinicaltrialdata-api \
-             clinicaltrialdata-frontend \
-             clinicaltrialdata-ingestion
-           sleep 10
-           EOSSH
+      - name: Start services
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl daemon-reload
+          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
+          sleep 10
+          EOSSH
 
       - name: Health check
         run: |
@@ -148,30 +128,20 @@ jobs:
           exit 1
           EOSSH
 
-       - name: Cleanup rollback
-         if: success()
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-             "for dir in api frontend ingestion; do \
-                rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; \
-              done"
+      - name: Cleanup rollback
+        if: success()
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "for dir in api frontend ingestion; do rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
-       - name: Rollback on failure
-         if: failure()
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-           echo "Rolling back to previous deployment..."
-           sudo systemctl stop \
-             clinicaltrialdata-api \
-             clinicaltrialdata-frontend \
-             clinicaltrialdata-ingestion 2>/dev/null || true
-           for dir in api frontend ingestion; do
-             if [ -d "/opt/clinicaltrialdata/$dir.previous" ]; then
-               mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
-             fi
-           done
-           sudo systemctl start \
-             clinicaltrialdata-api \
-             clinicaltrialdata-frontend \
-             clinicaltrialdata-ingestion
-           EOSSH
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Rolling back to previous deployment..."
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          for dir in api frontend ingestion; do
+            [ -d "/opt/clinicaltrialdata/$dir.previous" ] && mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
+          done
+          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
+          EOSSH
