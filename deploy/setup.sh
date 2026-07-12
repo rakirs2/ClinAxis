@@ -47,35 +47,48 @@ chmod 700 /home/ct-deploy/.ssh
 chmod 600 /home/ct-deploy/.ssh/authorized_keys
 chown -R ct-deploy:ct-deploy /home/ct-deploy/.ssh
 
-# Create app directory with proper permissions
-echo "Creating application directory..."
-mkdir -p /var/www/ct-data
-chown -R ct-deploy:ct-deploy /var/www/ct-data
-chmod -R 755 /var/www/ct-data
-# Pre-create the 'current' subdirectory as ct-deploy to validate permissions
-sudo -u ct-deploy mkdir -p /var/www/ct-data/current
+# Clean up old deployment directories
+echo "Cleaning up old deployment infrastructure..."
+systemctl stop ct-data-api ct-frontend 2>/dev/null || true
+systemctl disable ct-data-api ct-frontend 2>/dev/null || true
+rm -f /etc/systemd/system/ct-data-api.service /etc/systemd/system/ct-frontend.service 2>/dev/null || true
+rm -rf /var/www/ct-data 2>/dev/null || true
+
+# Create new app directory with proper permissions
+echo "Creating application directory structure..."
+mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}
+chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata
+chmod -R 755 /opt/clinicaltrialdata
+
+# Verify permissions
 echo "Verifying ct-deploy can write to app directory..."
-sudo -u ct-deploy touch /var/www/ct-data/current/.deploy-test && rm /var/www/ct-data/current/.deploy-test
+sudo -u ct-deploy touch /opt/clinicaltrialdata/.deploy-test && rm /opt/clinicaltrialdata/.deploy-test
+sudo -u ct-deploy touch /opt/clinicaltrialdata/api/.deploy-test && rm /opt/clinicaltrialdata/api/.deploy-test
+sudo -u ct-deploy touch /opt/clinicaltrialdata/frontend/.deploy-test && rm /opt/clinicaltrialdata/frontend/.deploy-test
+sudo -u ct-deploy touch /opt/clinicaltrialdata/ingestion/.deploy-test && rm /opt/clinicaltrialdata/ingestion/.deploy-test
 
 # Create environment file
 echo "Creating environment file..."
 mkdir -p /etc
-cat > /etc/ct-data-api.env <<EOF
+cat > /etc/clinicaltrialdata.env <<EOF
 POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres
 EOF
-chmod 600 /etc/ct-data-api.env
-chown root:root /etc/ct-data-api.env
+chmod 600 /etc/clinicaltrialdata.env
+chown root:root /etc/clinicaltrialdata.env
 
 # Install systemd units
 echo "Installing systemd units..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$SCRIPT_DIR/systemd/ct-data-api.service" /etc/systemd/system/
-cp "$SCRIPT_DIR/systemd/ct-frontend.service" /etc/systemd/system/
+cp "$SCRIPT_DIR/systemd/clinicaltrialdata-api.service" /etc/systemd/system/
+cp "$SCRIPT_DIR/systemd/clinicaltrialdata-frontend.service" /etc/systemd/system/
+cp "$SCRIPT_DIR/systemd/clinicaltrialdata-ingestion.service" /etc/systemd/system/
 systemctl daemon-reload
 
 # Enable services to auto-start
-systemctl enable ct-data-api > /dev/null 2>&1
-systemctl enable ct-frontend > /dev/null 2>&1
+echo "Enabling services for auto-start..."
+systemctl enable clinicaltrialdata-api > /dev/null 2>&1
+systemctl enable clinicaltrialdata-frontend > /dev/null 2>&1
+systemctl enable clinicaltrialdata-ingestion > /dev/null 2>&1
 
 # Print summary
 PROD_DB_CONNECTION="Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres"
@@ -90,16 +103,22 @@ echo ""
 echo "  $PROD_DB_CONNECTION"
 echo ""
 echo "Services installed:"
-echo "  - ct-data-api (port 5003, localhost only)"
-echo "  - ct-frontend (port 80)"
+echo "  - clinicaltrialdata-api (port 5003, localhost only)"
+echo "  - clinicaltrialdata-frontend (port 5001)"
+echo "  - clinicaltrialdata-ingestion (background service)"
 echo ""
 echo "Deploy user: ct-deploy"
-echo "App directory: /var/www/ct-data/"
+echo "App directory: /opt/clinicaltrialdata/"
 echo ""
 echo "Next steps:"
 echo "  1. Copy the PROD_DB_CONNECTION string above"
 echo "  2. Add it to GitHub secrets (Settings > Secrets > Actions)"
-echo "  3. Merge PR 5 to main"
+echo "  3. Merge the setup PR to main"
 echo "  4. GitHub Actions will deploy automatically"
+echo ""
+echo "Verify deployment:"
+echo "  sudo systemctl status clinicaltrialdata-*"
+echo "  curl http://localhost:5001/"
+echo "  curl http://localhost:5003/health"
 echo ""
 echo "=========================================="
