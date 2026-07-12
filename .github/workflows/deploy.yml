@@ -86,13 +86,13 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "mkdir -p /opt/clinicaltrialdata && for dir in api frontend ingestion; do mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
-      - name: Copy binaries to Droplet
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
+       - name: Copy binaries to Droplet
+         run: |
+           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+             "mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
+           scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
+           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
+           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
 
        - name: Update environment and restart services
          run: |
@@ -121,11 +121,11 @@ jobs:
           exit 1
           EOSSH
 
-      - name: Cleanup rollback
-        if: success()
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "for dir in api frontend ingestion; do rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
+       - name: Cleanup rollback
+         if: success()
+         run: |
+           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+             "for dir in api frontend ingestion; do rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
 
        - name: Rollback on failure
          if: failure()
