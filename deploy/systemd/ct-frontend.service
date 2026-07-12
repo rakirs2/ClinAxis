@@ -1,0 +1,19 @@
+[Unit]
+Description=Clinical Trial Data Frontend
+After=network.target ct-data-api.service
+Requires=ct-data-api.service
+
+[Service]
+Type=simple
+User=ct-deploy
+WorkingDirectory=/var/www/ct-data/current
+Environment="ASPNETCORE_ENVIRONMENT=Production"
+Environment="ASPNETCORE_URLS=http://localhost:80"
+ExecStart=/var/www/ct-data/current/Frontend
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
