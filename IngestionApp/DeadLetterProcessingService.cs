@@ -37,13 +37,7 @@ public sealed class DeadLetterProcessingService : BackgroundService
                     foreach (var @event in deadLetterEvents.Take(5))
                     {
                         System.Diagnostics.Debug.WriteLine(
-                            $"  - Event {
-
-.Id}: {
-
-.EventType} - {
-
-.ErrorMessage}");
+                            $"  - Event {@event.Id}: {@event.EventType} - {@event.ErrorMessage}");
                     }
                 }
 
