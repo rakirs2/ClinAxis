@@ -1,8 +1,9 @@
-using System.Diagnostics;
-using Scrapers;
+using IngestionApp;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Scrapers.Persistence;
-using Scrapers.Persistence.Entities;
-using Scrapers.Services;
+using Scrapers.Services.CrawlServices;
+using Scrapers.Services.EventQueue;
 
 var cs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(cs))
@@ -11,77 +12,45 @@ if (string.IsNullOrWhiteSpace(cs))
     return 1;
 }
 
-var count = args.Length > 0 && int.TryParse(args[0], out var n) ? n : int.MaxValue;
+var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
 
+// Ensure database schema is created
 var repo = new StudyRepository(cs);
 await repo.EnsureSchemaAsync();
 
-var run = new PipelineRunEntity
-{
-    StartedAt = DateTime.UtcNow,
-    Status = "Running"
-};
-var runId = await repo.AddPipelineRunAsync(run);
-var sw = Stopwatch.StartNew();
-
-async Task RecordEvent(string source, string eventType, string level, int? records = null, long? durationMs = null, string? message = null, int? httpStatus = null)
-{
-    await repo.AddScrapeEventAsync(new ScrapeEventEntity
+// Build the host for long-running background services
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
     {
-        PipelineRunId = runId,
-        Timestamp = DateTime.UtcNow,
-        Source = source,
-        EventType = eventType,
-        Level = level,
-        DurationMs = durationMs,
-        RecordsAffected = records,
-        Message = message,
-        HttpStatusCode = httpStatus
-    });
-}
+        // Event queue infrastructure
+        services.AddSingleton<IEventQueueService>(new EventQueueService(cs));
+        services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
+        services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
 
-await RecordEvent("System", "PipelineStart", "Info", message: $"Starting ingestion with count={count}");
+        // Pivot services
+        services.AddSingleton<PivotServiceRegistry>();
+        services.AddSingleton<PivotConfigurationService>(new PivotConfigurationService(cs));
 
-try
-{
-    using var httpClient = new HttpClient();
-    var clinicalTrialsClient = new ClinicalTrialsGov(httpClient, log: msg => Console.WriteLine($"  [CT] {msg}"));
-    var ingestion = new ClinicalTrialsIngestionService(clinicalTrialsClient, repo);
-    var ingested = await ingestion.IngestAsync(count, CancellationToken.None);
-    await RecordEvent("ClinicalTrials", "RecordsIngested", "Info", records: ingested, message: $"Ingested {ingested} studies");
-    await Console.Out.WriteLineAsync($"Ingested {ingested} studies.");
+        // Background services for scraping and event processing
+        services.AddHostedService(sp => new ClinicalTrialsScrapeService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<IDataSourceStateService>(),
+            scrapeIntervalMinutes: isDevelopment ? 60 : 60,
+            localDevelopmentStudyCount: 1000,
+            isDevelopment: isDevelopment));
 
-    var pubmed = new PubMedScraperService(cs);
-    var pubmedCount = await pubmed.IngestPubMedPapersAsync(CancellationToken.None);
-    await RecordEvent("PubMed", "RecordsIngested", "Info", records: pubmedCount, message: $"Stored {pubmedCount} PubMed papers");
-    await Console.Out.WriteLineAsync($"Stored {pubmedCount} PubMed papers.");
+        services.AddHostedService(sp => new EventProcessingService(
+            sp.GetRequiredService<IEventQueueService>(),
+            pollIntervalSeconds: 10,
+            claimedEventTimeoutMinutes: 30));
 
-    var agg = new AggregationService(repo);
-    await agg.AggregateAsync(CancellationToken.None);
-    await RecordEvent("Aggregation", "Complete", "Info", message: "Aggregations complete");
-    await Console.Out.WriteLineAsync("Aggregations complete.");
+        services.AddHostedService(sp => new DeadLetterProcessingService(
+            sp.GetRequiredService<IEventQueueService>(),
+            checkIntervalMinutes: 5));
+    })
+    .Build();
 
-    var studies = await repo.CountStudiesAsync();
-    var investigators = await repo.CountInvestigatorsAsync();
-    var pubmedPapers = await repo.CountPubmedStudiesAsync();
-    var keywords = await repo.CountKeywordsAsync();
-    var authors = await repo.CountAuthorsAsync();
-    var piAggs = await repo.CountPiAggregationsAsync();
+// Run the host (blocking call, runs until cancelled)
+await host.RunAsync();
 
-    sw.Stop();
-    await repo.CompletePipelineRunAsync(runId, "Completed", studies, investigators, pubmedPapers, keywords, authors);
-    await RecordEvent("System", "PipelineComplete", "Info", message: $"Finished in {sw.Elapsed.TotalMinutes:F1}min");
-
-    await Console.Out.WriteLineAsync($"DB: {studies} studies, {investigators} investigators, {pubmedPapers} PubMed papers, {keywords} keywords, {authors} authors, {piAggs} PI aggregations.");
-    await Console.Out.WriteLineAsync($"Duration: {sw.Elapsed.TotalMinutes:F1} minutes.");
-    await Console.Out.WriteLineAsync("Done.");
-    return 0;
-}
-catch (Exception ex)
-{
-    sw.Stop();
-    await repo.CompletePipelineRunAsync(runId, "Failed", errorMessage: ex.ToString());
-    await RecordEvent("System", "PipelineFailed", "Error", message: ex.Message);
-    await Console.Error.WriteLineAsync($"FAILED: {ex}");
-    return 1;
-}
+return 0;
