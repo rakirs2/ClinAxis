@@ -7,7 +7,7 @@ namespace IngestionApp;
 /// Background service that monitors the dead-letter queue.
 /// Logs alerts for failed events that can't be automatically retried.
 /// </summary>
-public sealed class DeadLetterProcessingService : BackgroundService
+internal sealed class DeadLetterProcessingService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
     private readonly int _checkIntervalMinutes;

@@ -7,7 +7,7 @@ namespace IngestionApp;
 /// Core background service that continuously processes events from the queue.
 /// Claims events, dispatches to appropriate handlers, and manages retries/dead-letter.
 /// </summary>
-public sealed class EventProcessingService : BackgroundService
+internal sealed class EventProcessingService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
     private readonly string _serviceInstanceId;
@@ -24,7 +24,7 @@ public sealed class EventProcessingService : BackgroundService
         _claimedEventTimeoutMinutes = claimedEventTimeoutMinutes;
 
         // Unique instance identifier
-        _serviceInstanceId = $"{System.Environment.MachineName}-{System.Diagnostics.Process.GetCurrentProcess().Id}";
+        _serviceInstanceId = $"{System.Environment.MachineName}-{System.Environment.ProcessId}";
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -76,10 +76,10 @@ public sealed class EventProcessingService : BackgroundService
         }
     }
 
-     private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
-     {
-         // For now, just log that we received the event
-         System.Diagnostics.Debug.WriteLine($"Processing event: {@event.EventType} with data: {@event.Data}");
+    private static Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
+    {
+        // For now, just log that we received the event
+        System.Diagnostics.Debug.WriteLine($"Processing event: {@event.EventType} with data: {@event.Data}");
 
         // Future implementations will dispatch to specific handlers
         switch (@event.EventType)
@@ -92,5 +92,7 @@ public sealed class EventProcessingService : BackgroundService
                 // Unknown event type, but don't fail - just complete it
                 break;
         }
+
+        return Task.CompletedTask;
     }
 }
