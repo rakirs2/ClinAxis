@@ -80,6 +80,92 @@ else
         </table>
     }
 
+    <h3 class="mt-4">Data Source State</h3>
+    @if (dataSourceStates is null || dataSourceStates.Count == 0)
+    {
+        <p class="text-muted">No data sources initialized.</p>
+    }
+    else
+    {
+        <table class="table table-sm" style="max-width: 600px">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Last Sync</th>
+                    <th>Status</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var state in dataSourceStates)
+                {
+                    <tr>
+                        <td>@state.sourceName</td>
+                        <td>@(state.lastSyncTimestamp.HasValue ? FormatDate(state.lastSyncTimestamp.Value) : "Never")</td>
+                        <td>@StatusBadge(state.status)</td>
+                        <td><small class="text-danger">@(state.errorMessage ?? "")</small></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h3 class="mt-4">Event Queue Health</h3>
+    @if (queueStats is not null)
+    {
+        <table class="table table-sm" style="max-width: 600px">
+            <tbody>
+                <tr><th>Pending Events</th><td>@queueStats.pendingCount</td></tr>
+                <tr><th>Processing</th><td>@queueStats.processingCount</td></tr>
+                <tr><th>Completed</th><td>@queueStats.completedCount</td></tr>
+                <tr><th>Dead Letter</th><td><span class="badge bg-@(queueStats.deadLetterCount > 0 ? "danger" : "success")">@queueStats.deadLetterCount</span></td></tr>
+                <tr><th>Avg Processing Time</th><td>@(queueStats.averageProcessingTimeMs.ToString("F1"))ms</td></tr>
+                <tr><th>Failure Rate</th><td>@((queueStats.failureRate * 100).ToString("F1"))%</td></tr>
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p class="text-muted">Queue stats not available.</p>
+    }
+
+    <h3 class="mt-4">Dead Letter Queue @if (deadLetterCount > 0) { <span class="badge bg-danger">@deadLetterCount</span> }</h3>
+    @if (deadLetterEvents is null || deadLetterEvents.Count == 0)
+    {
+        <p class="text-success">✓ No failed events requiring manual intervention.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-striped" style="max-width: 100%">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Event Type</th>
+                    <th>Created</th>
+                    <th>Retries</th>
+                    <th>Error</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var evt in deadLetterEvents)
+                {
+                    <tr class="table-danger">
+                        <td>@evt.id</td>
+                        <td>@evt.eventType</td>
+                        <td>@FormatDate(evt.createdAt)</td>
+                        <td>@evt.retryCount</td>
+                        <td><small>@evt.errorMessage</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" @onclick="() => RetryDeadLetter(evt.id)">Retry</button>
+                            <button class="btn btn-sm btn-secondary" @onclick="() => IgnoreDeadLetter(evt.id)">Ignore</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
     <h3 class="mt-4">Scrape Events (last 20)</h3>
     @if (telemetry.recentEvents is null || telemetry.recentEvents.Count == 0)
     {
@@ -119,27 +205,35 @@ else
 
 @code {
     private TelemetryResponse? telemetry;
+    private List<DataSourceStateItem>? dataSourceStates;
+    private QueueStatsItem? queueStats;
+    private List<DeadLetterEventItem>? deadLetterEvents;
+    private int deadLetterCount = 0;
     private string lastUpdated = "";
     private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadTelemetry();
+        await LoadAllData();
         _timer = new Timer(async _ =>
         {
             await InvokeAsync(async () =>
             {
-                await LoadTelemetry();
+                await LoadAllData();
                 StateHasChanged();
             });
         }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
-    private async Task LoadTelemetry()
+    private async Task LoadAllData()
     {
         try
         {
             telemetry = await Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry");
+            dataSourceStates = await Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state");
+            queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
+            deadLetterEvents = await Client.GetFromJsonAsync<List<DeadLetterEventItem>>("/api/event-queue/dead-letter");
+            deadLetterCount = deadLetterEvents?.Count ?? 0;
             lastUpdated = DateTime.Now.ToString("HH:mm:ss");
         }
         catch
@@ -148,8 +242,25 @@ else
         }
     }
 
+    private async Task RetryDeadLetter(int eventId)
+    {
+        await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/retry", null);
+        await LoadAllData();
+        StateHasChanged();
+    }
+
+    private async Task IgnoreDeadLetter(int eventId)
+    {
+        await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/ignore", null);
+        await LoadAllData();
+        StateHasChanged();
+    }
+
     private static string FormatDate(DateTime? dt) =>
         dt?.ToString("yyyy-MM-dd HH:mm") ?? "";
+
+    private static string FormatDate(DateTime dt) =>
+        dt.ToString("yyyy-MM-dd HH:mm");
 
     private static RenderFragment StatusBadge(string? status) => builder =>
     {
@@ -230,5 +341,37 @@ else
     {
         public int piAggregationCount { get; set; }
         public int categoryAggregationCount { get; set; }
+    }
+
+    private class DataSourceStateItem
+    {
+        public string? sourceName { get; set; }
+        public DateTime? lastSyncTimestamp { get; set; }
+        public string? status { get; set; }
+        public string? errorMessage { get; set; }
+        public DateTime updatedAt { get; set; }
+    }
+
+    private class QueueStatsItem
+    {
+        public int pendingCount { get; set; }
+        public int processingCount { get; set; }
+        public int completedCount { get; set; }
+        public int deadLetterCount { get; set; }
+        public int failedCount { get; set; }
+        public double averageProcessingTimeMs { get; set; }
+        public double failureRate { get; set; }
+    }
+
+    private class DeadLetterEventItem
+    {
+        public int id { get; set; }
+        public string? eventType { get; set; }
+        public string? data { get; set; }
+        public string? status { get; set; }
+        public string? errorMessage { get; set; }
+        public int retryCount { get; set; }
+        public DateTime createdAt { get; set; }
+        public DateTime? completedAt { get; set; }
     }
 }
