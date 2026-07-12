@@ -89,7 +89,8 @@ jobs:
       - name: Copy binaries to Droplet
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion}"
+            "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion} && \
+             sudo chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata"
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
