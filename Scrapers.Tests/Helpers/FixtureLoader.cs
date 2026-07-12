@@ -15,4 +15,10 @@ internal static class FixtureLoader
 
         return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
     }
+
+    public static string LoadNppesNpiRegistryJson(string fileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Data", "NppesNpiRegistry", fileName);
+        return !File.Exists(path) ? throw new FileNotFoundException($"Fixture not found: {path}") : File.ReadAllText(path);
+    }
 }

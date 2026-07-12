@@ -1,0 +1,78 @@
+{
+  "result_count": 2,
+  "results": [
+    {
+      "number": 1234567890,
+      "basic": {
+        "first_name": "DAVID",
+        "last_name": "JACOBY",
+        "credential": "MD",
+        "sole_proprietor": null,
+        "gender": "M",
+        "enumeration_date": "2006-06-15",
+        "last_updated": "2024-01-20",
+        "status": "A",
+        "name_prefix": "Dr.",
+        "middle_name": "R"
+      },
+      "addresses": [
+        {
+          "country_code": "US",
+          "country_name": "United States",
+          "address_purpose": "LOCATION",
+          "address_type": "DOM",
+          "address_1": "3181 SW SAM JACKSON PARK RD",
+          "city": "PORTLAND",
+          "state": "OR",
+          "postal_code": "972393011",
+          "telephone_number": "503-494-8311"
+        }
+      ],
+      "taxonomies": [
+        {
+          "code": "207RC0000X",
+          "desc": "Cardiovascular Disease",
+          "primary": true,
+          "state": "OR",
+          "license": "MD12345"
+        }
+      ]
+    },
+    {
+      "number": 9876543210,
+      "basic": {
+        "first_name": "DAVID",
+        "last_name": "JACOBY",
+        "credential": "MD",
+        "sole_proprietor": null,
+        "gender": "M",
+        "enumeration_date": "2010-03-22",
+        "last_updated": "2023-11-15",
+        "status": "A",
+        "middle_name": "L"
+      },
+      "addresses": [
+        {
+          "country_code": "US",
+          "country_name": "United States",
+          "address_purpose": "LOCATION",
+          "address_type": "DOM",
+          "address_1": "500 SW 27TH ST",
+          "city": "BOSTON",
+          "state": "MA",
+          "postal_code": "021221234",
+          "telephone_number": "617-555-0100"
+        }
+      ],
+      "taxonomies": [
+        {
+          "code": "208M00000X",
+          "desc": "Hospitalist",
+          "primary": true,
+          "state": "MA",
+          "license": "MD67890"
+        }
+      ]
+    }
+  ]
+}
