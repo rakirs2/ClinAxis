@@ -66,6 +66,7 @@ namespace Scrapers.Persistence
                     .Include(s => s.Conditions)
                     .Include(s => s.Phases)
                     .Include(s => s.Locations)
+                    .Include(s => s.References)
                     .FirstOrDefaultAsync(s => s.NctId == record.NctId, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -79,7 +80,8 @@ namespace Scrapers.Persistence
                         Keywords = new List<StudyKeywordEntity>(),
                         Conditions = new List<StudyConditionEntity>(),
                         Phases = new List<StudyPhaseEntity>(),
-                        Locations = new List<StudyLocationEntity>()
+                        Locations = new List<StudyLocationEntity>(),
+                        References = new List<StudyReferenceEntity>()
                     };
                     context.Studies.Add(entity);
                 }
@@ -153,6 +155,28 @@ namespace Scrapers.Persistence
                                     Country = location.Country
                                 });
                             }
+                        }
+                    }
+                }
+
+                // Persist all references from the API response (prevents data loss)
+                entity.References ??= new List<StudyReferenceEntity>();
+                entity.References.Clear();
+                if (record.References != null && record.References.Count > 0)
+                {
+                    foreach (var reference in record.References)
+                    {
+                        if (reference != null)
+                        {
+                            entity.References.Add(new StudyReferenceEntity
+                            {
+                                StudyNctId = record.NctId!,
+                                Pmid = reference.Pmid,
+                                Doi = reference.Doi,
+                                Citation = reference.Citation,
+                                Type = reference.Type,
+                                CreatedAt = DateTime.UtcNow
+                            });
                         }
                     }
                 }

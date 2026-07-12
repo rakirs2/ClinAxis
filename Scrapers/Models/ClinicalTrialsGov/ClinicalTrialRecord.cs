@@ -35,6 +35,8 @@ namespace Scrapers.Models.ClinicalTrialsGov
         public class Reference
         {
             public string? Pmid { get; set; }
+            public string? Pmcid { get; set; }
+            public string? Doi { get; set; }
             public string? Citation { get; set; }
             public string? Type { get; set; }
         }

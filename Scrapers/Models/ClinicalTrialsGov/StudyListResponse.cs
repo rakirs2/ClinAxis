@@ -267,6 +267,12 @@ namespace Scrapers.Models.ClinicalTrialsGov
             [JsonPropertyName("pmid")]
             public string? Pmid { get; set; }
 
+            [JsonPropertyName("pmcid")]
+            public string? Pmcid { get; set; }
+
+            [JsonPropertyName("doi")]
+            public string? Doi { get; set; }
+
             [JsonPropertyName("citation")]
             public string? Citation { get; set; }
 
@@ -351,6 +357,8 @@ namespace Scrapers.Models.ClinicalTrialsGov
                     References = ps.ReferencesModule?.References?.Select(r => new ClinicalTrialRecord.Reference
                     {
                         Pmid = r.Pmid,
+                        Pmcid = r.Pmcid,
+                        Doi = r.Doi,
                         Citation = r.Citation,
                         Type = r.Type
                     }).ToList()

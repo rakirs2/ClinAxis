@@ -35,5 +35,6 @@ namespace Scrapers.Persistence.Entities
         public ICollection<StudyPhaseEntity>? Phases { get; set; }
         public ICollection<StudyAuthorEntity>? Authors { get; set; }
         public ICollection<StudyLocationEntity>? Locations { get; set; }
+        public ICollection<StudyReferenceEntity>? References { get; set; }
     }
 }

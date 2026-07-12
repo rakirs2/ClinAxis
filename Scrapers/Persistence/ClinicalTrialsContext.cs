@@ -20,6 +20,7 @@ namespace Scrapers.Persistence
         public DbSet<ScrapeEventEntity> ScrapeEvents => Set<ScrapeEventEntity>();
         public DbSet<SourceCrawlStateEntity> SourceCrawlStates => Set<SourceCrawlStateEntity>();
         public DbSet<PipelineEventEntity> PipelineEvents => Set<PipelineEventEntity>();
+        public DbSet<StudyReferenceEntity> StudyReferences => Set<StudyReferenceEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -303,6 +304,27 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.RetryCount).HasColumnName("retry_count");
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => e.EventType);
+            });
+
+            modelBuilder.Entity<StudyReferenceEntity>(entity =>
+            {
+                entity.ToTable("study_references");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
+                entity.Property(e => e.Doi).HasColumnName("doi");
+                entity.Property(e => e.Citation).HasColumnName("citation");
+                entity.Property(e => e.Type).HasColumnName("reference_type").HasMaxLength(50);
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.HasIndex(e => e.StudyNctId);
+                entity.HasIndex(e => e.Pmid);
+
+                entity.HasOne<StudyEntity>()
+                    .WithMany(s => s.References)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }
