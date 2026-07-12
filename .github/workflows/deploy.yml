@@ -23,8 +23,8 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-    env:
-      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
+     env:
+       POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres
 
     steps:
       - uses: actions/checkout@v4
