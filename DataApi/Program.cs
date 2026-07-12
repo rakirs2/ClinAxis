@@ -294,6 +294,59 @@ app.MapGet("/api/aggregations", async () =>
     });
 });
 
+// Event queue endpoints
+app.MapGet("/api/event-queue/stats", async () =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var stats = await eventQueueService.GetStatsAsync();
+    return Results.Ok(stats);
+});
+
+app.MapGet("/api/event-queue/dead-letter", async () =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var deadLetterEvents = await eventQueueService.GetDeadLetterEventsAsync(100);
+    return Results.Ok(deadLetterEvents.Select(e => new
+    {
+        e.Id,
+        e.EventType,
+        e.Data,
+        e.Status,
+        e.ErrorMessage,
+        e.RetryCount,
+        e.CreatedAt,
+        e.CompletedAt
+    }));
+});
+
+app.MapGet("/api/data-source-state", async () =>
+{
+    var dataSourceService = new Scrapers.Services.EventQueue.DataSourceStateService(connectionString);
+    var states = await dataSourceService.GetAllStatesAsync();
+    return Results.Ok(states.Select(s => new
+    {
+        s.SourceName,
+        s.LastSyncTimestamp,
+        s.Status,
+        s.ErrorMessage,
+        s.UpdatedAt
+    }));
+});
+
+app.MapPost("/api/event-queue/dead-letter/{id}/retry", async (int id) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    await eventQueueService.RetryDeadLetterEventAsync(id);
+    return Results.Ok(new { message = "Event moved back to pending queue for retry" });
+});
+
+app.MapPost("/api/event-queue/dead-letter/{id}/ignore", async (int id) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    await eventQueueService.IgnoreDeadLetterEventAsync(id);
+    return Results.Ok(new { message = "Event marked as ignored" });
+});
+
 await app.RunAsync();
 
 /// <summary>
