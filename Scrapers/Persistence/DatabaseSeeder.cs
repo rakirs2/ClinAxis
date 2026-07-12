@@ -162,7 +162,7 @@ public class DatabaseSeeder
         var usedNctIds = new HashSet<string>();
 
         // Pre-generate a pool of 50-60 unique investigator names for reuse across studies
-        var investigatorPool = GenerateInvestigatorPool(50);
+        var investigatorPool = GenerateInvestigatorPool(100);
 
         for (int i = 0; i < count; i++)
         {
@@ -249,8 +249,8 @@ public class DatabaseSeeder
                 Affiliation = primaryAffiliation
             });
 
-            // Optionally add 0-2 co-investigators from the pool
-            int coInvestigatorCount = randomWrapper.Next(3); // 0, 1, or 2
+            // Add 1-2 co-investigators from the pool (ensure multiple investigators per study)
+            int coInvestigatorCount = randomWrapper.Next(1, 3); // 1 or 2
             var usedInvestigators = new HashSet<string> { piName };
             for (int inv = 0; inv < coInvestigatorCount; inv++)
             {
@@ -298,6 +298,16 @@ public class DatabaseSeeder
     {
         var randomWrapper = new SecureRandom(RandomSeed);
         var pool = new HashSet<string>();
+        
+        // Add some guaranteed names for testing purposes (with degrees for test assertions)
+        pool.Add("Dr. Anna Smith, MD");
+        pool.Add("Dr. Campbell Lee, PhD");
+        pool.Add("Dr. Joshua Wright, MD, MSc");
+        pool.Add("Prof. Michael Johnson, MD");
+        pool.Add("Prof. Dr. Patricia Williams, PhD");
+        pool.Add("Dr. Robert Davis, MSc");
+        pool.Add("Prof. Susan Miller, DM");
+        
         var attempts = 0;
         const int maxAttempts = 1000; // Prevent infinite loop
 
