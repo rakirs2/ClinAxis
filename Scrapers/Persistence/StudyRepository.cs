@@ -721,6 +721,121 @@ namespace Scrapers.Persistence
             return await query.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Get all distinct condition values for filter UI.
+        /// </summary>
+        public async Task<List<string>> GetDistinctConditionsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.StudyConditions
+                .Select(c => c.Condition)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Get all distinct location values grouped by type for filter UI.
+        /// </summary>
+        public async Task<(List<string> Countries, List<string> States, List<string> Cities, List<string> Facilities)> GetDistinctLocationsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var countries = (await context.StudyLocations
+                .Select(l => l.Country)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var states = (await context.StudyLocations
+                .Select(l => l.State)
+                .Where(s => s != null)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var cities = (await context.StudyLocations
+                .Select(l => l.City)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var facilities = (await context.StudyLocations
+                .Select(l => l.Facility)
+                .Where(f => f != null)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            return (countries, states, cities, facilities);
+        }
+
+        /// <summary>
+        /// Get distinct location values filtered by country/state/city.
+        /// Used for dependent dropdowns in frontend advanced search.
+        /// </summary>
+        public async Task<(List<string> Countries, List<string> States, List<string> Cities, List<string> Facilities)> GetDistinctLocationsAsync(
+            string? country = null,
+            string? state = null,
+            string? city = null,
+            CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            // Start with all locations
+            var query = context.StudyLocations.AsQueryable();
+
+            // Apply filters if provided
+            if (!string.IsNullOrEmpty(country))
+                query = query.Where(l => l.Country == country);
+            if (!string.IsNullOrEmpty(state))
+                query = query.Where(l => l.State == state);
+            if (!string.IsNullOrEmpty(city))
+                query = query.Where(l => l.City == city);
+
+            var countries = (await query
+                .Select(l => l.Country)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var states = (await query
+                .Select(l => l.State)
+                .Where(s => s != null)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var cities = (await query
+                .Select(l => l.City)
+                .Where(c => c != null)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            var facilities = (await query
+                .Select(l => l.Facility)
+                .Where(f => f != null)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).Cast<string>().ToList();
+
+            return (countries, states, cities, facilities);
+        }
+
         public async Task<StudyEntity?> GetStudyByNctIdAsync(string nctId, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();

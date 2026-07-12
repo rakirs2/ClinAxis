@@ -8,40 +8,74 @@ using RichardSzalay.MockHttp;
 namespace Frontend.Tests;
 
 [TestClass]
-public sealed class HomePageTests
+public sealed class SearchPageTests
 {
-    [TestMethod]
-    public void HomePageRendersSearchInput()
-    {
-        using var ctx = new BunitContext();
-        ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(new HttpClient()));
-
-        IRenderedComponent<Frontend.Pages.Home> cut = ctx.Render<Frontend.Pages.Home>();
-
-        Assert.IsNotNull(cut.Find("input"));
-        Assert.IsNotNull(cut.Find("button"));
-        Assert.AreEqual("Search", cut.Find("button").TextContent);
-    }
+    private static readonly string[] ConditionTestData = ["Condition A"];
+    private static readonly string[] PhaseTestData = ["PHASE2"];
+    private static readonly string[] CountryTestData = ["USA"];
+    private static readonly string[] EmptyArray = [];
 
     [TestMethod]
-    public void HomePageRendersTitle()
-    {
-        using var ctx = new BunitContext();
-        ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(new HttpClient()));
-
-        IRenderedComponent<Frontend.Pages.Home> cut = ctx.Render<Frontend.Pages.Home>();
-
-        Assert.IsNotNull(cut.Find("h1"));
-        Assert.AreEqual("Study Search", cut.Find("h1").TextContent);
-    }
-
-    [TestMethod]
-    public void HomePageSearchButtonTriggersDataLoad()
+    public void SearchPageRendersSearchTitle()
     {
         using var ctx = new BunitContext();
         using var mockHttp = new MockHttpMessageHandler();
-        string[] conditions = ["Condition A"];
-        string[] phases = ["PHASE2"];
+        mockHttp.When("/api/distinct-conditions").Respond("application/json", JsonSerializer.Serialize(ConditionTestData));
+        mockHttp.When("/api/distinct-locations").Respond("application/json", JsonSerializer.Serialize(new
+        {
+            countries = CountryTestData,
+            states = EmptyArray,
+            cities = EmptyArray,
+            facilities = EmptyArray
+        }));
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
+
+        Assert.IsNotNull(cut.Find("h1"));
+        Assert.IsTrue(cut.Find("h1").TextContent.Contains("Search", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void SearchPageRendersFilterInputs()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        mockHttp.When("/api/distinct-conditions").Respond("application/json", JsonSerializer.Serialize(ConditionTestData));
+        mockHttp.When("/api/distinct-locations").Respond("application/json", JsonSerializer.Serialize(new
+        {
+            countries = CountryTestData,
+            states = EmptyArray,
+            cities = EmptyArray,
+            facilities = EmptyArray
+        }));
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
+
+        // Check for keyword input
+        Assert.IsNotNull(cut.Find("input[placeholder='Search by title or NCT ID']"));
+        // Check for search button
+        Assert.IsNotNull(cut.Find("button:contains('Search')"));
+    }
+
+    [TestMethod]
+    public void SearchPageRendersPagination()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        mockHttp.When("/api/distinct-conditions").Respond("application/json", JsonSerializer.Serialize(ConditionTestData));
+        mockHttp.When("/api/distinct-locations").Respond("application/json", JsonSerializer.Serialize(new
+        {
+            countries = CountryTestData,
+            states = EmptyArray,
+            cities = EmptyArray,
+            facilities = EmptyArray
+        }));
         mockHttp.When("/api/studies*").Respond("application/json", JsonSerializer.Serialize(new
         {
             data = new[]
@@ -51,8 +85,9 @@ public sealed class HomePageTests
                     nctId = "NCT00000001",
                     briefTitle = "Test Study",
                     overallStatus = "RECRUITING",
-                    conditions,
-                    phases
+                    conditions = ConditionTestData,
+                    phases = PhaseTestData,
+                    enrollmentCount = 100
                 }
             },
             total = 1,
@@ -64,13 +99,16 @@ public sealed class HomePageTests
         client.BaseAddress = new Uri("http://localhost:5003");
         ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
 
-        IRenderedComponent<Frontend.Pages.Home> cut = ctx.Render<Frontend.Pages.Home>();
-        cut.Find("button").Click();
+        IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
+        
+        // Trigger search to display results
+        var searchButton = cut.FindAll("button").First(b => b.TextContent.Contains("Search", StringComparison.Ordinal));
+        searchButton.Click();
 
         cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(2));
 
+        // Verify results are displayed
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
-        Assert.AreEqual("Test Study", cut.Find("td:nth-child(2)").TextContent);
     }
 
     private sealed class FakeHttpClientFactory : IHttpClientFactory
