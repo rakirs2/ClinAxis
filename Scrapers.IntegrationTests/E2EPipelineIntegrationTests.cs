@@ -13,23 +13,42 @@ namespace Scrapers.IntegrationTests
     [TestClass]
     public class E2EPipelineIntegrationTests : DbTestBase
     {
-        // [TestMethod]
-        // public async Task FullE2E_WithLiveApis_VerifiesDbState()
-        // {
-        //     var originalConnectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-        //     Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", ConnectionString);
-        //     try
-        //     {
-        //         PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
-        //         Assert.AreEqual(5, result.StudyCount);
-        //         Assert.IsTrue(result.InvestigatorCount > 0);
-        //         Assert.IsNull(result.Errors);
-        //     }
-        //     finally
-        //     {
-        //         Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", originalConnectionString);
-        //     }
-        // }
+        [TestMethod]
+        [TestCategory("Integration")]
+        public async Task FullE2E_BackgroundServices_IngestAndProcess()
+        {
+            // Arrange
+            var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 5);
+            var studyRepo = new StudyRepository(ConnectionString);
+            var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
+
+            // Act - Ingest 5 studies via ClinicalTrials service
+            await clinicalTrialsIngestionService.IngestAsync(5);
+
+            // Assert - Verify ingestion was successful
+            int studyCount = await Context.Studies.CountAsync();
+            int investigatorCount = await Context.Investigators.CountAsync();
+            
+            Assert.IsTrue(studyCount >= 5, "Should have ingested at least 5 studies");
+            Assert.IsTrue(investigatorCount > 0, "Should have investigators from ingestion");
+            
+            // Verify data integrity: all investigators linked to correct studies
+            var studies = await Context.Studies.Include(s => s.Investigators).ToListAsync();
+            foreach (var study in studies)
+            {
+                Assert.IsNotNull(study.NctId, "Study should have NCT ID");
+                Assert.IsFalse(string.IsNullOrWhiteSpace(study.BriefTitle), "Study should have title");
+                
+                if (study.Investigators?.Count > 0)
+                {
+                    foreach (var investigator in study.Investigators)
+                    {
+                        Assert.AreEqual(study.NctId, investigator.StudyNctId, 
+                            "Investigator should be linked to correct study");
+                    }
+                }
+            }
+        }
 
         [TestMethod]
         public async Task FullE2E_Pipeline_DataIntegrity()

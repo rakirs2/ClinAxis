@@ -1,4 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.EntityFrameworkCore;
+using Scrapers.Persistence;
+using Scrapers.Services;
 using Scrapers.Testing;
 using System.Threading.Tasks;
 
@@ -7,23 +10,24 @@ namespace Scrapers.IntegrationTests;
 [TestClass]
 public class PipelineRunnerIntegrationTests : DbTestBase
 {
-    // [TestMethod]
-    // public async Task RunPipeline_WithLiveApis_VerifiesRecordCounts()
-    // {
-    //     var originalConnectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-    //     Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", ConnectionString);
-    //     try
-    //     {
-    //         PipelineResult result = await PipelineRunner.RunAsync(clinicalTrialsCount: 5);
-    //
-    //         Assert.AreEqual(5, result.StudyCount, "Expected exactly 5 studies to be ingested.");
-    //         Assert.IsTrue(result.InvestigatorCount > 0, "Expected at least one investigator across the ingested studies.");
-    //         Assert.IsNull(result.Errors, "No validation errors expected. Errors: " +
-    //             (result.Errors != null ? string.Join("; ", result.Errors) : "none"));
-    //     }
-    //     finally
-    //     {
-    //         Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", originalConnectionString);
-    //     }
-    // }
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task RunPipeline_VerifiesRecordCounts()
+    {
+        // Arrange
+        var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 5);
+        var studyRepo = new StudyRepository(ConnectionString);
+        var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
+
+        // Act - Run pipeline ingestion
+        await clinicalTrialsIngestionService.IngestAsync(5);
+
+        // Assert - Verify record counts
+        var studyCount = await Context.Studies.CountAsync();
+        var investigatorCount = await Context.Investigators.CountAsync();
+        
+        Assert.IsTrue(studyCount >= 5, $"Expected at least 5 studies to be ingested, got {studyCount}");
+        Assert.IsTrue(investigatorCount > 0, "Expected at least one investigator across the ingested studies");
+        Assert.IsTrue(studyCount <= 100, "Sanity check: study count should be reasonable");
+    }
 }
