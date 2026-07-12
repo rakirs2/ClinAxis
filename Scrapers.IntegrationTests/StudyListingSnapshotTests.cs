@@ -69,7 +69,7 @@ public sealed class StudyListingSnapshotTests
 
         IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10);
 
-        Assert.AreEqual(4, results.Count);
+        Assert.AreEqual(10, results.Count); // First page with 10 unique investigators (14 total in seed)
     }
 
     [TestMethod]
@@ -81,7 +81,7 @@ public sealed class StudyListingSnapshotTests
         IReadOnlyList<InvestigatorSummary> results = await repo.GetInvestigatorsPagedAsync(1, 10, search: "Bob");
 
         Assert.AreEqual(1, results.Count);
-        Assert.AreEqual("Dr. Bob Williams", results[0].Name);
+        Assert.AreEqual("Dr. Bob Williams, PhD", results[0].Name);
     }
 
     [TestMethod]
@@ -101,7 +101,7 @@ public sealed class StudyListingSnapshotTests
         await using SnapshotDb snapshot = new();
         var repo = new StudyRepository(snapshot.ConnectionString);
 
-        Assert.AreEqual(4, await repo.CountInvestigatorsFilteredAsync());
+        Assert.AreEqual(14, await repo.CountInvestigatorsFilteredAsync()); // 14 unique investigators in seed data
 
         Assert.AreEqual(1, await repo.CountInvestigatorsFilteredAsync(search: "Carol"));
         Assert.AreEqual(2, await repo.CountInvestigatorsFilteredAsync(search: "Alice"));

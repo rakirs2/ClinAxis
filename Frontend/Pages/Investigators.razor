@@ -46,7 +46,7 @@ else if (investigators is not null)
                 @foreach (var inv in investigators)
                 {
                     <tr>
-                        <td><a href="/?search=@Uri.EscapeDataString(inv.name ?? "")">@inv.name</a></td>
+                        <td><a href="/investigator/@inv.uuid">@inv.name</a></td>
                         <td>@inv.affiliation</td>
                         <td>@inv.studyCount</td>
                     </tr>
@@ -82,6 +82,12 @@ else if (investigators is not null)
     private bool loading;
     private string? error;
     private List<InvestigatorItem>? investigators;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load all investigators on page initialization
+        await LoadPage(1);
+    }
 
     private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
@@ -145,6 +151,7 @@ else if (investigators is not null)
 
     private class InvestigatorItem
     {
+        public Guid uuid { get; set; }
         public string? name { get; set; }
         public string? affiliation { get; set; }
         public int studyCount { get; set; }
