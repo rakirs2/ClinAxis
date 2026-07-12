@@ -9,7 +9,7 @@ namespace IngestionApp;
 /// Runs every configured interval and fetches new/updated studies since last sync.
 /// For each discovered study, enqueues a "studies.discovered" event for downstream processing.
 /// </summary>
-public sealed class ClinicalTrialsScrapeService : BackgroundService
+internal sealed class ClinicalTrialsScrapeService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
     private readonly IDataSourceStateService _dataSourceStateService;
@@ -17,7 +17,7 @@ public sealed class ClinicalTrialsScrapeService : BackgroundService
     private readonly int _localDevelopmentStudyCount;
     private readonly bool _isDevelopment;
 
-    private static readonly string SourceName = "ClinicalTrials.gov";
+    private const string SourceName = "ClinicalTrials.gov";
     private DateTime _lastRunTime = DateTime.MinValue;
 
     public ClinicalTrialsScrapeService(
@@ -39,7 +39,8 @@ public sealed class ClinicalTrialsScrapeService : BackgroundService
         // Initialize data source state
         await _dataSourceStateService.InitializeSourceAsync(SourceName, stoppingToken).ConfigureAwait(false);
 
-        var ctClient = new ClinicalTrialsGov(new HttpClient());
+        using var httpClient = new HttpClient();
+        var ctClient = new ClinicalTrialsGov(httpClient);
 
         // Run scrape loop
         while (!stoppingToken.IsCancellationRequested)
@@ -75,27 +76,30 @@ public sealed class ClinicalTrialsScrapeService : BackgroundService
 
     private async Task PerformScrapeAsync(ClinicalTrialsGov ctClient, CancellationToken ct)
     {
-        await _dataSourceStateService.SetStatusAsync(SourceName, "syncing", cancellationToken: ct).ConfigureAwait(false);
+        await _dataSourceStateService.SetStatusAsync(SourceName, "syncing", ct: ct).ConfigureAwait(false);
 
         // Get last sync timestamp
         var state = await _dataSourceStateService.GetStateAsync(SourceName, ct).ConfigureAwait(false);
         var lastSyncTimestamp = state?.LastSyncTimestamp ?? DateTime.MinValue;
 
         // For development, limit to configured study count
-        var studyLimit = _isDevelopment ? _localDevelopmentStudyCount : (int?)null;
+        var studyLimit = _isDevelopment ? _localDevelopmentStudyCount : int.MaxValue;
 
-        // Fetch studies from CT.gov API
-        var studies = await ctClient.FetchStudiesAsync(
-            updatedSince: lastSyncTimestamp,
-            limit: studyLimit,
+        // Fetch studies from CT.gov API using batched processing
+        var studyCount = 0;
+        await ctClient.GetTrialRecordsBatchedAsync(
+            count: studyLimit,
+            onBatch: async batch =>
+            {
+                // Enqueue event for each discovered study
+                foreach (var study in batch)
+                {
+                    var eventData = System.Text.Json.JsonSerializer.Serialize(new { nctId = study.NctId });
+                    await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct).ConfigureAwait(false);
+                    studyCount++;
+                }
+            },
             cancellationToken: ct).ConfigureAwait(false);
-
-        // Enqueue event for each discovered study
-        foreach (var study in studies)
-        {
-            var eventData = System.Text.Json.JsonSerializer.Serialize(new { nctId = study.NctId });
-            await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct).ConfigureAwait(false);
-        }
 
         // Update data source state
         await _dataSourceStateService.UpdateLastSyncAsync(
@@ -104,6 +108,6 @@ public sealed class ClinicalTrialsScrapeService : BackgroundService
             null,
             ct).ConfigureAwait(false);
 
-        await _dataSourceStateService.SetStatusAsync(SourceName, "idle", cancellationToken: ct).ConfigureAwait(false);
+        await _dataSourceStateService.SetStatusAsync(SourceName, "idle", ct: ct).ConfigureAwait(false);
     }
 }
