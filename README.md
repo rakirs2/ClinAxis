@@ -51,6 +51,49 @@ dotnet test
 
 Integration tests connect to a real PostgreSQL via Testcontainers and real ClinicalTrials.gov/PubMed APIs. No manual Docker setup needed — just have Docker Desktop running.
 
+## Deployment to Production
+
+Services deploy independently to a single DigitalOcean Droplet via GitHub Actions:
+
+### Automatic Deployment
+
+Push code changes to `main` and GitHub Actions automatically deploys only the changed service:
+
+- **DataApi** changes (`DataApi/**`) → `deploy-dataapi.yml` runs
+- **Frontend** changes (`Frontend/**`) → `deploy-frontend.yml` runs  
+- **IngestionApp** changes (`IngestionApp/**` or `Scrapers/**`) → `deploy-ingestion.yml` runs
+
+Each workflow:
+1. Builds the service with `dotnet publish --self-contained -r linux-x64`
+2. SSHes to the droplet using GitHub Secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`)
+3. Deploys binaries to `/opt/clinicaltrialdata/{service}/`
+4. Restarts only the corresponding systemd service
+5. Validates health before completing
+
+### Manual Deployment
+
+Trigger deployment manually via GitHub UI:
+- Go to **Actions** → select **Deploy DataApi** (or Frontend/IngestionApp)
+- Click **Run workflow** → **Run workflow**
+
+### Systemd Services on Droplet
+
+```bash
+sudo systemctl restart clinicaltrialdata-api      # DataApi
+sudo systemctl restart clinicaltrialdata-frontend # Frontend
+sudo systemctl restart clinicaltrialdata-ingestion # IngestionApp
+sudo systemctl status clinicaltrialdata-*         # Check all
+sudo journalctl -u clinicaltrialdata-api -f       # View logs
+```
+
+### Health Checks
+
+- **DataApi**: `GET /health` → `200 OK` with `{"status":"healthy"}`
+- **Frontend**: Any `200` response on `GET /` indicates health
+- **IngestionApp**: Background service, no health endpoint
+
+For details on the deployment architecture, see `ARCHITECTURE.md` → "Deployment Architecture" section.
+
 ## Projects
 
 | Project | Description |
