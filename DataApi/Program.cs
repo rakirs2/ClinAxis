@@ -191,7 +191,7 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
         PageSize = ps
     };
 
-    var studies = await repo.GetStudiesByInvestigatorUuidAsync(uuid, criteria);
+    var studies = await repo.GetStudiesByInvestigatorPersonIdAsync(uuid, criteria);
 
     // Apply client-side sorting if requested
     if (!string.IsNullOrEmpty(sort))

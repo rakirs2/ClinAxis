@@ -148,8 +148,9 @@ public class DatabaseSeeder
         }
 
         // Generate 120 realistic clinical trial records
-        var studies = GenerateStudies(120);
+        var (studies, persons) = GenerateStudies(120);
         
+        await context.InvestigatorPersons.AddRangeAsync(persons, cancellationToken);
         await context.Studies.AddRangeAsync(studies, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }
@@ -167,20 +168,37 @@ public class DatabaseSeeder
         var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ClinicalTrialsContext>();
         optionsBuilder.UseNpgsql(_connectionString);
         using ClinicalTrialsContext context = new(optionsBuilder.Options);
-        var studies = GenerateStudies(120);
+        var (studies, persons) = GenerateStudies(120);
+        await context.InvestigatorPersons.AddRangeAsync(persons, cancellationToken);
         await context.Studies.AddRangeAsync(studies, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private static List<StudyEntity> GenerateStudies(int count)
+    private static (List<StudyEntity> Studies, List<InvestigatorPersonEntity> Persons) GenerateStudies(int count)
     {
         // Use RandomNumberGenerator wrapper to avoid CA5394
         var randomWrapper = new SecureRandom(RandomSeed);
         var studies = new List<StudyEntity>();
         var usedNctIds = new HashSet<string>();
 
-        // Pre-generate a pool of 50-60 unique investigator names for reuse across studies
+        // Pre-generate a pool of unique investigator names for reuse across studies
         var investigatorPool = GenerateInvestigatorPool(100);
+        
+        // Pre-generate InvestigatorPersonEntity for each unique name
+        var personMap = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
+        var persons = new List<InvestigatorPersonEntity>();
+        foreach (var name in investigatorPool)
+        {
+            var person = new InvestigatorPersonEntity
+            {
+                Id = Guid.NewGuid(),
+                FullName = name,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            personMap[name] = person;
+            persons.Add(person);
+        }
 
         for (int i = 0; i < count; i++)
         {
@@ -252,41 +270,37 @@ public class DatabaseSeeder
                 new() { Phase = phaseStr }
             };
 
-            // Create investigators (1 PI, 0-2 co-investigators)
-            var investigators = new List<InvestigatorEntity>();
-            var primaryAffiliation = locations[0].Facility ?? Facilities[randomWrapper.Next(Facilities.Length)];
+            // Create study investigators (1 PI, 0-2 co-investigators)
+            var studyInvestigators = new List<StudyInvestigatorEntity>();
             
             // Always add 1 principal investigator from the pool
             var piName = investigatorPool[randomWrapper.Next(investigatorPool.Count)];
-            investigators.Add(new InvestigatorEntity
+            studyInvestigators.Add(new StudyInvestigatorEntity
             {
-                Uuid = Guid.NewGuid(),
                 StudyNctId = nctId,
-                Name = piName,
-                Role = "PRINCIPAL_INVESTIGATOR",
-                Affiliation = primaryAffiliation
+                InvestigatorPersonId = personMap[piName].Id,
+                RoleOnStudy = "PRINCIPAL_INVESTIGATOR",
+                IsOverallOfficial = true
             });
 
-            // Add 1-2 co-investigators from the pool (ensure multiple investigators per study)
-            int coInvestigatorCount = randomWrapper.Next(1, 3); // 1 or 2
+            // Add 1-2 co-investigators from the pool
+            int coInvestigatorCount = randomWrapper.Next(1, 3);
             var usedInvestigators = new HashSet<string> { piName };
             for (int inv = 0; inv < coInvestigatorCount; inv++)
             {
                 string coiName;
-                // Ensure we don't add the same investigator twice to the same study
                 do
                 {
                     coiName = investigatorPool[randomWrapper.Next(investigatorPool.Count)];
                 } while (usedInvestigators.Contains(coiName));
                 usedInvestigators.Add(coiName);
 
-                investigators.Add(new InvestigatorEntity
+                studyInvestigators.Add(new StudyInvestigatorEntity
                 {
-                    Uuid = Guid.NewGuid(),
                     StudyNctId = nctId,
-                    Name = coiName,
-                    Role = "CO_INVESTIGATOR",
-                    Affiliation = primaryAffiliation
+                    InvestigatorPersonId = personMap[coiName].Id,
+                    RoleOnStudy = "CO_INVESTIGATOR",
+                    IsOverallOfficial = false
                 });
             }
 
@@ -301,7 +315,7 @@ public class DatabaseSeeder
                 EnrollmentCount = enrollment,
                 Conditions = conditions,
                 Locations = locations,
-                Investigators = investigators,
+                StudyInvestigators = studyInvestigators,
                 StudyType = AllStudyTypes[randomWrapper.Next(AllStudyTypes.Length)],
                 OfficialTitle = GenerateStudyTitle(i, Conditions[randomWrapper.Next(Conditions.Length)])
             };
@@ -309,7 +323,7 @@ public class DatabaseSeeder
             studies.Add(study);
         }
 
-        return studies;
+        return (studies, persons);
     }
 
     private static List<string> GenerateInvestigatorPool(int poolSize)
