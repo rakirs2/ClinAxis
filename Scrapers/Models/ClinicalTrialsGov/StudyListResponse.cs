@@ -325,6 +325,7 @@ namespace Scrapers.Models.ClinicalTrialsGov
                     NctId = ps.IdentificationModule?.NctId,
                     BriefTitle = ps.IdentificationModule?.BriefTitle,
                     OfficialTitle = ps.IdentificationModule?.OfficialTitle,
+                    OrgStudyId = ps.IdentificationModule?.OrgStudyIdInfo?.Id,
                     OverallStatus = ps.StatusModule?.OverallStatus,
                     BriefSummary = ps.DescriptionModule?.BriefSummary,
                     StudyType = ps.DesignModule?.StudyType,
@@ -341,6 +342,7 @@ namespace Scrapers.Models.ClinicalTrialsGov
                     PrimaryPurpose = ps.DesignModule?.DesignInfo?.PrimaryPurpose,
                     InterventionModel = ps.DesignModule?.DesignInfo?.InterventionModel,
                     Allocation = ps.DesignModule?.DesignInfo?.Allocation,
+                    Masking = ps.DesignModule?.DesignInfo?.Masking,
                     EnrollmentCount = ps.DesignModule?.EnrollmentInfo?.Count,
                     StartDate = ParseDateStruct(ps.StatusModule?.StartDateStruct),
                     CompletionDate = ParseDateStruct(ps.StatusModule?.CompletionDateStruct),
@@ -353,6 +355,24 @@ namespace Scrapers.Models.ClinicalTrialsGov
                         Pmid = r.Pmid,
                         Citation = r.Citation,
                         Type = r.Type
+                    }).ToList(),
+                    PrimaryOutcomes = ps.OutcomesModule?.PrimaryOutcomes?.Select(o => new ClinicalTrialRecord.Outcome
+                    {
+                        Measure = o.Measure,
+                        Description = o.Description,
+                        TimeFrame = o.TimeFrame
+                    }).ToList(),
+                    SecondaryOutcomes = ps.OutcomesModule?.SecondaryOutcomes?.Select(o => new ClinicalTrialRecord.Outcome
+                    {
+                        Measure = o.Measure,
+                        Description = o.Description,
+                        TimeFrame = o.TimeFrame
+                    }).ToList(),
+                    ArmGroups = ps.ArmsInterventionsModule?.ArmGroups?.Select(a => new ClinicalTrialRecord.ArmGroup
+                    {
+                        Label = a.Label,
+                        Type = a.Type,
+                        Description = a.Description
                     }).ToList()
                 };
         }

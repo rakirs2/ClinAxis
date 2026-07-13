@@ -17,23 +17,26 @@
     }
     else if (investigator is not null)
     {
-        <!-- Header with back button -->
         <div class="row mb-4">
             <div class="col-12">
                 <button class="btn btn-link" @onclick="GoBack">&larr; Back to Investigators</button>
             </div>
         </div>
 
-        <!-- Investigator Details Header -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
                         <h2>@investigator.name</h2>
-                        <p class="text-muted mb-1"><strong>Role:</strong> @(investigator.role?.Replace("_", " ") ?? "Unknown")</p>
-                        <p class="text-muted mb-3"><strong>Affiliation:</strong> @(investigator.affiliation ?? "Unknown")</p>
-                        
-                        <!-- Statistics Cards -->
+                        @if (investigator.orcid is not null)
+                        {
+                            <p class="mb-1">
+                                <strong>ORCID:</strong>
+                                <a href="https://orcid.org/@investigator.orcid" target="_blank">@investigator.orcid</a>
+                            </p>
+                        }
+                        <p class="text-muted mb-1"><strong>Affiliation:</strong> @(investigator.primaryAffiliation ?? investigator.affiliation ?? "Unknown")</p>
+
                         <div class="row mt-3">
                             <div class="col-md-3">
                                 <div class="card bg-light">
@@ -43,13 +46,20 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@investigator.paperCount</h5>
+                                        <p class="card-text small">Publications</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Co-Investigators Section -->
         @if (investigator.coInvestigators?.Count > 0)
         {
             <div class="row mb-4">
@@ -71,7 +81,6 @@
             </div>
         }
 
-        <!-- Research Focus Areas Section -->
         @if (investigator.conditionsFocusAreas?.Count > 0)
         {
             <div class="row mb-4">
@@ -93,7 +102,6 @@
             </div>
         }
 
-        <!-- Statistics Section -->
         @if (investigator.statistics is not null)
         {
             <div class="row mb-4">
@@ -150,7 +158,6 @@
             </div>
         }
 
-        <!-- Studies Section -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
@@ -218,7 +225,6 @@
                                 </tbody>
                             </table>
 
-                            <!-- Pagination -->
                             <nav>
                                 <ul class="pagination">
                                     <li class="page-item @(studyCurrentPage <= 1 ? "disabled" : "")">
@@ -282,11 +288,10 @@
         try
         {
             loading = true;
-            var httpClient = HttpClientFactory.CreateClient();
-            httpClient.BaseAddress = new Uri("http://localhost:5003");
-            
-            investigator = await httpClient.GetFromJsonAsync<InvestigatorDetail>($"/api/investigators/{investigatorUuid}");
-            
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+
+            investigator = await client.GetFromJsonAsync<InvestigatorDetail>($"/api/investigators/{investigatorUuid}");
+
             if (investigator == null)
             {
                 error = "Investigator not found";
@@ -307,23 +312,22 @@
         try
         {
             studiesLoading = true;
-            var httpClient = HttpClientFactory.CreateClient();
-            httpClient.BaseAddress = new Uri("http://localhost:5003");
-            
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+
             var query = $"/api/investigators/{investigatorUuid}/studies?page={page}&pageSize={studyPageSize}";
-            
+
             if (!string.IsNullOrEmpty(searchFilter))
             {
                 query += $"&search={Uri.EscapeDataString(searchFilter)}";
             }
-            
+
             if (!string.IsNullOrEmpty(selectedSort))
             {
                 query += $"&sort={selectedSort}";
             }
 
-            var response = await httpClient.GetFromJsonAsync<StudyResponseWrapper>(query);
-            
+            var response = await client.GetFromJsonAsync<StudyResponseWrapper>(query);
+
             if (response != null)
             {
                 studies = response.data;
@@ -351,8 +355,12 @@
     {
         public Guid uuid { get; set; }
         public string? name { get; set; }
+        public string? orcid { get; set; }
+        public string? ncbiId { get; set; }
+        public int paperCount { get; set; }
         public string? role { get; set; }
         public string? affiliation { get; set; }
+        public string? primaryAffiliation { get; set; }
         public int studyCount { get; set; }
         public List<string>? coInvestigators { get; set; }
         public List<string>? conditionsFocusAreas { get; set; }

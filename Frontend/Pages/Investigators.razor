@@ -39,7 +39,9 @@ else if (investigators is not null)
                 <tr>
                     <th>Name</th>
                     <th>Affiliation</th>
-                    <th>Study Count</th>
+                    <th>ORCID</th>
+                    <th>Studies</th>
+                    <th>Papers</th>
                 </tr>
             </thead>
             <tbody>
@@ -47,8 +49,19 @@ else if (investigators is not null)
                 {
                     <tr>
                         <td><a href="/investigator/@inv.uuid">@inv.name</a></td>
-                        <td>@inv.affiliation</td>
+                        <td>@inv.primaryAffiliation</td>
+                        <td>
+                            @if (inv.orcid is not null)
+                            {
+                                <a href="https://orcid.org/@inv.orcid" target="_blank">@inv.orcid</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
                         <td>@inv.studyCount</td>
+                        <td>@inv.paperCount</td>
                     </tr>
                 }
             </tbody>
@@ -85,7 +98,6 @@ else if (investigators is not null)
 
     protected override async Task OnInitializedAsync()
     {
-        // Load all investigators on page initialization
         await LoadPage(1);
     }
 
@@ -153,7 +165,10 @@ else if (investigators is not null)
     {
         public Guid uuid { get; set; }
         public string? name { get; set; }
-        public string? affiliation { get; set; }
+        public string? orcid { get; set; }
+        public string? ncbiId { get; set; }
         public int studyCount { get; set; }
+        public int paperCount { get; set; }
+        public string? primaryAffiliation { get; set; }
     }
 }

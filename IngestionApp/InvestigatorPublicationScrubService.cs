@@ -8,11 +8,23 @@ using Scrapers.Persistence;
 
 namespace IngestionApp
 {
-    public class InvestigatorPublicationScrubService : BackgroundService
+    internal sealed class InvestigatorPublicationScrubService : BackgroundService
     {
         private readonly string _connectionString;
         private readonly ILogger<InvestigatorPublicationScrubService> _logger;
         private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+
+        private static readonly Action<ILogger, Exception?> LogStarted =
+            LoggerMessage.Define(LogLevel.Information, 0, "InvestigatorPublicationScrubService started");
+
+        private static readonly Action<ILogger, Exception?> LogError =
+            LoggerMessage.Define(LogLevel.Error, 0, "Error processing investigator scrub event");
+
+        private static readonly Action<ILogger, Guid, Exception?> LogScrubbed =
+            LoggerMessage.Define<Guid>(LogLevel.Information, 0, "Scrubbed publications for investigator {PersonId}");
+
+        private static readonly Action<ILogger, Exception?> LogScrubFailed =
+            LoggerMessage.Define(LogLevel.Warning, 0, "Failed to scrub investigator publications");
 
         public InvestigatorPublicationScrubService(
             string connectionString,
@@ -24,7 +36,7 @@ namespace IngestionApp
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("InvestigatorPublicationScrubService started");
+            LogStarted(_logger, null);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -38,7 +50,7 @@ namespace IngestionApp
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing investigator scrub event");
+                    LogError(_logger, ex);
                 }
 
                 await Task.Delay(PollInterval, stoppingToken).ConfigureAwait(false);
@@ -66,7 +78,7 @@ namespace IngestionApp
 
             pipelineEvent.Status = "processing";
             pipelineEvent.ClaimedAt = DateTime.UtcNow;
-            pipelineEvent.ClaimedBy = GetType().Name;
+            pipelineEvent.ClaimedBy = nameof(InvestigatorPublicationScrubService);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             try
@@ -78,7 +90,7 @@ namespace IngestionApp
                 pipelineEvent.CompletedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-                _logger.LogInformation("Scrubbed publications for investigator {PersonId}", personId);
+                LogScrubbed(_logger, personId, null);
             }
             catch (Exception ex)
             {
@@ -87,11 +99,11 @@ namespace IngestionApp
                 pipelineEvent.LastErrorAt = DateTime.UtcNow;
                 pipelineEvent.ErrorMessage = ex.Message;
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                _logger.LogWarning(ex, "Failed to scrub investigator publications");
+                LogScrubFailed(_logger, ex);
             }
         }
 
-        private async Task ScrubInvestigatorAsync(
+        private static async Task ScrubInvestigatorAsync(
             DbContextOptions<ClinicalTrialsContext> contextOptions,
             Guid personId,
             CancellationToken cancellationToken)

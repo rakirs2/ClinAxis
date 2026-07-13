@@ -27,6 +27,8 @@ namespace Scrapers.Persistence
         public DbSet<InvestigatorPersonEntity> InvestigatorPersons => Set<InvestigatorPersonEntity>();
         public DbSet<InvestigatorAffiliationEntity> InvestigatorAffiliations => Set<InvestigatorAffiliationEntity>();
         public DbSet<StudyInvestigatorEntity> StudyInvestigators => Set<StudyInvestigatorEntity>();
+        public DbSet<StudyOutcomeEntity> StudyOutcomes => Set<StudyOutcomeEntity>();
+        public DbSet<StudyArmGroupEntity> StudyArmGroups => Set<StudyArmGroupEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -49,6 +51,12 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.PrimaryPurpose).HasColumnName("primary_purpose");
                 entity.Property(e => e.InterventionModel).HasColumnName("intervention_model");
                 entity.Property(e => e.Allocation).HasColumnName("allocation");
+                entity.Property(e => e.Masking).HasColumnName("masking");
+                entity.Property(e => e.OrgStudyId).HasColumnName("org_study_id");
+                entity.Property(e => e.LeadSponsorName).HasColumnName("lead_sponsor_name");
+                entity.Property(e => e.CollaboratorNames).HasColumnName("collaborator_names");
+                entity.Property(e => e.EligibilityCriteria).HasColumnName("eligibility_criteria");
+                entity.Property(e => e.HealthyVolunteers).HasColumnName("healthy_volunteers");
                 entity.Property(e => e.EnrollmentCount).HasColumnName("enrollment_count");
                 entity.Property(e => e.Sex).HasColumnName("sex");
                 entity.Property(e => e.MinimumAge).HasColumnName("minimum_age");
@@ -293,6 +301,41 @@ namespace Scrapers.Persistence
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(e => e.Pmid);
+            });
+
+            modelBuilder.Entity<StudyOutcomeEntity>(entity =>
+            {
+                entity.ToTable("study_outcomes");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.OutcomeType).HasColumnName("outcome_type").HasMaxLength(20);
+                entity.Property(e => e.Measure).HasColumnName("measure");
+                entity.Property(e => e.Description).HasColumnName("description");
+                entity.Property(e => e.TimeFrame).HasColumnName("time_frame");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.Outcomes)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<StudyArmGroupEntity>(entity =>
+            {
+                entity.ToTable("study_arm_groups");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Label).HasColumnName("label");
+                entity.Property(e => e.Type).HasColumnName("type");
+                entity.Property(e => e.Description).HasColumnName("description");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.ArmGroups)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<PipelineRunEntity>(entity =>
