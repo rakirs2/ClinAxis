@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Scrapers.Persistence;
+using Scrapers.Persistence.Entities;
 
 namespace IngestionApp
 {
@@ -83,7 +84,7 @@ namespace IngestionApp
 
             try
             {
-                var personId = Guid.Parse(pipelineEvent.Data);
+                var personId = Guid.Parse(pipelineEvent.Data!);
                 await ScrubInvestigatorAsync(contextOptions, personId, cancellationToken).ConfigureAwait(false);
 
                 pipelineEvent.Status = "completed";
