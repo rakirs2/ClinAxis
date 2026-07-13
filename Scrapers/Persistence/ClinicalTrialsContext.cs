@@ -7,7 +7,6 @@ namespace Scrapers.Persistence
     public class ClinicalTrialsContext : DbContext
     {
         public DbSet<StudyEntity> Studies => Set<StudyEntity>();
-        public DbSet<InvestigatorEntity> Investigators => Set<InvestigatorEntity>();
         public DbSet<PubmedPaperEntity> PubmedPapers => Set<PubmedPaperEntity>();
         public DbSet<StudyPaperEntity> StudyPapers => Set<StudyPaperEntity>();
         public DbSet<InvestigatorPaperEntity> InvestigatorPapers => Set<InvestigatorPaperEntity>();
@@ -66,23 +65,6 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.StudyFirstPostDate).HasColumnName("study_first_post_date");
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
-            });
-
-            modelBuilder.Entity<InvestigatorEntity>(entity =>
-            {
-                entity.ToTable("investigators");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
-                entity.Property(e => e.Name).HasColumnName("name");
-                entity.Property(e => e.Role).HasColumnName("role");
-                entity.Property(e => e.Affiliation).HasColumnName("affiliation");
-
-                entity.HasOne(e => e.Study)
-                    .WithMany(s => s.Investigators)
-                    .HasForeignKey(e => e.StudyNctId)
-                    .HasPrincipalKey(s => s.NctId)
-                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<PubmedPaperEntity>(entity =>
