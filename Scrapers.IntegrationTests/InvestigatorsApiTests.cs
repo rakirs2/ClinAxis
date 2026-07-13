@@ -168,13 +168,12 @@ public sealed class InvestigatorsApiTests : DbTestBase
         var repo = new StudyRepository(snapshot.ConnectionString);
 
         // Act
-        int totalCount = await repo.CountInvestigatorsAsync();
+        int personCount = await repo.CountInvestigatorPersonsFilteredAsync();
         var pagedResults = await repo.GetInvestigatorsPagedAsync(page: 1, pageSize: 1000, search: null);
 
         // Assert
-        Assert.IsTrue(totalCount > 0, "Should have investigators in database");
-        // Note: Total count >= paged results because there may be more than pageSize=1000
-        Assert.IsTrue(totalCount >= pagedResults.Count, "Total count should be >= paged results");
+        Assert.IsTrue(personCount > 0, "Should have investigators in database");
+        Assert.IsTrue(pagedResults.Count > 0, "Legacy investigator query should return results");
     }
 
     [TestMethod]

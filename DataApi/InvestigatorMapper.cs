@@ -31,6 +31,7 @@ internal static class InvestigatorMapper
             orcid = person.Orcid,
             ncbiId = person.NcbiId,
             studyCount = person.StudyInvestigators?.Count ?? 0,
+            paperCount = person.InvestigatorPapers?.Count ?? 0,
             primaryAffiliation = person.Affiliations?.FirstOrDefault(a => a.IsPrimary)?.InstitutionName
         };
     }
@@ -188,6 +189,7 @@ internal static class InvestigatorMapper
             name = person.FullName,
             orcid = person.Orcid,
             ncbiId = person.NcbiId,
+            paperCount = person.InvestigatorPapers?.Count ?? 0,
             primaryAffiliation = person.Affiliations?.FirstOrDefault(a => a.IsPrimary)?.InstitutionName,
             affiliations = person.Affiliations?.Select(a => new
             {

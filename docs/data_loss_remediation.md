@@ -3,7 +3,7 @@
 ## Summary
 The ClinicalTrials.gov scraper was losing **22 fields** from the API response. This document tracks remediation status and prioritizes fixes.
 
-**Current Status:** 1 of 7 categories fixed (Locations in PR #58)
+**Current Status:** 7 of 7 categories fixed
 
 The entity model described in `docs/scraper_architecture.md` defines the target state for all persistence. Some fields will be stored as scalar columns on `StudyEntity`; others will use junction tables as documented.
 
@@ -26,57 +26,50 @@ A comprehensive code audit identified 22 fields from the ClinicalTrials.gov API 
 
 ---
 
-### PRIORITY 2: Eligibility & Enrollment (Next)
-**Status:** TODO
+### PRIORITY 2: Eligibility & Enrollment (FIXED ✓)
+**Status:** COMPLETE
 - **Fields:** `EligibilityCriteria`, `HealthyVolunteers`
-- **Storage:** Add scalar fields to `StudyEntity`
-- **Impact:** Users cannot filter studies by enrollment criteria or healthy volunteer status
-- **Effort:** ~20 lines (add 2 fields to StudyEntity + migration + mapper)
+- **Storage:** Scalar fields on `StudyEntity`
+- **Effort:** ~20 lines
 
 ---
 
-### PRIORITY 3: Sponsorship & Funding (Next)
-**Status:** TODO
+### PRIORITY 3: Sponsorship & Funding (FIXED ✓)
+**Status:** COMPLETE
 - **Fields:** `LeadSponsorName`, `CollaboratorNames`
-- **Storage:** Add to `StudyEntity` or create new `SponsorEntity`
-- **Impact:** Cannot identify primary sponsor or collaborating institutions/funding sources
-- **Effort:** ~20 lines (add 2 fields to StudyEntity + migration + mapper)
+- **Storage:** Scalar fields on `StudyEntity`
+- **Effort:** ~20 lines
 
 ---
 
-### PRIORITY 4: Trial Design Details (Next)
-**Status:** TODO
+### PRIORITY 4: Trial Design Details (FIXED ✓)
+**Status:** COMPLETE
 - **Fields:** `Masking` (blinding strategy), `OrgStudyId`
-- **Storage:** Add scalar fields to `StudyEntity`
-- **Impact:** Cannot distinguish study design (blinded vs open-label); no organization-level study identifier
-- **Effort:** ~20 lines (add 2 fields to StudyEntity + migration + mapper)
+- **Storage:** Scalar fields on `StudyEntity`
+- **Effort:** ~20 lines
 
 ---
 
-### PRIORITY 5: References & Publications (Next)
-**Status:** TODO
+### PRIORITY 5: References & Publications (FIXED ✓)
+**Status:** COMPLETE in PR #89
 - **Fields:** `References[]` array with pmid, citation, type
-- **Storage:** New junction table `StudyReferenceEntity` (3 fields per record)
-- **Impact:** Losing links to supporting research publications; PubMed scraper re-fetches what's already in API (duplicate work)
-- **Effort:** ~60 lines (new junction table + migration + mapping loop)
+- **Storage:** Junction table `StudyReferenceEntity`
 
 ---
 
-### PRIORITY 6: Trial Outcomes (Next)
-**Status:** TODO
+### PRIORITY 6: Trial Outcomes (FIXED ✓)
+**Status:** COMPLETE
 - **Fields:** `PrimaryOutcomes[]`, `SecondaryOutcomes[]` (measure, description, timeFrame each)
-- **Storage:** New junction table `StudyOutcomeEntity` (4 fields: type, measure, description, timeFrame)
-- **Impact:** Cannot see what success criteria are being measured or expected outcomes
-- **Effort:** ~80 lines (new junction table + migration + mapping loop)
+- **Storage:** Junction table `StudyOutcomeEntity` (5 fields: type, measure, description, timeFrame, study_nct_id)
+- **Effort:** ~80 lines
 
 ---
 
-### PRIORITY 7: Trial Arms (Next)
-**Status:** TODO
+### PRIORITY 7: Trial Arms (FIXED ✓)
+**Status:** COMPLETE
 - **Fields:** `ArmGroups[]` array with label, type, description
-- **Storage:** New junction table `StudyArmGroupEntity` (3 fields per record)
-- **Impact:** No information about experiment vs control group structure; cannot understand study design
-- **Effort:** ~70 lines (new junction table + migration + mapping loop)
+- **Storage:** Junction table `StudyArmGroupEntity` (4 fields: label, type, description, study_nct_id)
+- **Effort:** ~70 lines
 
 ---
 
@@ -84,14 +77,14 @@ A comprehensive code audit identified 22 fields from the ClinicalTrials.gov API 
 
 | Category | Fields | Status | Table Type | Effort |
 |----------|--------|--------|-----------|--------|
-| **Locations** | 4 | ✓ FIXED | Junction | 30 lines |
-| **Eligibility** | 2 | TODO | Scalar | 20 lines |
-| **Sponsorship** | 2 | TODO | Scalar | 20 lines |
-| **Design** | 2 | TODO | Scalar | 20 lines |
-| **References** | 3 | TODO | Junction | 60 lines |
-| **Outcomes** | 6 | TODO | Junction | 80 lines |
-| **Arms** | 3 | TODO | Junction | 70 lines |
-| **TOTAL** | **22** | **1 Fixed** | **—** | **~360 lines** |
+| **Locations** | 4 | ✓ FIXED (PR #58) | Junction | 30 lines |
+| **Eligibility** | 2 | ✓ FIXED | Scalar | 20 lines |
+| **Sponsorship** | 2 | ✓ FIXED | Scalar | 20 lines |
+| **Design** | 2 | ✓ FIXED | Scalar | 20 lines |
+| **References** | 3 | ✓ FIXED (PR #89) | Junction | 60 lines |
+| **Outcomes** | 6 | ✓ FIXED | Junction | 80 lines |
+| **Arms** | 3 | ✓ FIXED | Junction | 70 lines |
+| **TOTAL** | **22** | **7 Fixed** | **—** | **~360 lines** |
 
 ---
 
@@ -135,11 +128,7 @@ Some fields now belong on new normalized tables rather than `StudyEntity`:
 
 ## Why Zero Data Loss Matters
 
-**Current Impact:** The scraper deserializes all 22 fields from ClinicalTrials.gov API but discards them. This means:
-- Geographic search is incomplete (no location filtering)
-- Study comparison is blind (no sponsor, design, outcome data)
-- Duplicate work (PubMed scraper re-fetches references)
-- Incomplete study records (missing critical metadata)
+**Current Impact:** All 22 fields are now persisted. Geographic search works, study comparison includes sponsor/design/outcome data, references are captured from the API to avoid duplicate PubMed fetches, and study records are complete.
 
 **Long-term:** Each field is part of a public API contract. The API will not expand to include data we discard—we must persist it now or lose it forever.
 
@@ -153,11 +142,6 @@ Some fields now belong on new normalized tables rather than `StudyEntity`:
 
 ---
 
-## Next Agent Instructions
+## All Data Loss Remediated
 
-When starting a new data loss remediation PR:
-1. Read `docs/scraper_architecture.md` to understand the target entity model
-2. Read this file to understand what's left to fix and why
-3. Check the "How to Approach Future PRs" section for the pattern
-4. Follow PR guidelines in AGENTS.md (one feature per PR, all tests passing)
-5. Update this file when your PR is merged (mark category as DONE, add link)
+All 22 fields from the ClinicalTrials.gov API response are now persisted. No further data loss remediation PRs are needed.

@@ -32,32 +32,55 @@ namespace Scrapers.Services
 
             foreach (StudyEntity study in studies)
             {
-                if (study.Investigators == null)
-                {
-                    continue;
-                }
-
                 var pubmedCount = study.StudyPapers?.Count ?? 0;
 
-                foreach (InvestigatorEntity investigator in study.Investigators)
+                if (study.StudyInvestigators is { Count: > 0 })
                 {
-                    if (string.IsNullOrWhiteSpace(investigator.Name))
+                    foreach (StudyInvestigatorEntity si in study.StudyInvestigators)
                     {
-                        continue;
-                    }
+                        var person = si.InvestigatorPerson;
+                        if (person == null || string.IsNullOrWhiteSpace(person.FullName))
+                        {
+                            continue;
+                        }
 
-                    if (!piMap.TryGetValue(investigator.Name, out (HashSet<string> StudyIds, HashSet<string> Affiliations, int PubmedCount) entry))
-                    {
-                        entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
-                    }
+                        if (!piMap.TryGetValue(person.FullName, out var entry))
+                        {
+                            entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
+                        }
 
-                    entry.StudyIds.Add(study.NctId);
-                    if (!string.IsNullOrWhiteSpace(investigator.Affiliation))
-                    {
-                        entry.Affiliations.Add(investigator.Affiliation);
+                        entry.StudyIds.Add(study.NctId);
+                        var primaryAffiliation = person.Affiliations?.FirstOrDefault(a => a.IsPrimary)?.InstitutionName;
+                        if (!string.IsNullOrWhiteSpace(primaryAffiliation))
+                        {
+                            entry.Affiliations.Add(primaryAffiliation);
+                        }
+                        entry.PubmedCount += pubmedCount;
+                        piMap[person.FullName] = entry;
                     }
-                    entry.PubmedCount += pubmedCount;
-                    piMap[investigator.Name] = entry;
+                }
+                else if (study.Investigators != null)
+                {
+                    foreach (InvestigatorEntity investigator in study.Investigators)
+                    {
+                        if (string.IsNullOrWhiteSpace(investigator.Name))
+                        {
+                            continue;
+                        }
+
+                        if (!piMap.TryGetValue(investigator.Name, out var entry))
+                        {
+                            entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
+                        }
+
+                        entry.StudyIds.Add(study.NctId);
+                        if (!string.IsNullOrWhiteSpace(investigator.Affiliation))
+                        {
+                            entry.Affiliations.Add(investigator.Affiliation);
+                        }
+                        entry.PubmedCount += pubmedCount;
+                        piMap[investigator.Name] = entry;
+                    }
                 }
             }
 
