@@ -232,6 +232,11 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("orcid");
 
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prefix");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
