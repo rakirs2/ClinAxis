@@ -95,18 +95,18 @@ jobs:
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
 
-       - name: Stop services and update environment
-         run: |
-           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-           sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
-           sleep 5
-           cat > /etc/clinicaltrialdata.env <<'EOF'
-           POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
-           INGESTION_STUDY_LIMIT=0
-           INGESTION_RESET_DB=true
-           ASPNETCORE_ENVIRONMENT=Production
-           EOF
-           EOSSH
+      - name: Stop services and update environment
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          sleep 5
+          cat > /etc/clinicaltrialdata.env <<'EOF'
+          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
+          INGESTION_STUDY_LIMIT=0
+          INGESTION_RESET_DB=true
+          ASPNETCORE_ENVIRONMENT=Production
+          EOF
+          EOSSH
 
       - name: Start services
         run: |
