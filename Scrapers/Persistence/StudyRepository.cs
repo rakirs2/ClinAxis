@@ -238,27 +238,27 @@ namespace Scrapers.Persistence
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            if (rejectedNames.Count > 0)
+            foreach (var entry in rejectedNames)
             {
-                context.ScrapeEvents.Add(new ScrapeEventEntity
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
                 {
-                    Timestamp = DateTime.UtcNow,
-                    Source = "NameFilter",
-                    EventType = "rejection",
-                    Level = "Warning",
-                    Message = $"Rejected non-person official names ({rejectedNames.Count}): {string.Join("; ", rejectedNames.Take(20))}{(rejectedNames.Count > 20 ? $" (+{rejectedNames.Count - 20} more)" : "")}"
+                    EntityType = "investigator_name",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
                 });
             }
 
-            if (rejectedKeywords.Count > 0)
+            foreach (var entry in rejectedKeywords)
             {
-                context.ScrapeEvents.Add(new ScrapeEventEntity
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
                 {
-                    Timestamp = DateTime.UtcNow,
-                    Source = "KeywordFilter",
-                    EventType = "rejection",
-                    Level = "Info",
-                    Message = $"Filtered keywords ({rejectedKeywords.Count}): {string.Join("; ", rejectedKeywords.Take(20))}{(rejectedKeywords.Count > 20 ? $" (+{rejectedKeywords.Count - 20} more)" : "")}"
+                    EntityType = "keyword",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
                 });
             }
 
