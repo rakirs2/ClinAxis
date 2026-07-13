@@ -1,0 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace Scrapers.Persistence.Entities
+{
+    public class InvestigatorPersonEntity
+    {
+        [Key]
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string FullName { get; set; } = string.Empty;
+        public string? Orcid { get; set; }
+        public string? NcbiId { get; set; }
+        public DateTime? VerifiedAt { get; set; }
+        public string? VerificationSource { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
+        public ICollection<InvestigatorAffiliationEntity>? Affiliations { get; set; }
+    }
+}

@@ -264,13 +264,172 @@ internal static class SeedData
         ]
     };
 
+    internal static readonly InvestigatorPersonEntity Person1 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000001"),
+        FullName = "Dr. Alice Johnson, MD, PhD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person2 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000002"),
+        FullName = "Prof. Bob Williams, MD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person3 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000003"),
+        FullName = "Prof. Carol Davis, PhD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person4 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000004"),
+        FullName = "Dr. James Smith, MD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person5 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000005"),
+        FullName = "Prof. Dr. Sarah Campbell, MSc",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person6 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000006"),
+        FullName = "Dr. Michael Chen, PhD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person7 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000007"),
+        FullName = "Prof. Robert Miller, MD, MSc",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person8 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000008"),
+        FullName = "Dr. Anna Martinez, PhD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person9 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000009"),
+        FullName = "Dr. David Williams, MD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person10 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000010"),
+        FullName = "Prof. Emily Brown, MD, PhD",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person11 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000011"),
+        FullName = "Dr. Christopher Lee, MSc",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    internal static readonly InvestigatorPersonEntity Person12 = new()
+    {
+        Id = Guid.Parse("A0000000-0000-0000-0000-000000000012"),
+        FullName = "Prof. Jennifer Garcia, MD, MSc",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+
+    // Note: Dr. Alice Johnson appears in two studies (NCT00000002 and NCT00000003)
+    // Person1 is reused for both, demonstrating the dedup model.
+    internal static readonly StudyInvestigatorEntity StudyInvestigator1 = new()
+    {
+        StudyNctId = "NCT00000002", InvestigatorPersonId = Person1.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator2 = new()
+    {
+        StudyNctId = "NCT00000002", InvestigatorPersonId = Person2.Id, RoleOnStudy = "SUB_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator3 = new()
+    {
+        StudyNctId = "NCT00000003", InvestigatorPersonId = Person1.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator4 = new()
+    {
+        StudyNctId = "NCT00000004", InvestigatorPersonId = Person3.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator5 = new()
+    {
+        StudyNctId = "NCT00000006", InvestigatorPersonId = Person4.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator6 = new()
+    {
+        StudyNctId = "NCT00000006", InvestigatorPersonId = Person5.Id, RoleOnStudy = "SUB_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator7 = new()
+    {
+        StudyNctId = "NCT00000007", InvestigatorPersonId = Person6.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator8 = new()
+    {
+        StudyNctId = "NCT00000008", InvestigatorPersonId = Person7.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator9 = new()
+    {
+        StudyNctId = "NCT00000008", InvestigatorPersonId = Person8.Id, RoleOnStudy = "SUB_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator10 = new()
+    {
+        StudyNctId = "NCT00000009", InvestigatorPersonId = Person9.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator11 = new()
+    {
+        StudyNctId = "NCT00000010", InvestigatorPersonId = Person10.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator12 = new()
+    {
+        StudyNctId = "NCT00000011", InvestigatorPersonId = Person11.Id, RoleOnStudy = "PRINCIPAL_INVESTIGATOR", IsOverallOfficial = true
+    };
+    internal static readonly StudyInvestigatorEntity StudyInvestigator13 = new()
+    {
+        StudyNctId = "NCT00000011", InvestigatorPersonId = Person12.Id, RoleOnStudy = "SUB_INVESTIGATOR", IsOverallOfficial = true
+    };
+
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
+        ctx.InvestigatorPersons.AddRange(
+            Person1, Person2, Person3, Person4, Person5, Person6,
+            Person7, Person8, Person9, Person10, Person11, Person12);
         ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5, Study6, Study7, Study8, Study9, Study10, Study11);
         ctx.Investigators.AddRange(
             Investigator1, Investigator2, Investigator3, Investigator4, Investigator5, Investigator6,
             Investigator7, Investigator8, Investigator9, Investigator10, Investigator11, Investigator12,
             Investigator13);
+        ctx.StudyInvestigators.AddRange(
+            StudyInvestigator1, StudyInvestigator2, StudyInvestigator3, StudyInvestigator4,
+            StudyInvestigator5, StudyInvestigator6, StudyInvestigator7, StudyInvestigator8,
+            StudyInvestigator9, StudyInvestigator10, StudyInvestigator11, StudyInvestigator12,
+            StudyInvestigator13);
         await ctx.SaveChangesAsync().ConfigureAwait(false);
     }
 }

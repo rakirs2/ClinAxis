@@ -50,6 +50,7 @@ namespace Scrapers.Persistence
             }
 
             using ClinicalTrialsContext context = CreateContext();
+            var batchPersons = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -73,6 +74,7 @@ namespace Scrapers.Persistence
 
                 StudyEntity? entity = await context.Studies
                     .Include(s => s.Investigators)
+                    .Include(s => s.StudyInvestigators)
                     .Include(s => s.Keywords)
                     .Include(s => s.Conditions)
                     .Include(s => s.Phases)
@@ -88,6 +90,7 @@ namespace Scrapers.Persistence
                         NctId = record.NctId!,
                         CreatedAt = DateTime.UtcNow,
                         Investigators = new List<InvestigatorEntity>(),
+                        StudyInvestigators = new List<StudyInvestigatorEntity>(),
                         Keywords = new List<StudyKeywordEntity>(),
                         Conditions = new List<StudyConditionEntity>(),
                         Phases = new List<StudyPhaseEntity>(),
@@ -101,15 +104,32 @@ namespace Scrapers.Persistence
 
                 if (!incomplete)
                 {
+                    // Keep writing to legacy InvestigatorEntity for backward compat
                     entity.Investigators!.Clear();
+
+                    // Write to normalized model with dedup
+                    entity.StudyInvestigators!.Clear();
                     foreach (Investigator investigator in officials!)
                     {
+                        var name = investigator!.Name!;
+                        var affiliation = investigator.Affiliation;
+
                         entity.Investigators.Add(new InvestigatorEntity
                         {
                             StudyNctId = record.NctId!,
-                            Name = investigator!.Name!,
-                            Affiliation = investigator.Affiliation,
+                            Name = name,
+                            Affiliation = affiliation,
                             Role = investigator.Role
+                        });
+
+                        // Find or create canonical person record (with batch dedup)
+                        var person = await FindOrCreatePersonAsync(context, batchPersons, name, cancellationToken);
+                        entity.StudyInvestigators.Add(new StudyInvestigatorEntity
+                        {
+                            StudyNctId = record.NctId!,
+                            InvestigatorPersonId = person.Id,
+                            RoleOnStudy = investigator.Role,
+                            IsOverallOfficial = true
                         });
                     }
 
@@ -294,6 +314,9 @@ namespace Scrapers.Persistence
             context.StudyConditions.RemoveRange(context.StudyConditions);
             context.StudyPhases.RemoveRange(context.StudyPhases);
             context.PubmedStudies.RemoveRange(context.PubmedStudies);
+            context.StudyInvestigators.RemoveRange(context.StudyInvestigators);
+            context.InvestigatorAffiliations.RemoveRange(context.InvestigatorAffiliations);
+            context.InvestigatorPersons.RemoveRange(context.InvestigatorPersons);
             context.Investigators.RemoveRange(context.Investigators);
             context.Studies.RemoveRange(context.Studies);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -424,6 +447,9 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
                 .Include(s => s.Investigators)
+                .Include(s => s.StudyInvestigators!)
+                    .ThenInclude(si => si.InvestigatorPerson)
+                        .ThenInclude(ip => ip!.Affiliations)
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -437,6 +463,8 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             IQueryable<StudyEntity> query = context.Studies
                 .Include(s => s.Investigators)
+                .Include(s => s.StudyInvestigators!)
+                    .ThenInclude(si => si.InvestigatorPerson)
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -514,6 +542,9 @@ namespace Scrapers.Persistence
 
             var query = context.Studies
                 .Include(s => s.Investigators)
+                .Include(s => s.StudyInvestigators!)
+                    .ThenInclude(si => si.InvestigatorPerson)
+                        .ThenInclude(ip => ip!.Affiliations)
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -1000,6 +1031,46 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             return await context.ScrapeEvents
                 .CountAsync(e => e.Timestamp >= since, cancellationToken).ConfigureAwait(false);
+        }
+
+        private static async Task<InvestigatorPersonEntity> FindOrCreatePersonAsync(
+            ClinicalTrialsContext context,
+            Dictionary<string, InvestigatorPersonEntity> batchPersons,
+            string name,
+            CancellationToken cancellationToken)
+        {
+            var trimmed = name.Trim();
+
+            // 1. Check batch-local cache first (same batch, not yet saved)
+            if (batchPersons.TryGetValue(trimmed, out var cached))
+            {
+                cached.UpdatedAt = DateTime.UtcNow;
+                return cached;
+            }
+
+            // 2. Check database for previously persisted person
+            var existing = await context.InvestigatorPersons
+                .FirstOrDefaultAsync(p => p.FullName == trimmed, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (existing != null)
+            {
+                existing.UpdatedAt = DateTime.UtcNow;
+                batchPersons[trimmed] = existing;
+                return existing;
+            }
+
+            // 3. Create new person record
+            var person = new InvestigatorPersonEntity
+            {
+                Id = Guid.NewGuid(),
+                FullName = trimmed,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.InvestigatorPersons.Add(person);
+            batchPersons[trimmed] = person;
+            return person;
         }
 
         private ClinicalTrialsContext CreateContext()
