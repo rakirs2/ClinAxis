@@ -33,10 +33,21 @@ Open http://localhost:5001 in your browser.
 
 ## Ingest Data
 
+In development, the DataApi seeds test data automatically on startup (non-Production environments only).
+
+For production ingestion, the IngestionApp runs as a background service with an event-driven pipeline:
+
 ```bash
 export POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres"
-dotnet run --project IngestionApp/ -- 50
+dotnet run --project IngestionApp/
 ```
+
+The IngestionApp:
+- Periodically fetches studies from ClinicalTrials.gov
+- Enqueues discovery events for downstream processing
+- Scrubs investigator publication records via PubMed
+
+See `docs/scraper_architecture.md` for the full pipeline design.
 
 ## Tests
 
@@ -92,7 +103,7 @@ sudo journalctl -u clinicaltrialdata-api -f       # View logs
 - **Frontend**: Any `200` response on `GET /` indicates health
 - **IngestionApp**: Background service, no health endpoint
 
-For details on the deployment architecture, see `ARCHITECTURE.md` → "Deployment Architecture" section.
+For details on the deployment architecture, see `docs/scraper_architecture.md` → "Architecture Decisions" section.
 
 ## Advanced Search
 
