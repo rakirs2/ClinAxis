@@ -17,7 +17,7 @@ namespace Scrapers.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0-preview.3.25171.6")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -788,6 +788,43 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("study_phases", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyReferenceEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Citation")
+                        .HasColumnType("text")
+                        .HasColumnName("citation");
+
+                    b.Property<string>("Pmid")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pmid");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Type")
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Pmid");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("study_references", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
@@ -875,6 +912,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Study");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyReferenceEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
+                        .WithMany("References")
+                        .HasForeignKey("StudyNctId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Study");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
                 {
                     b.Navigation("Authors");
@@ -890,6 +938,8 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Phases");
 
                     b.Navigation("PubmedStudies");
+
+                    b.Navigation("References");
                 });
 #pragma warning restore 612, 618
         }

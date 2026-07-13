@@ -16,9 +16,9 @@ if (string.IsNullOrWhiteSpace(cs))
 
 var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
 
-// Ensure database schema is created
+// Reset database on every IngestionApp redeploy (fresh state)
 var repo = new StudyRepository(cs);
-await repo.EnsureSchemaAsync().ConfigureAwait(false);
+await repo.ResetDatabaseAsync().ConfigureAwait(false);
 
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
