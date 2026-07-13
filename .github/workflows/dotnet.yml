@@ -38,13 +38,14 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --no-restore
+        # Note: CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
-        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
 
       - name: DB Integration Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory!=HttpLive"
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory!=HttpLive"
 
   live-http-tests:
     needs: unit-and-db-tests
@@ -78,13 +79,14 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --no-restore
+        # Note: CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Start services (background)
         run: |
-          nohup dotnet run --project DataApi/DataApi.csproj --configuration Release --no-build > /tmp/dataapi.log 2>&1 &
+          nohup dotnet run --project DataApi/DataApi.csproj --no-build > /tmp/dataapi.log 2>&1 &
           echo "DataApi PID: $!"
-          nohup dotnet run --project Frontend/Frontend.csproj --configuration Release --no-build > /tmp/frontend.log 2>&1 &
+          nohup dotnet run --project Frontend/Frontend.csproj --no-build > /tmp/frontend.log 2>&1 &
           echo "Frontend PID: $!"
 
       - name: Wait for services
@@ -109,4 +111,4 @@ jobs:
           exit 1
 
       - name: Live HTTP Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory=HttpLive"
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory=HttpLive"

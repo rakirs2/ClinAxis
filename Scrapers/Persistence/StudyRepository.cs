@@ -74,7 +74,6 @@ namespace Scrapers.Persistence
                 }
 
                 StudyEntity? entity = await context.Studies
-                    .Include(s => s.Investigators)
                     .Include(s => s.StudyInvestigators)
                     .Include(s => s.Keywords)
                     .Include(s => s.Conditions)
@@ -90,7 +89,6 @@ namespace Scrapers.Persistence
                     {
                         NctId = record.NctId!,
                         CreatedAt = DateTime.UtcNow,
-                        Investigators = new List<InvestigatorEntity>(),
                         StudyInvestigators = new List<StudyInvestigatorEntity>(),
                         Keywords = new List<StudyKeywordEntity>(),
                         Conditions = new List<StudyConditionEntity>(),
@@ -108,25 +106,11 @@ namespace Scrapers.Persistence
 
                 if (!incomplete)
                 {
-                    // Keep writing to legacy InvestigatorEntity for backward compat
-                    entity.Investigators!.Clear();
-
-                    // Write to normalized model with dedup
                     entity.StudyInvestigators!.Clear();
                     foreach (Investigator investigator in officials!)
                     {
                         var name = investigator!.Name!;
-                        var affiliation = investigator.Affiliation;
 
-                        entity.Investigators.Add(new InvestigatorEntity
-                        {
-                            StudyNctId = record.NctId!,
-                            Name = name,
-                            Affiliation = affiliation,
-                            Role = investigator.Role
-                        });
-
-                        // Find or create canonical person record (with batch dedup)
                         var person = await FindOrCreatePersonAsync(context, batchPersons, name, cancellationToken);
                         entity.StudyInvestigators.Add(new StudyInvestigatorEntity
                         {
@@ -367,7 +351,6 @@ namespace Scrapers.Persistence
             context.StudyInvestigators.RemoveRange(context.StudyInvestigators);
             context.InvestigatorAffiliations.RemoveRange(context.InvestigatorAffiliations);
             context.InvestigatorPersons.RemoveRange(context.InvestigatorPersons);
-            context.Investigators.RemoveRange(context.Investigators);
             context.Studies.RemoveRange(context.Studies);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -376,7 +359,7 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
-                .Include(s => s.Investigators)
+                .Include(s => s.StudyInvestigators)
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -387,101 +370,6 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.PubmedPapers.ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<IReadOnlyList<int>> GetInvestigatorIdsAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.Investigators.Select(i => i.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Get a single investigator by UUID with their basic information.
-        /// </summary>
-        public async Task<InvestigatorEntity?> GetInvestigatorByUuidAsync(Guid uuid, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.Investigators
-                .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Uuid == uuid, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Get all studies for a specific investigator, with support for filtering and pagination.
-        /// </summary>
-        public async Task<IReadOnlyList<StudyEntity>> GetStudiesByInvestigatorUuidAsync(Guid uuid, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(criteria);
-            
-            using ClinicalTrialsContext context = CreateContext();
-            
-            // Start by filtering to only studies where this investigator is involved
-            var query = context.Studies
-                .Include(s => s.Investigators)
-                .Include(s => s.Keywords)
-                .Include(s => s.Conditions)
-                .Include(s => s.Phases)
-                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
-                .AsNoTracking()
-                .Where(s => s.Investigators != null && s.Investigators.Any(i => i.Uuid == uuid));
-
-            // Apply the same filtering logic as SearchStudiesAsync
-            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
-            {
-                var keyword = $"%{criteria.Keyword}%";
-                query = query.Where(s =>
-                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
-                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
-                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
-                    EF.Functions.ILike(s.NctId, keyword));
-            }
-
-            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
-            {
-                query = query.Where(s => s.OverallStatus != null && criteria.Statuses.Contains(s.OverallStatus));
-            }
-
-            if (criteria.Phases != null && criteria.Phases.Count > 0)
-            {
-                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase != null && criteria.Phases.Contains(p.Phase)));
-            }
-
-            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
-            {
-                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
-            }
-
-            if (criteria.EnrollmentMin.HasValue)
-            {
-                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount >= criteria.EnrollmentMin.Value);
-            }
-
-            if (criteria.EnrollmentMax.HasValue)
-            {
-                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount <= criteria.EnrollmentMax.Value);
-            }
-
-            if (criteria.StartDateFrom.HasValue)
-            {
-                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
-                query = query.Where(s => s.StartDate >= fromDate);
-            }
-
-            if (criteria.StartDateTo.HasValue)
-            {
-                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
-                query = query.Where(s => s.StartDate <= toDate);
-            }
-
-            // Apply pagination
-            var skip = (criteria.Page - 1) * criteria.PageSize;
-            query = query
-                .OrderBy(s => s.BriefTitle)
-                .Skip(skip)
-                .Take(criteria.PageSize);
-
-            return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<StudyEntity>> GetStudiesByInvestigatorPersonIdAsync(Guid personId, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
@@ -561,7 +449,6 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
-                .Include(s => s.Investigators)
                 .Include(s => s.StudyInvestigators!)
                     .ThenInclude(si => si.InvestigatorPerson)
                         .ThenInclude(ip => ip!.Affiliations)
@@ -579,7 +466,6 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             IQueryable<StudyEntity> query = context.Studies
-                .Include(s => s.Investigators)
                 .Include(s => s.StudyInvestigators!)
                     .ThenInclude(si => si.InvestigatorPerson)
                 .Include(s => s.Keywords)
@@ -658,7 +544,6 @@ namespace Scrapers.Persistence
             using var context = CreateContext();
 
             var query = context.Studies
-                .Include(s => s.Investigators)
                 .Include(s => s.StudyInvestigators!)
                     .ThenInclude(si => si.InvestigatorPerson)
                         .ThenInclude(ip => ip!.Affiliations)
@@ -1020,7 +905,6 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.Studies
-                .Include(s => s.Investigators)
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
@@ -1098,49 +982,6 @@ namespace Scrapers.Persistence
                 .OrderByDescending(r => r.StartedAt)
                 .Select(r => (DateTime?)r.StartedAt)
                 .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<IReadOnlyList<InvestigatorSummary>> GetInvestigatorsPagedAsync(
-            int page, int pageSize, string? search = null,
-            CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-
-            IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                query = query.Where(i => EF.Functions.ILike(i.Name!, $"%{search}%"));
-            }
-
-            IQueryable<InvestigatorSummary> grouped = query
-                .GroupBy(i => new { i.Name, i.Affiliation })
-                .Select(g => new InvestigatorSummary
-                {
-                    Uuid = g.First().Uuid,  // Use the UUID from the first investigator in the group
-                    Name = g.Key.Name,
-                    Affiliation = g.Key.Affiliation,
-                    StudyCount = g.Select(i => i.StudyNctId).Distinct().Count()
-                })
-                .OrderByDescending(x => x.StudyCount)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize);
-
-            return await grouped.ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<int> CountInvestigatorsFilteredAsync(string? search = null, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-
-            IQueryable<InvestigatorEntity> query = context.Investigators.AsNoTracking();
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                query = query.Where(i => EF.Functions.ILike(i.Name!, $"%{search}%"));
-            }
-
-            return await query.Select(i => new { i.Name, i.Affiliation }).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<InvestigatorPersonSummary>> GetInvestigatorPersonsPagedAsync(
@@ -1420,14 +1261,6 @@ namespace Scrapers.Persistence
             CategoryType = categoryType;
             Count = count;
         }
-    }
-
-    public class InvestigatorSummary
-    {
-        public Guid Uuid { get; set; }
-        public string? Name { get; set; }
-        public string? Affiliation { get; set; }
-        public int StudyCount { get; set; }
     }
 
     public class InvestigatorPersonSummary

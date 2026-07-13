@@ -294,12 +294,12 @@ public sealed class StudyRepositoryTests : DbTestBase
             OverallStatus = "COMPLETED",
             CreatedAt = DateTime.UtcNow
         });
-        Context.Investigators.Add(new InvestigatorEntity
+        Context.StudyInvestigators.Add(new StudyInvestigatorEntity
         {
             StudyNctId = "NCT03000001",
-            Uuid = personId,
-            Name = "Dr. Marie Curie",
-            Role = "PI"
+            InvestigatorPersonId = personId,
+            RoleOnStudy = "PI",
+            IsOverallOfficial = true
         });
         Context.PubmedPapers.Add(new PubmedPaperEntity
         {

@@ -71,7 +71,7 @@ namespace Scrapers.Coordinators
 
                 foreach (StudyEntity study in studies)
                 {
-                    if (!study.IsIncomplete && (study.Investigators == null || study.Investigators.Count == 0))
+                    if (!study.IsIncomplete && (study.StudyInvestigators == null || study.StudyInvestigators.Count == 0))
                     {
                         errors.Add(new ValidationError("StudyIntegrity",
                             $"Study {study.NctId} is not marked incomplete but has no investigators."));
