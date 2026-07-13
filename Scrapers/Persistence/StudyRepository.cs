@@ -909,8 +909,6 @@ namespace Scrapers.Persistence
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
                 .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
-                .Include(s => s.Locations)
-                .Include(s => s.References)
                 .Include(s => s.Outcomes)
                 .Include(s => s.ArmGroups)
                 .AsNoTracking()
@@ -1163,9 +1161,9 @@ namespace Scrapers.Persistence
                 return;
             }
 
-            var pmids = await context.StudyPapers
-                .Where(sp => sp.PubmedPaper != null)
-                .Select(sp => sp.PubmedPaper!.Pmid)
+            var pmids = await context.StudyReferences
+                .Where(r => !string.IsNullOrWhiteSpace(r.Pmid))
+                .Select(r => r.Pmid!)
                 .Distinct()
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);

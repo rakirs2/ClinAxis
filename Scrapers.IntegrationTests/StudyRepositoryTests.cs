@@ -294,6 +294,13 @@ public sealed class StudyRepositoryTests : DbTestBase
             OverallStatus = "COMPLETED",
             CreatedAt = DateTime.UtcNow
         });
+        Context.Investigators.Add(new InvestigatorEntity
+        {
+            StudyNctId = "NCT03000001",
+            Uuid = personId,
+            Name = "Dr. Marie Curie",
+            Role = "PI"
+        });
         Context.PubmedPapers.Add(new PubmedPaperEntity
         {
             Id = paperId,
@@ -303,12 +310,20 @@ public sealed class StudyRepositoryTests : DbTestBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
-        Context.StudyPapers.Add(new StudyPaperEntity
+        Context.StudyReferences.Add(new StudyReferenceEntity
         {
             StudyNctId = "NCT03000001",
-            PubmedPaperId = paperId
+            Pmid = "99999999",
+            Citation = "Marie Curie et al. Nature.",
+            Type = "PubMed"
         });
         await Context.SaveChangesAsync();
+
+        // Verify the study reference was created
+        var refCount = await Context.StudyReferences
+            .Where(r => r.StudyNctId == "NCT03000001")
+            .CountAsync();
+        Assert.AreEqual(1, refCount, "Should have one study reference");
 
         await StudyRepository.ScrubInvestigatorPapersAsync(
             Context, personId, default);

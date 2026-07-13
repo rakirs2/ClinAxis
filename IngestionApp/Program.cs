@@ -15,11 +15,20 @@ if (string.IsNullOrWhiteSpace(cs))
     return 1;
 }
 
-var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+// Optionally reset database (set INGESTION_RESET_DB=true for fresh state on dev redeploy)
+if (Environment.GetEnvironmentVariable("INGESTION_RESET_DB") == "true")
+{
+    var repo = new StudyRepository(cs);
+    await repo.ResetDatabaseAsync().ConfigureAwait(false);
+}
 
-// Reset database on every IngestionApp redeploy (fresh state)
-var repo = new StudyRepository(cs);
-await repo.ResetDatabaseAsync().ConfigureAwait(false);
+// Study limit: default 200 for dev, INGESTION_STUDY_LIMIT=0 for all (production)
+var studyLimit = 200;
+var envStudyLimit = Environment.GetEnvironmentVariable("INGESTION_STUDY_LIMIT");
+if (!string.IsNullOrWhiteSpace(envStudyLimit) && int.TryParse(envStudyLimit, out var envLimit))
+{
+    studyLimit = envLimit > 0 ? envLimit : int.MaxValue;
+}
 
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
@@ -29,6 +38,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IEventQueueService>(new EventQueueService(cs));
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
         services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
+
+        // Persistence
+        services.AddSingleton<StudyRepository>(new StudyRepository(cs));
 
         // ClinicalTrials.gov ingestion pipeline
         services.AddSingleton<ClinicalTrialsGov>();
@@ -42,9 +54,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new ClinicalTrialsScrapeService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<IDataSourceStateService>(),
-            scrapeIntervalMinutes: isDevelopment ? 60 : 60,
-            localDevelopmentStudyCount: 1000,
-            isDevelopment: isDevelopment));
+            scrapeIntervalMinutes: 60,
+            localDevelopmentStudyCount: studyLimit,
+            isDevelopment: true));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
