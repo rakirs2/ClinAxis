@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -33,34 +32,38 @@ namespace Scrapers.Services
 
             using (var context = new ClinicalTrialsContext(contextOptions))
             {
-                var studiesWithPmids = await context.Studies
+                var studiesWithReferences = await context.Studies
                     .Where(s => !s.IsIncomplete && s.OverallStatus != "COMPLETED")
-                    .Select(s => new { s.NctId })
+                    .Include(s => s.References)
                     .ToListAsync(cancellationToken).ConfigureAwait(false);
 
-                foreach (var study in studiesWithPmids)
+                foreach (var study in studiesWithReferences)
                 {
-                    List<string> pmids = await FetchPmidsFromClinicalTrialsGovAsync(study.NctId, cancellationToken).ConfigureAwait(false);
-                    if (pmids.Count == 0)
+                    if (study.References == null || study.References.Count == 0)
                     {
                         continue;
                     }
 
-                    foreach (var pmid in pmids)
+                    foreach (var reference in study.References)
                     {
+                        if (string.IsNullOrWhiteSpace(reference.Pmid))
+                        {
+                            continue;
+                        }
+
                         var existing = await context.PubmedStudies.AnyAsync(
-                            p => p.StudyNctId == study.NctId && p.Pmid == pmid, cancellationToken).ConfigureAwait(false);
+                            p => p.StudyNctId == study.NctId && p.Pmid == reference.Pmid, cancellationToken).ConfigureAwait(false);
                         if (existing)
                         {
                             continue;
                         }
 
-                        PaperDetail? paperDetail = await FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                        PaperDetail? paperDetail = await FetchPaperDetailAsync(reference.Pmid, cancellationToken).ConfigureAwait(false);
 
                         var pubmedStudy = new PubmedStudyEntity
                         {
                             StudyNctId = study.NctId,
-                            Pmid = pmid,
+                            Pmid = reference.Pmid,
                             Doi = paperDetail?.Doi,
                             Title = paperDetail?.Title,
                             Journal = paperDetail?.Journal,
@@ -80,7 +83,7 @@ namespace Scrapers.Services
                                 context.StudyAuthors.Add(new StudyAuthorEntity
                                 {
                                     StudyNctId = study.NctId,
-                                    Pmid = pmid,
+                                    Pmid = reference.Pmid,
                                     LastName = author.LastName,
                                     ForeName = author.ForeName,
                                     Orcid = author.Orcid
@@ -94,41 +97,6 @@ namespace Scrapers.Services
             }
 
             return totalPapers;
-        }
-
-        private static async Task<List<string>> FetchPmidsFromClinicalTrialsGovAsync(string nctId, CancellationToken cancellationToken)
-        {
-            var pmids = new List<string>();
-            var url = $"https://clinicaltrials.gov/api/v2/studies/{nctId}";
-
-            HttpResponseMessage response = await _httpClient.GetAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                return pmids;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("protocolSection", out JsonElement ps) ||
-                !ps.TryGetProperty("referencesModule", out JsonElement refModule) ||
-                !refModule.TryGetProperty("references", out JsonElement references))
-            {
-                return pmids;
-            }
-
-            foreach (JsonElement reference in references.EnumerateArray())
-            {
-                if (reference.TryGetProperty("pmid", out JsonElement pmidEl) && pmidEl.ValueKind == System.Text.Json.JsonValueKind.String)
-                {
-                    var pmid = pmidEl.GetString();
-                    if (!string.IsNullOrWhiteSpace(pmid))
-                    {
-                        pmids.Add(pmid);
-                    }
-                }
-            }
-
-            return pmids;
         }
 
         private static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
