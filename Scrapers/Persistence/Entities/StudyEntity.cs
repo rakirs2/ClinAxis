@@ -32,7 +32,6 @@ namespace Scrapers.Persistence.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsIncomplete { get; set; }
 
-        public ICollection<InvestigatorEntity>? Investigators { get; set; }
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
         public ICollection<StudyPaperEntity>? StudyPapers { get; set; }
         public ICollection<StudyKeywordEntity>? Keywords { get; set; }
