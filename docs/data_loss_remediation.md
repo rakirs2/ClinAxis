@@ -5,11 +5,13 @@ The ClinicalTrials.gov scraper was losing **22 fields** from the API response. T
 
 **Current Status:** 1 of 7 categories fixed (Locations in PR #58)
 
+The entity model described in `docs/scraper_architecture.md` defines the target state for all persistence. Some fields will be stored as scalar columns on `StudyEntity`; others will use junction tables as documented.
+
 ---
 
 ## Fields Being Lost (Audit Results)
 
-A comprehensive code audit identified 22 fields from the ClinicalTrials.gov API that were being deserialized by `ClinicalTrialRecord` but never persisted to PostgreSQL. Full technical audit available locally in `.opencode/` folder (generated during development).
+A comprehensive code audit identified 22 fields from the ClinicalTrials.gov API that were being deserialized by `ClinicalTrialRecord` but never persisted to PostgreSQL. Full technical audit available in `docs/scraper_architecture.md` → "Field Coverage Matrix" section.
 
 ---
 
@@ -104,6 +106,8 @@ Each remediation PR should follow this pattern:
 5. **Verify with integration tests** (assert row counts in dependent tables match API data)
 6. **Update this plan** (mark category as DONE, link to merged PR)
 
+See `docs/scraper_architecture.md` for the full entity model spec and field coverage matrix.
+
 ---
 
 ## Design Patterns
@@ -112,14 +116,20 @@ Each remediation PR should follow this pattern:
 - Add string/bool property directly to `StudyEntity`
 - Create migration with `modelBuilder.Entity<StudyEntity>().Property(...)`
 - Update mapper: `entity.PropertyName = record.PropertyName`
-- Example: PR #58 added `Locations` navigation property
+- Example: `StudyEntity.Masking`, `StudyEntity.LeadSponsorName`
 
-### Junction Tables (Priority 5, 6, 7)
+### Junction Tables (Priority 1, 5, 6, 7)
 - Create new entity class (e.g., `StudyReferenceEntity`)
-- Add `StudyId` foreign key and navigation property to `StudyEntity`
+- Add `StudyNctId` foreign key and navigation property to `StudyEntity`
 - Create migration with `modelBuilder.Entity<StudyReferenceEntity>()` and relationships
 - Update mapper with loop: `foreach (var item in record.ItemArray) { entity.Items.Add(...) }`
 - Example: PR #58 added `StudyLocationEntity` following this pattern
+
+### Entity Model Alignment
+Some fields now belong on new normalized tables rather than `StudyEntity`:
+- **References** stored in `StudyReferenceEntity` (replaces per-study PubMed re-fetch)
+- **Investigators** stored in normalized `InvestigatorPersonEntity` + `StudyInvestigatorEntity` junction (not duplicated rows)
+- See `docs/scraper_architecture.md` → Core Entity Model for full schema
 
 ---
 
@@ -139,15 +149,15 @@ Each remediation PR should follow this pattern:
 
 - **PR #58**: Added `StudyLocationEntity` and fixed locations data loss
 - **AGENTS.md**: Principle #6 "Zero Data Loss in Scraping" with audit guidance
-- **Local docs** (not in git): `.opencode/` folder contains full technical audit with code references and line numbers
+- **docs/scraper_architecture.md**: Full field coverage matrix and entity model spec
 
 ---
 
 ## Next Agent Instructions
 
 When starting a new data loss remediation PR:
-1. Read this file to understand what's left to fix and why
-2. Check the "How to Approach Future PRs" section for the pattern
-3. Follow PR guidelines in AGENTS.md (one feature per PR, all tests passing)
-4. Update this file when your PR is merged (mark category as DONE, add link)
-5. For full technical details, refer to audit documents in `.opencode/` folder (locally available during development)
+1. Read `docs/scraper_architecture.md` to understand the target entity model
+2. Read this file to understand what's left to fix and why
+3. Check the "How to Approach Future PRs" section for the pattern
+4. Follow PR guidelines in AGENTS.md (one feature per PR, all tests passing)
+5. Update this file when your PR is merged (mark category as DONE, add link)

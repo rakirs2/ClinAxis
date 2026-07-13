@@ -18,6 +18,7 @@ These are non-negotiable. Never violate these rules.
 - **Never** merge or deploy changes that have not passed locally.
 - Minimum verification: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
 - Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
+- **If local verification cannot be performed, the change must not proceed until the gap is resolved.** No exceptions.
 
 ### 3. Three DB Testing Modes (see `/docs/README.md` for full design)
 All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data_test`). No `CREATE DATABASE`/`DROP DATABASE` per test class. Isolation is via **transaction rollback** — each test writes inside a transaction, then rolls back. Single shared copy of the test base lives in `Scrapers/Testing/`.
@@ -52,11 +53,8 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
   - If the API returns a field but no database table/column exists, create it (following the `StudyConditionEntity` / `StudyKeywordEntity` pattern for junction tables, or add scalar fields to the entity).
   - If a field is **intentionally ignored**, document WHY in a code comment with clear rationale.
 - **Data loss discovered (current code):**
-   - ✓ `ClinicalTrialRecord.Locations` array is deserialized from API
-   - ✗ No `StudyLocationEntity` table existed
-   - ✗ Locations were silently discarded during `StudyRepository.MapRecordToEntity()`
-   - **Impact:** Cannot filter studies by geographic location; search is incomplete
-   - **This PR:** Fixes locations. See `/docs/data_loss_remediation.md` for audit of all 22 lost fields and remediation roadmap.
+   - See `/docs/data_loss_remediation.md` for the full audit of lost fields and remediation roadmap.
+   - `/docs/scraper_architecture.md` for the complete field coverage matrix.
 - **Test coverage:** Every scraper integration test must verify:
   - Row counts in dependent tables match API data (e.g., if API returns 3 locations, assert `study_locations` has 3 rows for that study)
   - No data is silently dropped during mapping
@@ -77,7 +75,7 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 1. Ensure Docker Desktop is running (Testcontainers manages containers automatically — no manual `docker compose` needed)
 2. Click **Run All Tests** in the test runner — every test, including integration tests against a real Postgres via Testcontainers, executes locally. No exceptions. No manual setup.
 
-### 7. Deployment Standard
+### 8. Deployment Standard
 - `dotnet publish --self-contained -r linux-x64`
 - SCP publish output to Droplet
 - systemd unit files for process management
