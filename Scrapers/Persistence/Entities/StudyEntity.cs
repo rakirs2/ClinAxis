@@ -16,6 +16,12 @@ namespace Scrapers.Persistence.Entities
         public string? PrimaryPurpose { get; set; }
         public string? InterventionModel { get; set; }
         public string? Allocation { get; set; }
+        public string? Masking { get; set; }
+        public string? OrgStudyId { get; set; }
+        public string? LeadSponsorName { get; set; }
+        public string? CollaboratorNames { get; set; }
+        public string? EligibilityCriteria { get; set; }
+        public string? HealthyVolunteers { get; set; }
         public int? EnrollmentCount { get; set; }
         public string? Sex { get; set; }
         public string? MinimumAge { get; set; }
@@ -34,5 +40,7 @@ namespace Scrapers.Persistence.Entities
         public ICollection<StudyPhaseEntity>? Phases { get; set; }
         public ICollection<StudyLocationEntity>? Locations { get; set; }
         public ICollection<StudyReferenceEntity>? References { get; set; }
+        public ICollection<StudyOutcomeEntity>? Outcomes { get; set; }
+        public ICollection<StudyArmGroupEntity>? ArmGroups { get; set; }
     }
 }

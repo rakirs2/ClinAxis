@@ -97,6 +97,8 @@ namespace Scrapers.Persistence
                         Phases = new List<StudyPhaseEntity>(),
                         Locations = new List<StudyLocationEntity>(),
                         References = new List<StudyReferenceEntity>(),
+                        Outcomes = new List<StudyOutcomeEntity>(),
+                        ArmGroups = new List<StudyArmGroupEntity>(),
                         StudyPapers = new List<StudyPaperEntity>()
                     };
                     context.Studies.Add(entity);
@@ -226,6 +228,14 @@ namespace Scrapers.Persistence
             entity.PrimaryPurpose = record.PrimaryPurpose;
             entity.InterventionModel = record.InterventionModel;
             entity.Allocation = record.Allocation;
+            entity.Masking = record.Masking;
+            entity.OrgStudyId = record.OrgStudyId;
+            entity.LeadSponsorName = record.LeadSponsorName;
+            entity.CollaboratorNames = record.CollaboratorNames != null
+                ? string.Join("; ", record.CollaboratorNames)
+                : null;
+            entity.EligibilityCriteria = record.EligibilityCriteria;
+            entity.HealthyVolunteers = record.HealthyVolunteers;
             entity.EnrollmentCount = record.EnrollmentCount;
             entity.Sex = record.Sex;
             entity.MinimumAge = record.MinimumAge;
@@ -234,6 +244,50 @@ namespace Scrapers.Persistence
             entity.CompletionDate = record.CompletionDate;
             entity.StudyFirstPostDate = record.StudyFirstPostDate;
             entity.IsIncomplete = incomplete;
+
+            if (record.PrimaryOutcomes != null)
+            {
+                entity.Outcomes ??= new List<StudyOutcomeEntity>();
+                foreach (var outcome in record.PrimaryOutcomes)
+                {
+                    entity.Outcomes.Add(new StudyOutcomeEntity
+                    {
+                        OutcomeType = "primary",
+                        Measure = outcome.Measure,
+                        Description = outcome.Description,
+                        TimeFrame = outcome.TimeFrame
+                    });
+                }
+            }
+
+            if (record.SecondaryOutcomes != null)
+            {
+                entity.Outcomes ??= new List<StudyOutcomeEntity>();
+                foreach (var outcome in record.SecondaryOutcomes)
+                {
+                    entity.Outcomes.Add(new StudyOutcomeEntity
+                    {
+                        OutcomeType = "secondary",
+                        Measure = outcome.Measure,
+                        Description = outcome.Description,
+                        TimeFrame = outcome.TimeFrame
+                    });
+                }
+            }
+
+            if (record.ArmGroups != null)
+            {
+                entity.ArmGroups ??= new List<StudyArmGroupEntity>();
+                foreach (var armGroup in record.ArmGroups)
+                {
+                    entity.ArmGroups.Add(new StudyArmGroupEntity
+                    {
+                        Label = armGroup.Label,
+                        Type = armGroup.Type,
+                        Description = armGroup.Description
+                    });
+                }
+            }
         }
 
         public async Task<int> CountStudiesAsync(CancellationToken cancellationToken = default)
@@ -245,7 +299,7 @@ namespace Scrapers.Persistence
         public async Task<int> CountInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.Investigators.CountAsync(cancellationToken).ConfigureAwait(false);
+            return await context.InvestigatorPersons.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountPubmedPapersAsync(CancellationToken cancellationToken = default)
@@ -430,6 +484,79 @@ namespace Scrapers.Persistence
             return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<IReadOnlyList<StudyEntity>> GetStudiesByInvestigatorPersonIdAsync(Guid personId, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+
+            using ClinicalTrialsContext context = CreateContext();
+
+            var query = context.Studies
+                .Include(s => s.StudyInvestigators!)
+                    .ThenInclude(si => si.InvestigatorPerson)
+                        .ThenInclude(ip => ip!.Affiliations)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
+                .AsNoTracking()
+                .Where(s => s.StudyInvestigators != null && s.StudyInvestigators.Any(si => si.InvestigatorPersonId == personId));
+
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                query = query.Where(s => s.OverallStatus != null && criteria.Statuses.Contains(s.OverallStatus));
+            }
+
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase != null && criteria.Phases.Contains(p.Phase)));
+            }
+
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+            }
+
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
+            }
+
+            var skip = (criteria.Page - 1) * criteria.PageSize;
+            query = query
+                .OrderBy(s => s.BriefTitle)
+                .Skip(skip)
+                .Take(criteria.PageSize);
+
+            return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -442,6 +569,8 @@ namespace Scrapers.Persistence
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
                 .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
+                .Include(s => s.Outcomes)
+                .Include(s => s.ArmGroups)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -896,6 +1025,8 @@ namespace Scrapers.Persistence
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
                 .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
+                .Include(s => s.Outcomes)
+                .Include(s => s.ArmGroups)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.NctId == nctId, cancellationToken).ConfigureAwait(false);
         }
@@ -1012,6 +1143,70 @@ namespace Scrapers.Persistence
             return await query.Select(i => new { i.Name, i.Affiliation }).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<IReadOnlyList<InvestigatorPersonSummary>> GetInvestigatorPersonsPagedAsync(
+            int page, int pageSize, string? search = null,
+            CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons
+                .Include(p => p.StudyInvestigators)
+                .Include(p => p.Affiliations)
+                .Include(p => p.InvestigatorPapers)
+                .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{search}%"));
+            }
+
+            IQueryable<InvestigatorPersonSummary> result = query
+                .Select(p => new InvestigatorPersonSummary
+                {
+                    Uuid = p.Id,
+                    Name = p.FullName,
+                    Orcid = p.Orcid,
+                    NcbiId = p.NcbiId,
+                    PrimaryAffiliation = p.Affiliations!
+                        .Where(a => a.IsPrimary)
+                        .Select(a => a.InstitutionName)
+                        .FirstOrDefault(),
+                    StudyCount = p.StudyInvestigators!.Count,
+                    PaperCount = p.InvestigatorPapers!.Count
+                })
+                .OrderByDescending(x => x.StudyCount)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            return await result.ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountInvestigatorPersonsFilteredAsync(string? search = null, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{search}%"));
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<InvestigatorPersonEntity?> GetInvestigatorPersonByUuidAsync(Guid uuid, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.InvestigatorPersons
+                .Include(p => p.StudyInvestigators)
+                .Include(p => p.Affiliations)
+                .Include(p => p.InvestigatorPapers)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == uuid, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         public async Task<int> GetRecentScrapeEventCountAsync(TimeSpan within, CancellationToken cancellationToken = default)
         {
             DateTime since = DateTime.UtcNow - within;
@@ -1066,6 +1261,47 @@ namespace Scrapers.Persistence
             });
             batchPersons[trimmed] = person;
             return person;
+        }
+
+        public static async Task<int> RequeueInvestigatorScrubEventsAsync(
+            ClinicalTrialsContext context,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            var personIds = await context.InvestigatorPersons
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var existingEventPersonIds = await context.PipelineEvents
+                .Where(e => e.EventType == "investigator.discovered" && e.Status != "dead-letter")
+                .Select(e => e.Data)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var now = DateTime.UtcNow;
+            var count = 0;
+            foreach (var personId in personIds)
+            {
+                if (existingEventPersonIds.Contains(personId.ToString()))
+                {
+                    continue;
+                }
+
+                context.PipelineEvents.Add(new PipelineEventEntity
+                {
+                    EventType = "investigator.discovered",
+                    Data = personId.ToString(),
+                    Status = "pending",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                count++;
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return count;
         }
 
         public static async Task ScrubInvestigatorPapersAsync(
@@ -1192,5 +1428,16 @@ namespace Scrapers.Persistence
         public string? Name { get; set; }
         public string? Affiliation { get; set; }
         public int StudyCount { get; set; }
+    }
+
+    public class InvestigatorPersonSummary
+    {
+        public Guid Uuid { get; set; }
+        public string? Name { get; set; }
+        public string? Orcid { get; set; }
+        public string? NcbiId { get; set; }
+        public string? PrimaryAffiliation { get; set; }
+        public int StudyCount { get; set; }
+        public int PaperCount { get; set; }
     }
 }

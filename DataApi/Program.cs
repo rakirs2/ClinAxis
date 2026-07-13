@@ -111,12 +111,21 @@ app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search
     var p = Math.Max(1, page ?? 1);
     var ps = Math.Clamp(pageSize ?? 20, 1, 100);
 
-    IReadOnlyList<InvestigatorSummary> investigators = await repo.GetInvestigatorsPagedAsync(p, ps, search);
-    var total = await repo.CountInvestigatorsFilteredAsync(search);
+    var persons = await repo.GetInvestigatorPersonsPagedAsync(p, ps, search);
+    var total = await repo.CountInvestigatorPersonsFilteredAsync(search);
 
     return Results.Ok(new
     {
-        data = investigators,
+        data = persons.Select(p => new
+        {
+            uuid = p.Uuid,
+            name = p.Name,
+            orcid = p.Orcid,
+            ncbiId = p.NcbiId,
+            studyCount = p.StudyCount,
+            paperCount = p.PaperCount,
+            primaryAffiliation = p.PrimaryAffiliation
+        }),
         total,
         page = p,
         pageSize = ps,
@@ -124,26 +133,25 @@ app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search
     });
 });
 
-// Investigator detail endpoint
+// Investigator detail endpoint (new person model)
 app.MapGet("/api/investigators/{uuid}", async (Guid uuid) =>
 {
     var repo = new StudyRepository(connectionString);
-    var investigator = await repo.GetInvestigatorByUuidAsync(uuid);
+    var person = await repo.GetInvestigatorPersonByUuidAsync(uuid);
     
-    if (investigator == null)
+    if (person == null)
     {
         return Results.NotFound(new { message = "Investigator not found" });
     }
 
-    // Get all studies for this investigator using a basic criteria (no filters)
     var criteria = new StudySearchCriteria
     {
         Page = 1,
-        PageSize = int.MaxValue // Get all studies for this investigator
+        PageSize = int.MaxValue
     };
-    var studies = await repo.GetStudiesByInvestigatorUuidAsync(uuid, criteria);
+    var studies = await repo.GetStudiesByInvestigatorPersonIdAsync(uuid, criteria);
 
-    var detail = InvestigatorMapper.ToDetail(investigator, studies);
+    var detail = InvestigatorMapper.ToDetail(person, studies);
     return Results.Ok(detail);
 });
 
@@ -158,9 +166,9 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
     string? sort, string? order) =>
 {
     var repo = new StudyRepository(connectionString);
-    var investigator = await repo.GetInvestigatorByUuidAsync(uuid);
+    var person = await repo.GetInvestigatorPersonByUuidAsync(uuid);
     
-    if (investigator == null)
+    if (person == null)
     {
         return Results.NotFound(new { message = "Investigator not found" });
     }

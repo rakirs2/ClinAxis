@@ -24,6 +24,8 @@ namespace Scrapers.Models.ClinicalTrialsGov
         public string? PrimaryPurpose { get; set; }
         public string? InterventionModel { get; set; }
         public string? Allocation { get; set; }
+        public string? Masking { get; set; }
+        public string? OrgStudyId { get; set; }
         public int? EnrollmentCount { get; set; }
         public DateOnly? StartDate { get; set; }
         public DateOnly? CompletionDate { get; set; }
@@ -31,12 +33,29 @@ namespace Scrapers.Models.ClinicalTrialsGov
         public List<Investigator>? OverallOfficials { get; set; }
         public List<StudyListResponse.Location>? Locations { get; set; }
         public List<Reference>? References { get; set; }
+        public List<Outcome>? PrimaryOutcomes { get; set; }
+        public List<Outcome>? SecondaryOutcomes { get; set; }
+        public List<ArmGroup>? ArmGroups { get; set; }
 
         public class Reference
         {
             public string? Pmid { get; set; }
             public string? Citation { get; set; }
             public string? Type { get; set; }
+        }
+
+        public class Outcome
+        {
+            public string? Measure { get; set; }
+            public string? Description { get; set; }
+            public string? TimeFrame { get; set; }
+        }
+
+        public class ArmGroup
+        {
+            public string? Label { get; set; }
+            public string? Type { get; set; }
+            public string? Description { get; set; }
         }
     }
 }
