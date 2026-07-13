@@ -28,6 +28,7 @@ namespace Scrapers.Persistence
         public DbSet<StudyInvestigatorEntity> StudyInvestigators => Set<StudyInvestigatorEntity>();
         public DbSet<StudyOutcomeEntity> StudyOutcomes => Set<StudyOutcomeEntity>();
         public DbSet<StudyArmGroupEntity> StudyArmGroups => Set<StudyArmGroupEntity>();
+        public DbSet<RejectedEntityEntity> RejectedEntities => Set<RejectedEntityEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -460,6 +461,20 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 
                 entity.HasIndex(e => e.Name).IsUnique();
+            });
+
+            modelBuilder.Entity<RejectedEntityEntity>(entity =>
+            {
+                entity.ToTable("rejected_entities");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50);
+                entity.Property(e => e.Value).HasColumnName("value");
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.RejectedAt).HasColumnName("rejected_at");
+
+                entity.HasIndex(e => e.EntityType);
+                entity.HasIndex(e => e.StudyNctId);
             });
         }
     }
