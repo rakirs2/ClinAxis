@@ -16,6 +16,8 @@ else
             <dl class="row">
                 <dt class="col-sm-4">NCT ID</dt>
                 <dd class="col-sm-8">@study.nctId</dd>
+                <dt class="col-sm-4">Org Study ID</dt>
+                <dd class="col-sm-8">@(study.orgStudyId ?? "N/A")</dd>
                 <dt class="col-sm-4">Official Title</dt>
                 <dd class="col-sm-8">@study.officialTitle</dd>
                 <dt class="col-sm-4">Status</dt>
@@ -24,14 +26,51 @@ else
                 <dd class="col-sm-8">@study.studyType</dd>
                 <dt class="col-sm-4">Primary Purpose</dt>
                 <dd class="col-sm-8">@study.primaryPurpose</dd>
+                <dt class="col-sm-4">Intervention Model</dt>
+                <dd class="col-sm-8">@study.interventionModel</dd>
+                <dt class="col-sm-4">Allocation</dt>
+                <dd class="col-sm-8">@study.allocation</dd>
+                <dt class="col-sm-4">Masking</dt>
+                <dd class="col-sm-8">@(study.masking ?? "N/A")</dd>
                 <dt class="col-sm-4">Enrollment</dt>
                 <dd class="col-sm-8">@study.enrollmentCount</dd>
+                <dt class="col-sm-4">Sex</dt>
+                <dd class="col-sm-8">@(study.sex ?? "All")</dd>
+                <dt class="col-sm-4">Minimum Age</dt>
+                <dd class="col-sm-8">@(study.minimumAge ?? "N/A")</dd>
+                <dt class="col-sm-4">Maximum Age</dt>
+                <dd class="col-sm-8">@(study.maximumAge ?? "N/A")</dd>
+                <dt class="col-sm-4">Healthy Volunteers</dt>
+                <dd class="col-sm-8">@(study.healthyVolunteers ?? "N/A")</dd>
+                <dt class="col-sm-4">Start Date</dt>
+                <dd class="col-sm-8">@(study.startDate?.ToString("yyyy-MM-dd") ?? "N/A")</dd>
+                <dt class="col-sm-4">Completion Date</dt>
+                <dd class="col-sm-8">@(study.completionDate?.ToString("yyyy-MM-dd") ?? "N/A")</dd>
             </dl>
 
             @if (!string.IsNullOrEmpty(study.briefSummary))
             {
                 <h5>Summary</h5>
                 <p>@study.briefSummary</p>
+            }
+
+            <h5>Sponsor</h5>
+            <p>@(study.leadSponsorName ?? "N/A")</p>
+
+            @if (!string.IsNullOrEmpty(study.collaboratorNames))
+            {
+                <h5>Collaborators</h5>
+                <p>@study.collaboratorNames</p>
+            }
+
+            @if (!string.IsNullOrEmpty(study.eligibilityCriteria))
+            {
+                <h5>Eligibility Criteria</h5>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">@study.eligibilityCriteria</pre>
+                    </div>
+                </div>
             }
 
             <h5>Conditions</h5>
@@ -42,6 +81,100 @@ else
 
             <h5>Phases</h5>
             <p>@(study.phases != null ? string.Join(", ", study.phases) : "None")</p>
+
+            @if (study.outcomes != null && study.outcomes.Count > 0)
+            {
+                <h5>Outcomes</h5>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Measure</th>
+                            <th>Description</th>
+                            <th>Time Frame</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var o in study.outcomes)
+                        {
+                            <tr>
+                                <td>@o.outcomeType</td>
+                                <td>@o.measure</td>
+                                <td>@o.description</td>
+                                <td>@o.timeFrame</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (study.armGroups != null && study.armGroups.Count > 0)
+            {
+                <h5>Arm Groups</h5>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in study.armGroups)
+                        {
+                            <tr>
+                                <td>@a.label</td>
+                                <td>@a.type</td>
+                                <td>@a.description</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (study.locations != null && study.locations.Count > 0)
+            {
+                <h5>Locations</h5>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Facility</th>
+                            <th>City</th>
+                            <th>State</th>
+                            <th>Country</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in study.locations)
+                        {
+                            <tr>
+                                <td>@l.facility</td>
+                                <td>@l.city</td>
+                                <td>@l.state</td>
+                                <td>@l.country</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (study.references != null && study.references.Count > 0)
+            {
+                <h5>References</h5>
+                <ul class="list-group mb-3">
+                    @foreach (var r in study.references)
+                    {
+                        <li class="list-group-item">
+                            @if (!string.IsNullOrEmpty(r.pmid))
+                            {
+                                <a href="https://pubmed.ncbi.nlm.nih.gov/@r.pmid" target="_blank">PMID @r.pmid</a>
+                            }
+                            @r.citation
+                            <span class="badge bg-secondary float-end">@r.type</span>
+                        </li>
+                    }
+                </ul>
+            }
         </div>
 
         <div class="col-md-4">
@@ -118,11 +251,28 @@ else
         public string? studyType { get; set; }
         public string? briefSummary { get; set; }
         public string? primaryPurpose { get; set; }
+        public string? interventionModel { get; set; }
+        public string? allocation { get; set; }
+        public string? masking { get; set; }
+        public string? orgStudyId { get; set; }
+        public string? leadSponsorName { get; set; }
+        public string? collaboratorNames { get; set; }
+        public string? eligibilityCriteria { get; set; }
+        public string? healthyVolunteers { get; set; }
+        public string? sex { get; set; }
+        public string? minimumAge { get; set; }
+        public string? maximumAge { get; set; }
         public int? enrollmentCount { get; set; }
+        public DateOnly? startDate { get; set; }
+        public DateOnly? completionDate { get; set; }
         public List<Investigator>? investigators { get; set; }
         public List<string>? conditions { get; set; }
         public List<string>? keywords { get; set; }
         public List<string>? phases { get; set; }
+        public List<Location>? locations { get; set; }
+        public List<Reference>? references { get; set; }
+        public List<Outcome>? outcomes { get; set; }
+        public List<ArmGroup>? armGroups { get; set; }
         public List<PubmedPaper>? pubmedPapers { get; set; }
     }
 
@@ -131,6 +281,36 @@ else
         public string? name { get; set; }
         public string? role { get; set; }
         public string? affiliation { get; set; }
+    }
+
+    private class Location
+    {
+        public string? facility { get; set; }
+        public string? city { get; set; }
+        public string? state { get; set; }
+        public string? country { get; set; }
+    }
+
+    private class Reference
+    {
+        public string? pmid { get; set; }
+        public string? citation { get; set; }
+        public string? type { get; set; }
+    }
+
+    private class Outcome
+    {
+        public string? outcomeType { get; set; }
+        public string? measure { get; set; }
+        public string? description { get; set; }
+        public string? timeFrame { get; set; }
+    }
+
+    private class ArmGroup
+    {
+        public string? label { get; set; }
+        public string? type { get; set; }
+        public string? description { get; set; }
     }
 
     private class PubmedPaper
