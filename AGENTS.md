@@ -17,7 +17,7 @@ These are non-negotiable. Never violate these rules.
 - **Rider runs every test locally.** All integration tests execute against a Docker PostgreSQL container. No tests are gated behind `[Ignore]`, environment checks, or manual approval.
 - **Never** merge or deploy changes that have not passed locally.
 - Minimum verification: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
-- Release verification: `dotnet build -c Release` (0 errors, 0 warnings). The deploy pipeline uses `-c Release` with stricter code analysis (CA* rules from `.editorconfig`) — Debug build may pass while Release fails.
+- **Note on CA* rules**: Code analysis rules from `.editorconfig` are enforced locally but not in CI. Run `dotnet build -c Release` locally before pushing to validate them.
 - Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
 - **If local verification cannot be performed, the change must not proceed until the gap is resolved.** No exceptions.
 
