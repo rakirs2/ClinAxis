@@ -43,21 +43,26 @@ namespace Scrapers.IntegrationTests
             Context.Studies.Add(study);
             await Context.SaveChangesAsync();
 
-            var existingPaper = new PubmedStudyEntity
+            var existingPaper = new PubmedPaperEntity
             {
-                StudyNctId = study.NctId,
                 Pmid = "12345678",
                 Title = "Existing Paper",
-                CreatedAt = DateTime.UtcNow
             };
-            Context.PubmedStudies.Add(existingPaper);
+            Context.PubmedPapers.Add(existingPaper);
+            await Context.SaveChangesAsync();
+
+            Context.StudyPapers.Add(new StudyPaperEntity
+            {
+                StudyNctId = study.NctId,
+                PubmedPaperId = existingPaper.Id,
+            });
             await Context.SaveChangesAsync();
 
             var scraper = new PubMedScraperService(ConnectionString);
             var count = await scraper.IngestPubMedPapersAsync();
 
-            List<PubmedStudyEntity> papers = await Context.PubmedStudies
-                .Where(p => p.StudyNctId == study.NctId)
+            var papers = await Context.PubmedPapers
+                .Where(p => p.Pmid == "12345678")
                 .ToListAsync();
             Assert.AreEqual(1, papers.Count);
             Assert.AreEqual("Existing Paper", papers[0].Title);

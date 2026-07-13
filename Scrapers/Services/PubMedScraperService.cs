@@ -51,45 +51,46 @@ namespace Scrapers.Services
                             continue;
                         }
 
-                        var existing = await context.PubmedStudies.AnyAsync(
-                            p => p.StudyNctId == study.NctId && p.Pmid == reference.Pmid, cancellationToken).ConfigureAwait(false);
-                        if (existing)
+                        // Check if a StudyPaper link already exists for this study + PMID
+                        var existingLink = await context.StudyPapers
+                            .AnyAsync(sp => sp.StudyNctId == study.NctId && sp.PubmedPaper!.Pmid == reference.Pmid, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (existingLink)
                         {
                             continue;
                         }
 
-                        PaperDetail? paperDetail = await FetchPaperDetailAsync(reference.Pmid, cancellationToken).ConfigureAwait(false);
+                        // Find or create canonical PubmedPaperEntity by Pmid
+                        var pubmedPaper = await context.PubmedPapers
+                            .FirstOrDefaultAsync(p => p.Pmid == reference.Pmid, cancellationToken)
+                            .ConfigureAwait(false);
 
-                        var pubmedStudy = new PubmedStudyEntity
+                        if (pubmedPaper == null)
+                        {
+                            PaperDetail? paperDetail = await FetchPaperDetailAsync(reference.Pmid, cancellationToken).ConfigureAwait(false);
+
+                            pubmedPaper = new PubmedPaperEntity
+                            {
+                                Pmid = reference.Pmid,
+                                Doi = paperDetail?.Doi,
+                                Title = paperDetail?.Title,
+                                Journal = paperDetail?.Journal,
+                                PublicationDate = paperDetail?.PublicationDate,
+                                Abstract = paperDetail?.Abstract,
+                                IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
+                            };
+
+                            context.PubmedPapers.Add(pubmedPaper);
+                        }
+
+                        // Create the link between this study and the paper
+                        context.StudyPapers.Add(new StudyPaperEntity
                         {
                             StudyNctId = study.NctId,
-                            Pmid = reference.Pmid,
-                            Doi = paperDetail?.Doi,
-                            Title = paperDetail?.Title,
-                            Journal = paperDetail?.Journal,
-                            PublicationDate = paperDetail?.PublicationDate,
-                            Abstract = paperDetail?.Abstract,
-                            IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
-                            CreatedAt = DateTime.UtcNow
-                        };
+                            PubmedPaperId = pubmedPaper.Id,
+                        });
 
-                        context.PubmedStudies.Add(pubmedStudy);
                         totalPapers++;
-
-                        if (paperDetail?.Authors != null)
-                        {
-                            foreach (AuthorInfo author in paperDetail.Authors)
-                            {
-                                context.StudyAuthors.Add(new StudyAuthorEntity
-                                {
-                                    StudyNctId = study.NctId,
-                                    Pmid = reference.Pmid,
-                                    LastName = author.LastName,
-                                    ForeName = author.ForeName,
-                                    Orcid = author.Orcid
-                                });
-                            }
-                        }
                     }
                 }
 
@@ -99,7 +100,7 @@ namespace Scrapers.Services
             return totalPapers;
         }
 
-        private static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
+        internal static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
         {
             var url = $"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={pmid}&retmode=xml&rettype=abstract";
 
@@ -214,7 +215,7 @@ namespace Scrapers.Services
             };
         }
 
-        private sealed class PaperDetail
+        internal sealed class PaperDetail
         {
             public string? Title { get; set; }
             public string? Journal { get; set; }
@@ -225,7 +226,7 @@ namespace Scrapers.Services
             public List<AuthorInfo>? Authors { get; set; }
         }
 
-        private sealed class AuthorInfo
+        internal sealed class AuthorInfo
         {
             public string? LastName { get; set; }
             public string? ForeName { get; set; }

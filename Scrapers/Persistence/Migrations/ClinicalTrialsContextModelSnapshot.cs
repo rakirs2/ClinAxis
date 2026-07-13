@@ -217,6 +217,31 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("investigators", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
+                {
+                    b.Property<Guid>("InvestigatorPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("investigator_person_id");
+
+                    b.Property<Guid>("PubmedPaperId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pubmed_paper_id");
+
+                    b.Property<int?>("AuthorPosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("author_position");
+
+                    b.Property<bool>("IsCorrespondingAuthor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_corresponding_author");
+
+                    b.HasKey("InvestigatorPersonId", "PubmedPaperId");
+
+                    b.HasIndex("PubmedPaperId");
+
+                    b.ToTable("investigator_papers", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPersonEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -436,14 +461,12 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("pipeline_runs", (string)null);
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedPaperEntity", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
+                        .HasColumnType("uuid")
                         .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Abstract")
                         .HasColumnType("text")
@@ -475,22 +498,20 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("publication_date");
 
-                    b.Property<string>("StudyNctId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("study_nct_id");
-
                     b.Property<string>("Title")
                         .HasColumnType("text")
                         .HasColumnName("title");
 
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("StudyNctId", "Pmid")
+                    b.HasIndex("Pmid")
                         .IsUnique();
 
-                    b.ToTable("pubmed_studies", (string)null);
+                    b.ToTable("pubmed_papers", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
@@ -651,50 +672,6 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("source_fetch_history", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyAuthorEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ForeName")
-                        .HasColumnType("text")
-                        .HasColumnName("fore_name");
-
-                    b.Property<string>("LastName")
-                        .HasColumnType("text")
-                        .HasColumnName("last_name");
-
-                    b.Property<string>("Orcid")
-                        .HasColumnType("text")
-                        .HasColumnName("orcid");
-
-                    b.Property<string>("Pmid")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("pmid");
-
-                    b.Property<string>("StudyNctId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("study_nct_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LastName");
-
-                    b.HasIndex("Orcid");
-
-                    b.HasIndex("StudyNctId");
-
-                    b.ToTable("study_authors", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyConditionEntity", b =>
@@ -928,6 +905,24 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("study_locations", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyPaperEntity", b =>
+                {
+                    b.Property<string>("StudyNctId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<Guid>("PubmedPaperId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pubmed_paper_id");
+
+                    b.HasKey("StudyNctId", "PubmedPaperId");
+
+                    b.HasIndex("PubmedPaperId");
+
+                    b.ToTable("study_papers", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyPhaseEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1014,15 +1009,23 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Study");
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedStudyEntity", b =>
+            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
                 {
-                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
-                        .WithMany("PubmedStudies")
-                        .HasForeignKey("StudyNctId")
+                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
+                        .WithMany("InvestigatorPapers")
+                        .HasForeignKey("InvestigatorPersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Study");
+                    b.HasOne("Scrapers.Persistence.Entities.PubmedPaperEntity", "PubmedPaper")
+                        .WithMany("InvestigatorPapers")
+                        .HasForeignKey("PubmedPaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InvestigatorPerson");
+
+                    b.Navigation("PubmedPaper");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
@@ -1033,17 +1036,6 @@ namespace Scrapers.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("PipelineRun");
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyAuthorEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
-                        .WithMany("Authors")
-                        .HasForeignKey("StudyNctId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Study");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyConditionEntity", b =>
@@ -1098,6 +1090,25 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Study");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyPaperEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.PubmedPaperEntity", "PubmedPaper")
+                        .WithMany("StudyPapers")
+                        .HasForeignKey("PubmedPaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
+                        .WithMany("StudyPapers")
+                        .HasForeignKey("StudyNctId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PubmedPaper");
+
+                    b.Navigation("Study");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyPhaseEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
@@ -1124,13 +1135,20 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.Navigation("Affiliations");
 
+                    b.Navigation("InvestigatorPapers");
+
                     b.Navigation("StudyInvestigators");
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedPaperEntity", b =>
+                {
+                    b.Navigation("InvestigatorPapers");
+
+                    b.Navigation("StudyPapers");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
                 {
-                    b.Navigation("Authors");
-
                     b.Navigation("Conditions");
 
                     b.Navigation("Investigators");
@@ -1141,11 +1159,11 @@ namespace Scrapers.Persistence.Migrations
 
                     b.Navigation("Phases");
 
-                    b.Navigation("PubmedStudies");
-
                     b.Navigation("References");
 
                     b.Navigation("StudyInvestigators");
+
+                    b.Navigation("StudyPapers");
                 });
 #pragma warning restore 612, 618
         }
