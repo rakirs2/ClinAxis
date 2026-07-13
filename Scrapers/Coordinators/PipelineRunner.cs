@@ -26,8 +26,7 @@ namespace Scrapers.Coordinators
             };
             var runId = await studyRepo.AddPipelineRunAsync(run, cancellationToken).ConfigureAwait(false);
 
-            await studyRepo.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
-            await studyRepo.ClearAsync(cancellationToken).ConfigureAwait(false);
+            await studyRepo.ResetDatabaseAsync(cancellationToken).ConfigureAwait(false);
 
             try
             {
