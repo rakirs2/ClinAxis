@@ -54,8 +54,10 @@ namespace Scrapers.Persistence
                 }
 
                 var incomplete = false;
-                List<Investigator>? officials = record.OverallOfficials;
-                if (officials == null || officials.Count == 0 || officials.Any(i => i == null || string.IsNullOrWhiteSpace(i.Name)))
+                List<Investigator>? officials = record.OverallOfficials?
+                    .Where(i => i != null && !string.IsNullOrWhiteSpace(i.Name))
+                    .ToList();
+                if (officials == null || officials.Count == 0)
                 {
                     incomplete = true;
                 }
