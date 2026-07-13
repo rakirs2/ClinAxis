@@ -41,10 +41,10 @@ jobs:
         # CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
-        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
 
       - name: DB Integration Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory!=HttpLive"
+        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory!=HttpLive"
 
       - name: Upload test results
         if: always()
