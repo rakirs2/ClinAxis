@@ -21,7 +21,7 @@ public abstract class DbTestBase
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
-        await container.StartAsync().ConfigureAwait(false);
+        await DockerRetry.StartWithRetryAsync(container).ConfigureAwait(false);
         _container = container;
         _adminConnectionString = container.GetConnectionString();
     }

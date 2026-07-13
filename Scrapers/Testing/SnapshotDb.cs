@@ -21,7 +21,7 @@ public sealed class SnapshotDb : IAsyncDisposable
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
-        _container.StartAsync().GetAwaiter().GetResult();
+        DockerRetry.StartWithRetry(_container);
         ConnectionString = _container.GetConnectionString();
 
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
