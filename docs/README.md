@@ -12,7 +12,12 @@ Read these in order:
    - Database testing modes (Integration/IO, Snapshot, Persistent)
    - Zero data loss principle: all API fields must be persisted or explicitly documented
 
-2. **[data_loss_remediation.md](./data_loss_remediation.md)** - Active work on completing data persistence
+2. **[scraper_architecture.md](./scraper_architecture.md)** - Full scraper architecture, entity model, pipeline design, and field coverage matrix
+   - Covers all data sources, event system, and architecture decisions
+   - Includes the complete field coverage matrix (what's persisted and what's not)
+   - Read this before making any code changes to the scraper
+
+3. **[data_loss_remediation.md](./data_loss_remediation.md)** - Active work on completing data persistence
    - 22 fields from ClinicalTrials.gov API are missing from database
    - PR #58 fixed Locations (1 of 7 categories)
    - This file tracks what's left, prioritization, and effort estimates
@@ -22,16 +27,32 @@ Read these in order:
 
 ```
 ClinicalTrialData/
-├── Scrapers/                       # Core business logic (repositories, entities, migrations)
+├── Scrapers/                       # Core business logic (scraping, entities, repositories, migrations)
+│   ├── Coordinators/               # Pipeline orchestration (IngestionCoordinator, PipelineRunner)
+│   ├── Models/                     # API response models (ClinicalTrialsGov request/response)
 │   ├── Persistence/
 │   │   ├── Entities/               # EF Core entity definitions
 │   │   ├── Migrations/             # EF Core database migrations
 │   │   └── StudyRepository.cs      # Data access layer
-│   ├── Testing/                    # Shared test utilities
+│   ├── Services/
+│   │   ├── ClinicalTrialsIngestionService.cs  # CT.gov ingestion orchestration
+│   │   ├── PubMedScraperService.cs            # PubMed paper fetching
+│   │   ├── AggregationService.cs              # PI + category computation
+│   │   ├── CrawlServices/          # Pivot enricher framework (IPivotEnricherService)
+│   │   └── EventQueue/             # Event queue + data source tracking services
+│   ├── Testing/                    # Shared test utilities (DbTestBase, SnapshotDb)
 │   └── Scrapers.csproj
-├── DataApi/                        # REST API (only way to access database)
-├── Frontend/                       # Blazor Server frontend
-├── docs/                           # This folder - documentation
+├── DataApi/                        # ASP.NET Core Minimal API (port 5003)
+├── Frontend/                       # Blazor Server UI (port 5001)
+├── IngestionApp/                   # Background service: event-driven scraping pipeline
+│   ├── ClinicalTrialsScrapeService.cs    # Periodic CT.gov scrape → enqueue events
+│   ├── EventProcessingService.cs         # Claim + process pipeline events
+│   └── DeadLetterProcessingService.cs    # Monitor failed events
+├── deploy/                         # DigitalOcean Droplet setup (systemd units, setup.sh)
+├── Scrapers.Tests/                 # Unit tests with fake HTTP handlers + captured payloads
+├── Scrapers.IntegrationTests/      # Live API + PostgreSQL integration tests
+├── Frontend.Tests/                 # bUnit + MockHttp tests for Blazor pages
+├── docs/                           # Documentation
 ├── AGENTS.md                       # Contribution guidelines
 └── .editorconfig                   # Code style rules (non-negotiable)
 ```
@@ -106,6 +127,6 @@ All style rules are in `.editorconfig` - this is the single source of truth. If 
 ## Questions?
 
 - Contribution guidelines → See `AGENTS.md`
+- Scraper architecture, entity model, pipeline design → See `scraper_architecture.md`
 - Data persistence work → See `data_loss_remediation.md`
-- Architecture questions → See structure above and test patterns in `Scrapers/Testing/`
 - Build/test issues → Ensure Docker Desktop is running, then `dotnet test`
