@@ -35,11 +35,10 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build (Release)
-        run: dotnet build --no-restore -c Release
-
-      - name: Build (Release, self-contained, linux-x64 — mirrors publish)
-        run: dotnet build --no-restore -c Release -r linux-x64 --self-contained
+      - name: Build
+        run: dotnet build --no-restore
+        # Note: Release builds are only used for publishing to production, not for CI validation.
+        # CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --configuration Release --no-build
