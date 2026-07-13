@@ -7,6 +7,7 @@ namespace Scrapers.Persistence.Entities
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
         public string FullName { get; set; } = string.Empty;
+        public string? Prefix { get; set; }
         public string? Orcid { get; set; }
         public string? NcbiId { get; set; }
         public DateTime? VerifiedAt { get; set; }

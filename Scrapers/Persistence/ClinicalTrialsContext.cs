@@ -202,6 +202,7 @@ namespace Scrapers.Persistence
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
                 entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(300);
+                entity.Property(e => e.Prefix).HasColumnName("prefix").HasMaxLength(50);
                 entity.Property(e => e.Orcid).HasColumnName("orcid").HasMaxLength(50);
                 entity.Property(e => e.NcbiId).HasColumnName("ncbi_id").HasMaxLength(50);
                 entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
