@@ -91,15 +91,15 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
             count: studyLimit,
             onBatch: async batch =>
             {
-                // Enqueue event for each discovered study
-                foreach (var study in batch)
-                {
-                    var eventData = System.Text.Json.JsonSerializer.Serialize(new { nctId = study.NctId });
-                    await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct).ConfigureAwait(false);
-                    studyCount++;
-                }
+                studyCount += batch.Count;
             },
             cancellationToken: ct).ConfigureAwait(false);
+
+        if (studyCount > 0)
+        {
+            var eventData = System.Text.Json.JsonSerializer.Serialize(new { count = studyCount });
+            await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct).ConfigureAwait(false);
+        }
 
         // Update data source state
         await _dataSourceStateService.UpdateLastSyncAsync(

@@ -1,29 +1,29 @@
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
+using Scrapers.Services;
 using Scrapers.Services.EventQueue;
 
 namespace IngestionApp;
 
-/// <summary>
-/// Core background service that continuously processes events from the queue.
-/// Claims events, dispatches to appropriate handlers, and manages retries/dead-letter.
-/// </summary>
 internal sealed class EventProcessingService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
+    private readonly ClinicalTrialsIngestionService _ingestionService;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
     private readonly int _claimedEventTimeoutMinutes;
 
     public EventProcessingService(
         IEventQueueService eventQueueService,
+        ClinicalTrialsIngestionService ingestionService,
         int pollIntervalSeconds = 10,
         int claimedEventTimeoutMinutes = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
+        _ingestionService = ingestionService ?? throw new ArgumentNullException(nameof(ingestionService));
         _pollIntervalSeconds = pollIntervalSeconds;
         _claimedEventTimeoutMinutes = claimedEventTimeoutMinutes;
 
-        // Unique instance identifier
         _serviceInstanceId = $"{System.Environment.MachineName}-{System.Environment.ProcessId}";
     }
 
@@ -76,23 +76,31 @@ internal sealed class EventProcessingService : BackgroundService
         }
     }
 
-    private static Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
+    private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
     {
-        // For now, just log that we received the event
-        System.Diagnostics.Debug.WriteLine($"Processing event: {@event.EventType} with data: {@event.Data}");
-
-        // Future implementations will dispatch to specific handlers
         switch (@event.EventType)
         {
             case "studies.discovered":
-                // Enqueue downstream events for enrichment
+                await HandleStudiesDiscoveredAsync(@event, ct).ConfigureAwait(false);
                 break;
 
             default:
-                // Unknown event type, but don't fail - just complete it
                 break;
         }
+    }
 
-        return Task.CompletedTask;
+    private async Task HandleStudiesDiscoveredAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
+    {
+        var count = 50;
+        if (!string.IsNullOrWhiteSpace(@event.Data))
+        {
+            using var doc = JsonDocument.Parse(@event.Data);
+            if (doc.RootElement.TryGetProperty("count", out var countProp))
+            {
+                count = countProp.GetInt32();
+            }
+        }
+
+        await _ingestionService.IngestAsync(count, cancellationToken: ct).ConfigureAwait(false);
     }
 }

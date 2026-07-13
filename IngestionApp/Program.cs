@@ -1,7 +1,9 @@
 using IngestionApp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Scrapers;
 using Scrapers.Persistence;
+using Scrapers.Services;
 using Scrapers.Services.CrawlServices;
 using Scrapers.Services.EventQueue;
 
@@ -27,6 +29,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
         services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
 
+        // ClinicalTrials.gov ingestion pipeline
+        services.AddSingleton<ClinicalTrialsGov>();
+        services.AddSingleton<ClinicalTrialsIngestionService>();
+
         // Pivot services
         services.AddSingleton<PivotServiceRegistry>();
         services.AddSingleton<PivotConfigurationService>(new PivotConfigurationService(cs));
@@ -41,6 +47,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<ClinicalTrialsIngestionService>(),
             pollIntervalSeconds: 10,
             claimedEventTimeoutMinutes: 30));
 
