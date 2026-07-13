@@ -28,11 +28,10 @@ namespace Scrapers.Persistence.Entities
 
         public ICollection<InvestigatorEntity>? Investigators { get; set; }
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
-        public ICollection<PubmedStudyEntity>? PubmedStudies { get; set; }
+        public ICollection<StudyPaperEntity>? StudyPapers { get; set; }
         public ICollection<StudyKeywordEntity>? Keywords { get; set; }
         public ICollection<StudyConditionEntity>? Conditions { get; set; }
         public ICollection<StudyPhaseEntity>? Phases { get; set; }
-        public ICollection<StudyAuthorEntity>? Authors { get; set; }
         public ICollection<StudyLocationEntity>? Locations { get; set; }
         public ICollection<StudyReferenceEntity>? References { get; set; }
     }

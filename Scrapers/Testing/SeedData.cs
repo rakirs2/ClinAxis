@@ -415,6 +415,60 @@ internal static class SeedData
         StudyNctId = "NCT00000011", InvestigatorPersonId = Person12.Id, RoleOnStudy = "SUB_INVESTIGATOR", IsOverallOfficial = true
     };
 
+    internal static readonly PubmedPaperEntity Paper1 = new()
+    {
+        Id = Guid.Parse("B0000000-0000-0000-0000-000000000001"),
+        Pmid = "98765432",
+        Doi = "10.1000/abc123",
+        Title = "Sample PubMed Publication Alpha",
+        Journal = "Test Journal",
+        PublicationDate = new DateTime(2023, 6, 15, 0, 0, 0, DateTimeKind.Utc),
+        Abstract = "This is a sample abstract for testing.",
+        IsNonEnglish = false,
+    };
+
+    internal static readonly PubmedPaperEntity Paper2 = new()
+    {
+        Id = Guid.Parse("B0000000-0000-0000-0000-000000000002"),
+        Pmid = "98765433",
+        Doi = "10.1000/def456",
+        Title = "Sample PubMed Publication Beta",
+        Journal = "Another Journal",
+        PublicationDate = new DateTime(2024, 1, 20, 0, 0, 0, DateTimeKind.Utc),
+        Abstract = "Another sample abstract for integration testing.",
+        IsNonEnglish = false,
+    };
+
+    internal static readonly StudyPaperEntity StudyPaper1 = new()
+    {
+        StudyNctId = Study2.NctId, PubmedPaperId = Paper1.Id
+    };
+
+    internal static readonly StudyPaperEntity StudyPaper2 = new()
+    {
+        StudyNctId = Study2.NctId, PubmedPaperId = Paper2.Id
+    };
+
+    internal static readonly StudyPaperEntity StudyPaper3 = new()
+    {
+        StudyNctId = Study3.NctId, PubmedPaperId = Paper1.Id
+    };
+
+    internal static readonly InvestigatorPaperEntity InvestigatorPaper1 = new()
+    {
+        InvestigatorPersonId = Person1.Id, PubmedPaperId = Paper1.Id, AuthorPosition = 1, IsCorrespondingAuthor = true
+    };
+
+    internal static readonly InvestigatorPaperEntity InvestigatorPaper2 = new()
+    {
+        InvestigatorPersonId = Person1.Id, PubmedPaperId = Paper2.Id, AuthorPosition = 2, IsCorrespondingAuthor = false
+    };
+
+    internal static readonly InvestigatorPaperEntity InvestigatorPaper3 = new()
+    {
+        InvestigatorPersonId = Person3.Id, PubmedPaperId = Paper1.Id, AuthorPosition = 3, IsCorrespondingAuthor = false
+    };
+
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
         ctx.InvestigatorPersons.AddRange(
@@ -430,6 +484,9 @@ internal static class SeedData
             StudyInvestigator5, StudyInvestigator6, StudyInvestigator7, StudyInvestigator8,
             StudyInvestigator9, StudyInvestigator10, StudyInvestigator11, StudyInvestigator12,
             StudyInvestigator13);
+        ctx.PubmedPapers.AddRange(Paper1, Paper2);
+        ctx.StudyPapers.AddRange(StudyPaper1, StudyPaper2, StudyPaper3);
+        ctx.InvestigatorPapers.AddRange(InvestigatorPaper1, InvestigatorPaper2, InvestigatorPaper3);
         await ctx.SaveChangesAsync().ConfigureAwait(false);
     }
 }

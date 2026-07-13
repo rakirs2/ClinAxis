@@ -27,8 +27,6 @@ public class FiftyTrialMappingIntegrationTest : DbTestBase
             Console.WriteLine($"Keywords: {await Context.StudyKeywords.CountAsync()}");
             Console.WriteLine($"Conditions: {await Context.StudyConditions.CountAsync()}");
             Console.WriteLine($"Phases: {await Context.StudyPhases.CountAsync()}");
-            Console.WriteLine($"Authors (flattened): {await Context.StudyAuthors.CountAsync()}");
-            Console.WriteLine($"Authors with ORCID: {await Context.StudyAuthors.CountAsync(a => a.Orcid != null)}");
 
             List<StudyEntity> studies = await Context.Studies
                 .Include(s => s.Keywords)
@@ -61,14 +59,6 @@ public class FiftyTrialMappingIntegrationTest : DbTestBase
                 Console.WriteLine();
             }
 
-            Console.WriteLine("Sample authors from study_authors (first 15):");
-            Console.WriteLine($"{"Id",-5} {"StudyNctId",-16} {"Pmid",-10} {"LastName",-25} {"ForeName",-25} {"Orcid",-25}");
-            Console.WriteLine(new string('-', 106));
-            List<StudyAuthorEntity> authors = await Context.StudyAuthors.OrderBy(a => a.StudyNctId).Take(15).ToListAsync();
-            foreach (StudyAuthorEntity? a in authors)
-            {
-                Console.WriteLine($"{a.Id,-5} {a.StudyNctId,-16} {a.Pmid,-10} {a.LastName,-25} {a.ForeName,-25} {a.Orcid,-25}");
-            }
             Console.WriteLine();
 
             if (result.Errors != null)

@@ -16,5 +16,6 @@ namespace Scrapers.Persistence.Entities
 
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
         public ICollection<InvestigatorAffiliationEntity>? Affiliations { get; set; }
+        public ICollection<InvestigatorPaperEntity>? InvestigatorPapers { get; set; }
     }
 }

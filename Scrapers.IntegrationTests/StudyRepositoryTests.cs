@@ -257,6 +257,69 @@ public sealed class StudyRepositoryTests : DbTestBase
             "Both junctions should reference the same person");
     }
 
+    [TestMethod]
+    public async Task UpsertStudiesAsync_EnqueuesInvestigatorDiscoveredEventForNewPerson()
+    {
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT02000001", "New PI Study", "RECRUITING",
+                [new Investigator { Name = "Dr. Eve NewPerson, PhD", Affiliation = "New Lab", Role = "PRINCIPAL_INVESTIGATOR" }])
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        List<PipelineEventEntity> events = await Context.PipelineEvents
+            .Where(e => e.EventType == "investigator.discovered")
+            .ToListAsync();
+        Assert.AreEqual(1, events.Count, "Should enqueue one investigator.discovered event");
+        Assert.AreEqual("pending", events[0].Status);
+    }
+
+    [TestMethod]
+    public async Task ScrubInvestigatorAsync_CreatesInvestigatorPaperLinks()
+    {
+        var personId = Guid.NewGuid();
+        var paperId = Guid.NewGuid();
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = personId,
+            FullName = "Dr. Marie Curie",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.Studies.Add(new StudyEntity
+        {
+            NctId = "NCT03000001",
+            BriefTitle = "Radium Study",
+            OverallStatus = "COMPLETED",
+            CreatedAt = DateTime.UtcNow
+        });
+        Context.PubmedPapers.Add(new PubmedPaperEntity
+        {
+            Id = paperId,
+            Pmid = "99999999",
+            Title = "Radium Discovery Paper",
+            Journal = "Nature",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.StudyPapers.Add(new StudyPaperEntity
+        {
+            StudyNctId = "NCT03000001",
+            PubmedPaperId = paperId
+        });
+        await Context.SaveChangesAsync();
+
+        await StudyRepository.ScrubInvestigatorPapersAsync(
+            Context, personId, default);
+
+        List<InvestigatorPaperEntity> links = await Context.InvestigatorPapers
+            .Where(ip => ip.InvestigatorPersonId == personId)
+            .ToListAsync();
+        Assert.AreEqual(1, links.Count, "Should create one investigator-paper link");
+        Assert.AreEqual(paperId, links[0].PubmedPaperId);
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null)
     {

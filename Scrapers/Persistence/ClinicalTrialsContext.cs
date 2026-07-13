@@ -8,12 +8,13 @@ namespace Scrapers.Persistence
     {
         public DbSet<StudyEntity> Studies => Set<StudyEntity>();
         public DbSet<InvestigatorEntity> Investigators => Set<InvestigatorEntity>();
-        public DbSet<PubmedStudyEntity> PubmedStudies => Set<PubmedStudyEntity>();
+        public DbSet<PubmedPaperEntity> PubmedPapers => Set<PubmedPaperEntity>();
+        public DbSet<StudyPaperEntity> StudyPapers => Set<StudyPaperEntity>();
+        public DbSet<InvestigatorPaperEntity> InvestigatorPapers => Set<InvestigatorPaperEntity>();
         public DbSet<StudyKeywordEntity> StudyKeywords => Set<StudyKeywordEntity>();
         public DbSet<StudyConditionEntity> StudyConditions => Set<StudyConditionEntity>();
         public DbSet<StudyLocationEntity> StudyLocations => Set<StudyLocationEntity>();
         public DbSet<StudyPhaseEntity> StudyPhases => Set<StudyPhaseEntity>();
-        public DbSet<StudyAuthorEntity> StudyAuthors => Set<StudyAuthorEntity>();
         public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
         public DbSet<PiAggregationEntity> PiAggregations => Set<PiAggregationEntity>();
         public DbSet<CategoryAggregationEntity> CategoryAggregations => Set<CategoryAggregationEntity>();
@@ -76,12 +77,11 @@ namespace Scrapers.Persistence
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            modelBuilder.Entity<PubmedStudyEntity>(entity =>
+            modelBuilder.Entity<PubmedPaperEntity>(entity =>
             {
-                entity.ToTable("pubmed_studies");
+                entity.ToTable("pubmed_papers");
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Id).HasColumnName("id");
                 entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
                 entity.Property(e => e.Doi).HasColumnName("doi");
                 entity.Property(e => e.Title).HasColumnName("title");
@@ -90,14 +90,48 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Abstract).HasColumnName("abstract");
                 entity.Property(e => e.IsNonEnglish).HasColumnName("is_non_english");
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(e => e.Pmid).IsUnique();
+            });
+
+            modelBuilder.Entity<StudyPaperEntity>(entity =>
+            {
+                entity.ToTable("study_papers");
+                entity.HasKey(e => new { e.StudyNctId, e.PubmedPaperId });
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.PubmedPaperId).HasColumnName("pubmed_paper_id");
 
                 entity.HasOne(e => e.Study)
-                    .WithMany(s => s.PubmedStudies)
+                    .WithMany(s => s.StudyPapers)
                     .HasForeignKey(e => e.StudyNctId)
                     .HasPrincipalKey(s => s.NctId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasIndex(e => new { e.StudyNctId, e.Pmid }).IsUnique();
+                entity.HasOne(e => e.PubmedPaper)
+                    .WithMany(p => p.StudyPapers)
+                    .HasForeignKey(e => e.PubmedPaperId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestigatorPaperEntity>(entity =>
+            {
+                entity.ToTable("investigator_papers");
+                entity.HasKey(e => new { e.InvestigatorPersonId, e.PubmedPaperId });
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.PubmedPaperId).HasColumnName("pubmed_paper_id");
+                entity.Property(e => e.AuthorPosition).HasColumnName("author_position");
+                entity.Property(e => e.IsCorrespondingAuthor).HasColumnName("is_corresponding_author");
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.InvestigatorPapers)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.PubmedPaper)
+                    .WithMany(p => p.InvestigatorPapers)
+                    .HasForeignKey(e => e.PubmedPaperId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<StudyKeywordEntity>(entity =>
@@ -259,27 +293,6 @@ namespace Scrapers.Persistence
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(e => e.Pmid);
-            });
-
-            modelBuilder.Entity<StudyAuthorEntity>(entity =>
-            {
-                entity.ToTable("study_authors");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
-                entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
-                entity.Property(e => e.LastName).HasColumnName("last_name");
-                entity.Property(e => e.ForeName).HasColumnName("fore_name");
-                entity.Property(e => e.Orcid).HasColumnName("orcid");
-
-                entity.HasOne(e => e.Study)
-                    .WithMany(s => s.Authors)
-                    .HasForeignKey(e => e.StudyNctId)
-                    .HasPrincipalKey(s => s.NctId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasIndex(e => e.LastName);
-                entity.HasIndex(e => e.Orcid);
             });
 
             modelBuilder.Entity<PipelineRunEntity>(entity =>
