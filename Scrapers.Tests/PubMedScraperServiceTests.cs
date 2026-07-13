@@ -4,7 +4,6 @@ using Scrapers.Services;
 using Scrapers.Testing;
 using System;
 using System.Linq;
-using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,24 +22,30 @@ namespace Scrapers.Tests
                 OverallStatus = "Recruiting"
             };
             Context.Studies.Add(study);
-            await Context.SaveChangesAsync();
 
-            var existingPaper = new PubmedStudyEntity
+            var existingPaper = new PubmedPaperEntity
             {
-                StudyNctId = study.NctId,
                 Pmid = "12345678",
                 Title = "Existing Paper Title",
-                CreatedAt = DateTime.UtcNow
             };
-            Context.PubmedStudies.Add(existingPaper);
+            Context.PubmedPapers.Add(existingPaper);
+            await Context.SaveChangesAsync();
+
+            // Link the existing paper to the study
+            Context.StudyPapers.Add(new StudyPaperEntity
+            {
+                StudyNctId = study.NctId,
+                PubmedPaperId = existingPaper.Id,
+            });
             await Context.SaveChangesAsync();
 
             var scraper = new PubMedScraperService(ConnectionString);
             var count = await scraper.IngestPubMedPapersAsync();
 
-            List<PubmedStudyEntity> papers = await Context.PubmedStudies.Where(p => p.StudyNctId == study.NctId).ToListAsync();
-            Assert.AreEqual(1, papers.Count);
-            Assert.AreEqual("Existing Paper Title", papers[0].Title);
+            var linkCount = await Context.StudyPapers.CountAsync(sp => sp.StudyNctId == study.NctId);
+            Assert.AreEqual(1, linkCount);
+            var paper = await Context.PubmedPapers.FirstAsync(p => p.Pmid == "12345678");
+            Assert.AreEqual("Existing Paper Title", paper.Title);
         }
     }
 }

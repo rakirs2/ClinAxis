@@ -42,9 +42,8 @@ namespace Scrapers.Coordinators
 
                 var studyCount = await studyRepo.CountStudiesAsync(cancellationToken).ConfigureAwait(false);
                 var investigatorCount = await studyRepo.CountInvestigatorsAsync(cancellationToken).ConfigureAwait(false);
-                var pubmedStudyCount = await studyRepo.CountPubmedStudiesAsync(cancellationToken).ConfigureAwait(false);
+                var pubmedStudyCount = await studyRepo.CountPubmedPapersAsync(cancellationToken).ConfigureAwait(false);
                 var keywordCount = await studyRepo.CountKeywordsAsync(cancellationToken).ConfigureAwait(false);
-                var authorCount = await studyRepo.CountAuthorsAsync(cancellationToken).ConfigureAwait(false);
 
                 var errors = new List<ValidationError>();
 
@@ -71,21 +70,20 @@ namespace Scrapers.Coordinators
                     }
                 }
 
-                IReadOnlyList<PubmedStudyEntity> pubmedStudies = await studyRepo.GetPubmedStudiesAsync(cancellationToken).ConfigureAwait(false);
-                var studyIds = studies.Select(s => s.NctId).ToHashSet();
+                IReadOnlyList<PubmedPaperEntity> pubmedPapers = await studyRepo.GetPubmedPapersAsync(cancellationToken).ConfigureAwait(false);
 
-                foreach (PubmedStudyEntity pubmed in pubmedStudies)
+                foreach (PubmedPaperEntity paper in pubmedPapers)
                 {
-                    if (!studyIds.Contains(pubmed.StudyNctId))
+                    if (string.IsNullOrWhiteSpace(paper.Pmid))
                     {
-                        errors.Add(new ValidationError("PubmedStudyIntegrity",
-                            $"PubMed study PMID {pubmed.Pmid} references non-existent study NCT ID {pubmed.StudyNctId}."));
+                        errors.Add(new ValidationError("PubmedPaperIntegrity",
+                            $"PubMed paper {paper.Id} has no PMID."));
                     }
                 }
 
                 var hasErrors = errors.Count > 0;
                 await studyRepo.CompletePipelineRunAsync(runId, hasErrors ? "CompletedWithErrors" : "Completed",
-                    studyCount, investigatorCount, pubmedStudyCount, keywordCount, authorCount,
+                    studyCount, investigatorCount, pubmedStudyCount, keywordCount,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 return new PipelineResult(

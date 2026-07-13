@@ -226,16 +226,14 @@ app.MapGet("/api/stats", async () =>
     var repo = new StudyRepository(connectionString);
     var studies = await repo.CountStudiesAsync();
     var investigators = await repo.CountInvestigatorsAsync();
-    var pubmedPapers = await repo.CountPubmedStudiesAsync();
+    var pubmedPapers = await repo.CountPubmedPapersAsync();
     var keywords = await repo.CountKeywordsAsync();
-    var authors = await repo.CountAuthorsAsync();
     return Results.Ok(new
     {
         totalStudies = studies,
         totalInvestigators = investigators,
         totalPubmedPapers = pubmedPapers,
-        totalKeywords = keywords,
-        totalAuthors = authors
+        totalKeywords = keywords
     });
 });
 
@@ -245,9 +243,8 @@ app.MapGet("/api/telemetry", async () =>
 
     var studies = await repo.CountStudiesAsync();
     var investigators = await repo.CountInvestigatorsAsync();
-    var pubmedPapers = await repo.CountPubmedStudiesAsync();
+    var pubmedPapers = await repo.CountPubmedPapersAsync();
     var keywords = await repo.CountKeywordsAsync();
-    var authors = await repo.CountAuthorsAsync();
 
     List<PipelineRunEntity> recentRuns = await repo.GetPipelineRunsAsync(1, 5);
     IReadOnlyList<ScrapeEventEntity> recentEvents = await repo.GetRecentScrapeEventsAsync(20);
@@ -262,8 +259,7 @@ app.MapGet("/api/telemetry", async () =>
             totalStudies = studies,
             totalInvestigators = investigators,
             totalPubmedPapers = pubmedPapers,
-            totalKeywords = keywords,
-            totalAuthors = authors
+            totalKeywords = keywords
         },
         pipelineRuns = recentRuns.Select(r => StudyMapper.ToPipelineRun(r)),
         recentEvents = recentEvents.Select(e => new

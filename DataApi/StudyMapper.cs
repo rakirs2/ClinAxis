@@ -17,7 +17,7 @@ internal static class StudyMapper
             completionDate = s.CompletionDate,
             isIncomplete = s.IsIncomplete,
             investigatorCount = s.StudyInvestigators?.Count ?? s.Investigators?.Count ?? 0,
-            pubmedPaperCount = s.PubmedStudies?.Count ?? 0,
+            pubmedPaperCount = s.StudyPapers?.Count ?? 0,
             conditions = s.Conditions?.Select(c => c.Condition).ToList(),
             phases = s.Phases?.Select(p => p.Phase).ToList()
         };
@@ -60,15 +60,15 @@ internal static class StudyMapper
             conditions = s.Conditions?.Select(c => c.Condition).ToList(),
             keywords = s.Keywords?.Select(k => k.Keyword).ToList(),
             phases = s.Phases?.Select(p => p.Phase).ToList(),
-            pubmedPapers = s.PubmedStudies?.Select(p => new
+            pubmedPapers = s.StudyPapers?.Select(sp => new
             {
-                pmid = p.Pmid,
-                doi = p.Doi,
-                title = p.Title,
-                journal = p.Journal,
-                publicationDate = p.PublicationDate,
-                abstractText = p.Abstract,
-                isNonEnglish = p.IsNonEnglish
+                pmid = sp.PubmedPaper?.Pmid,
+                doi = sp.PubmedPaper?.Doi,
+                title = sp.PubmedPaper?.Title,
+                journal = sp.PubmedPaper?.Journal,
+                publicationDate = sp.PubmedPaper?.PublicationDate,
+                abstractText = sp.PubmedPaper?.Abstract,
+                isNonEnglish = sp.PubmedPaper?.IsNonEnglish ?? false
             }).ToList()
         };
     }

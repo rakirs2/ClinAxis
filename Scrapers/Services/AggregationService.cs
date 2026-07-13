@@ -37,7 +37,7 @@ namespace Scrapers.Services
                     continue;
                 }
 
-                var pubmedCount = study.PubmedStudies?.Count ?? 0;
+                var pubmedCount = study.StudyPapers?.Count ?? 0;
 
                 foreach (InvestigatorEntity investigator in study.Investigators)
                 {
@@ -86,7 +86,7 @@ namespace Scrapers.Services
 
             foreach (StudyEntity study in studies)
             {
-                var pubmedCount = study.PubmedStudies?.Count ?? 0;
+                var pubmedCount = study.StudyPapers?.Count ?? 0;
 
                 if (study.Conditions != null)
                 {
