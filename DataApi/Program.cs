@@ -26,13 +26,6 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
     }
 }
 
-// Seed database with test data only in non-Production environments
-if (!builder.Environment.IsProduction())
-{
-    var seeder = new DatabaseSeeder(connectionString);
-    await seeder.SeedIfEmptyAsync();
-}
-
 builder.Services.AddHealthChecks();
 
 WebApplication app = builder.Build();
