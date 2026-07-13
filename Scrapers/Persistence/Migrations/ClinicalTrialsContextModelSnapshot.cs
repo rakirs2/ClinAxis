@@ -674,6 +674,40 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("source_fetch_history", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyArmGroupEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("text")
+                        .HasColumnName("label");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Type")
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("study_arm_groups", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyConditionEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -722,6 +756,10 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("brief_title");
 
+                    b.Property<string>("CollaboratorNames")
+                        .HasColumnType("text")
+                        .HasColumnName("collaborator_names");
+
                     b.Property<DateOnly?>("CompletionDate")
                         .HasColumnType("date")
                         .HasColumnName("completion_date");
@@ -730,9 +768,17 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("EligibilityCriteria")
+                        .HasColumnType("text")
+                        .HasColumnName("eligibility_criteria");
+
                     b.Property<int?>("EnrollmentCount")
                         .HasColumnType("integer")
                         .HasColumnName("enrollment_count");
+
+                    b.Property<string>("HealthyVolunteers")
+                        .HasColumnType("text")
+                        .HasColumnName("healthy_volunteers");
 
                     b.Property<string>("InterventionModel")
                         .HasColumnType("text")
@@ -741,6 +787,14 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<bool>("IsIncomplete")
                         .HasColumnType("boolean")
                         .HasColumnName("is_incomplete");
+
+                    b.Property<string>("LeadSponsorName")
+                        .HasColumnType("text")
+                        .HasColumnName("lead_sponsor_name");
+
+                    b.Property<string>("Masking")
+                        .HasColumnType("text")
+                        .HasColumnName("masking");
 
                     b.Property<string>("MaximumAge")
                         .HasColumnType("text")
@@ -753,6 +807,10 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<string>("OfficialTitle")
                         .HasColumnType("text")
                         .HasColumnName("official_title");
+
+                    b.Property<string>("OrgStudyId")
+                        .HasColumnType("text")
+                        .HasColumnName("org_study_id");
 
                     b.Property<string>("OverallStatus")
                         .HasColumnType("text")
@@ -905,6 +963,46 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("study_locations", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyOutcomeEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Measure")
+                        .HasColumnType("text")
+                        .HasColumnName("measure");
+
+                    b.Property<string>("OutcomeType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("outcome_type");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("TimeFrame")
+                        .HasColumnType("text")
+                        .HasColumnName("time_frame");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("study_outcomes", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyPaperEntity", b =>
                 {
                     b.Property<string>("StudyNctId")
@@ -1038,6 +1136,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("PipelineRun");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyArmGroupEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
+                        .WithMany("ArmGroups")
+                        .HasForeignKey("StudyNctId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Study");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyConditionEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
@@ -1083,6 +1192,17 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("Locations")
+                        .HasForeignKey("StudyNctId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Study");
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyOutcomeEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
+                        .WithMany("Outcomes")
                         .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1149,6 +1269,8 @@ namespace Scrapers.Persistence.Migrations
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyEntity", b =>
                 {
+                    b.Navigation("ArmGroups");
+
                     b.Navigation("Conditions");
 
                     b.Navigation("Investigators");
@@ -1156,6 +1278,8 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Keywords");
 
                     b.Navigation("Locations");
+
+                    b.Navigation("Outcomes");
 
                     b.Navigation("Phases");
 

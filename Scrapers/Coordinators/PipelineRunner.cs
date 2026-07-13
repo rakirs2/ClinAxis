@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
@@ -36,6 +37,13 @@ namespace Scrapers.Coordinators
 
                 var pubMedScraperService = new PubMedScraperService(connectionString);
                 await pubMedScraperService.IngestPubMedPapersAsync(cancellationToken).ConfigureAwait(false);
+
+                using var requeueContext = new ClinicalTrialsContext(
+                    new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                        .UseNpgsql(connectionString)
+                        .Options);
+                var requeuedCount = await StudyRepository.RequeueInvestigatorScrubEventsAsync(
+                    requeueContext, cancellationToken).ConfigureAwait(false);
 
                 var aggregationService = new AggregationService(studyRepo);
                 await aggregationService.AggregateAsync(cancellationToken).ConfigureAwait(false);
