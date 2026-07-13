@@ -68,6 +68,7 @@ namespace Scrapers.Persistence
                     .Include(s => s.Conditions)
                     .Include(s => s.Phases)
                     .Include(s => s.Locations)
+                    .Include(s => s.References)
                     .FirstOrDefaultAsync(s => s.NctId == record.NctId, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -81,7 +82,8 @@ namespace Scrapers.Persistence
                         Keywords = new List<StudyKeywordEntity>(),
                         Conditions = new List<StudyConditionEntity>(),
                         Phases = new List<StudyPhaseEntity>(),
-                        Locations = new List<StudyLocationEntity>()
+                        Locations = new List<StudyLocationEntity>(),
+                        References = new List<StudyReferenceEntity>()
                     };
                     context.Studies.Add(entity);
                 }
@@ -155,6 +157,25 @@ namespace Scrapers.Persistence
                                     Country = location.Country
                                 });
                             }
+                        }
+                    }
+                }
+
+                // Populate references from API response (fix data loss + eliminate redundant CT.gov per-study call)
+                entity.References!.Clear();
+                if (record.References != null && record.References.Count > 0)
+                {
+                    foreach (var reference in record.References)
+                    {
+                        if (reference != null && !string.IsNullOrWhiteSpace(reference.Pmid))
+                        {
+                            entity.References.Add(new StudyReferenceEntity
+                            {
+                                StudyNctId = record.NctId!,
+                                Pmid = reference.Pmid,
+                                Citation = reference.Citation,
+                                Type = reference.Type
+                            });
                         }
                     }
                 }
