@@ -66,9 +66,10 @@ dotnet_diagnostic.CA1002.severity = none
 dotnet_diagnostic.CA2227.severity = none
 dotnet_diagnostic.CA1034.severity = none
 
-# EF navigation properties need List<T> with setters
-[Scrapers/Persistence/Entities/StudyEntity.cs]
+# EF navigation properties need ICollection<T> with setters
+[Scrapers/Persistence/Entities/*.cs]
 dotnet_diagnostic.CA2227.severity = none
+dotnet_diagnostic.CA1001.severity = none
 
 # Auto-generated migrations
 [Scrapers/Persistence/Migrations/*.cs]

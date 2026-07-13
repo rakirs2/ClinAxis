@@ -23,6 +23,9 @@ namespace Scrapers.Persistence
         public DbSet<SourceFetchHistoryEntity> SourceFetchHistories => Set<SourceFetchHistoryEntity>();
         public DbSet<ScraperPivotEntity> ScraperPivots => Set<ScraperPivotEntity>();
         public DbSet<StudyReferenceEntity> StudyReferences => Set<StudyReferenceEntity>();
+        public DbSet<InvestigatorPersonEntity> InvestigatorPersons => Set<InvestigatorPersonEntity>();
+        public DbSet<InvestigatorAffiliationEntity> InvestigatorAffiliations => Set<InvestigatorAffiliationEntity>();
+        public DbSet<StudyInvestigatorEntity> StudyInvestigators => Set<StudyInvestigatorEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -167,6 +170,76 @@ namespace Scrapers.Persistence
                     .HasForeignKey(e => e.StudyNctId)
                     .HasPrincipalKey(s => s.NctId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestigatorPersonEntity>(entity =>
+            {
+                entity.ToTable("investigator_persons");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(300);
+                entity.Property(e => e.Orcid).HasColumnName("orcid").HasMaxLength(50);
+                entity.Property(e => e.NcbiId).HasColumnName("ncbi_id").HasMaxLength(50);
+                entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
+                entity.Property(e => e.VerificationSource).HasColumnName("verification_source").HasMaxLength(50);
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(e => e.Orcid).IsUnique().HasFilter("orcid IS NOT NULL");
+                entity.HasIndex(e => e.NcbiId).IsUnique().HasFilter("ncbi_id IS NOT NULL");
+                entity.HasIndex(e => e.FullName);
+            });
+
+            modelBuilder.Entity<InvestigatorAffiliationEntity>(entity =>
+            {
+                entity.ToTable("investigator_affiliations");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.InstitutionName).HasColumnName("institution_name").HasMaxLength(300);
+                entity.Property(e => e.Department).HasColumnName("department").HasMaxLength(200);
+                entity.Property(e => e.City).HasColumnName("city").HasMaxLength(200);
+                entity.Property(e => e.State).HasColumnName("state").HasMaxLength(200);
+                entity.Property(e => e.Country).HasColumnName("country").HasMaxLength(200);
+                entity.Property(e => e.StartDate).HasColumnName("start_date");
+                entity.Property(e => e.EndDate).HasColumnName("end_date");
+                entity.Property(e => e.Role).HasColumnName("role").HasMaxLength(200);
+                entity.Property(e => e.IsPrimary).HasColumnName("is_primary");
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.Affiliations)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.InvestigatorPersonId);
+                entity.HasIndex(e => e.InstitutionName);
+            });
+
+            modelBuilder.Entity<StudyInvestigatorEntity>(entity =>
+            {
+                entity.ToTable("study_investigators");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.RoleOnStudy).HasColumnName("role_on_study").HasMaxLength(200);
+                entity.Property(e => e.ContactPhone).HasColumnName("contact_phone").HasMaxLength(50);
+                entity.Property(e => e.ContactEmail).HasColumnName("contact_email").HasMaxLength(200);
+                entity.Property(e => e.IsOverallOfficial).HasColumnName("is_overall_official");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.StudyInvestigators)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.StudyInvestigators)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => new { e.StudyNctId, e.InvestigatorPersonId });
+                entity.HasIndex(e => e.InvestigatorPersonId);
             });
 
             modelBuilder.Entity<StudyReferenceEntity>(entity =>
