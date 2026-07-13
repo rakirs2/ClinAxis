@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
+using Scrapers.Services;
 
 namespace Scrapers.Persistence
 {
@@ -95,7 +96,8 @@ namespace Scrapers.Persistence
                         Conditions = new List<StudyConditionEntity>(),
                         Phases = new List<StudyPhaseEntity>(),
                         Locations = new List<StudyLocationEntity>(),
-                        References = new List<StudyReferenceEntity>()
+                        References = new List<StudyReferenceEntity>(),
+                        StudyPapers = new List<StudyPaperEntity>()
                     };
                     context.Studies.Add(entity);
                 }
@@ -246,22 +248,16 @@ namespace Scrapers.Persistence
             return await context.Investigators.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> CountPubmedStudiesAsync(CancellationToken cancellationToken = default)
+        public async Task<int> CountPubmedPapersAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.PubmedStudies.CountAsync(cancellationToken).ConfigureAwait(false);
+            return await context.PubmedPapers.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountKeywordsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.StudyKeywords.CountAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<int> CountAuthorsAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.StudyAuthors.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
@@ -309,11 +305,11 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             context.PiAggregations.RemoveRange(context.PiAggregations);
             context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
-            context.StudyAuthors.RemoveRange(context.StudyAuthors);
             context.StudyKeywords.RemoveRange(context.StudyKeywords);
             context.StudyConditions.RemoveRange(context.StudyConditions);
             context.StudyPhases.RemoveRange(context.StudyPhases);
-            context.PubmedStudies.RemoveRange(context.PubmedStudies);
+            context.StudyPapers.RemoveRange(context.StudyPapers);
+            context.PubmedPapers.RemoveRange(context.PubmedPapers);
             context.StudyInvestigators.RemoveRange(context.StudyInvestigators);
             context.InvestigatorAffiliations.RemoveRange(context.InvestigatorAffiliations);
             context.InvestigatorPersons.RemoveRange(context.InvestigatorPersons);
@@ -333,10 +329,10 @@ namespace Scrapers.Persistence
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesAsync(CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<PubmedPaperEntity>> GetPubmedPapersAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.PubmedStudies.ToListAsync(cancellationToken).ConfigureAwait(false);
+            return await context.PubmedPapers.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<int>> GetInvestigatorIdsAsync(CancellationToken cancellationToken = default)
@@ -372,7 +368,7 @@ namespace Scrapers.Persistence
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
-                .Include(s => s.PubmedStudies)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking()
                 .Where(s => s.Investigators != null && s.Investigators.Any(i => i.Uuid == uuid));
 
@@ -434,14 +430,6 @@ namespace Scrapers.Persistence
             return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<IReadOnlyList<PubmedStudyEntity>> GetPubmedStudiesWithAuthorsAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.PubmedStudies
-                .Include(p => p.Study)
-                .ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
         public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -453,7 +441,7 @@ namespace Scrapers.Persistence
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
-                .Include(s => s.PubmedStudies)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -468,7 +456,7 @@ namespace Scrapers.Persistence
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
-                .Include(s => s.PubmedStudies)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -549,7 +537,7 @@ namespace Scrapers.Persistence
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
                 .Include(s => s.Locations)
-                .Include(s => s.PubmedStudies)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking();
 
             // Apply filters in order (helps query planner use indices)
@@ -907,8 +895,7 @@ namespace Scrapers.Persistence
                 .Include(s => s.Keywords)
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
-                .Include(s => s.PubmedStudies)
-                .Include(s => s.Authors)
+                .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.NctId == nctId, cancellationToken).ConfigureAwait(false);
         }
@@ -1060,7 +1047,7 @@ namespace Scrapers.Persistence
                 return existing;
             }
 
-            // 3. Create new person record
+            // 3. Create new person record and enqueue a scrub event
             var person = new InvestigatorPersonEntity
             {
                 Id = Guid.NewGuid(),
@@ -1069,8 +1056,116 @@ namespace Scrapers.Persistence
                 UpdatedAt = DateTime.UtcNow
             };
             context.InvestigatorPersons.Add(person);
+            context.PipelineEvents.Add(new PipelineEventEntity
+            {
+                EventType = "investigator.discovered",
+                Data = person.Id.ToString(),
+                Status = "pending",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
             batchPersons[trimmed] = person;
             return person;
+        }
+
+        public static async Task ScrubInvestigatorPapersAsync(
+            ClinicalTrialsContext context,
+            Guid personId,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            var person = await context.InvestigatorPersons
+                .FirstOrDefaultAsync(p => p.Id == personId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (person == null)
+            {
+                return;
+            }
+
+            var pmids = await context.StudyPapers
+                .Where(sp => sp.PubmedPaper != null)
+                .Select(sp => sp.PubmedPaper!.Pmid)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var pmid in pmids)
+            {
+                if (string.IsNullOrWhiteSpace(pmid))
+                {
+                    continue;
+                }
+
+                PubMedScraperService.PaperDetail? paperDetail = null;
+
+                var paper = await context.PubmedPapers
+                    .FirstOrDefaultAsync(p => p.Pmid == pmid, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (paper == null)
+                {
+                    paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                    if (paperDetail == null)
+                    {
+                        continue;
+                    }
+
+                    paper = new PubmedPaperEntity
+                    {
+                        Pmid = pmid,
+                        Doi = paperDetail.Doi,
+                        Title = paperDetail.Title,
+                        Journal = paperDetail.Journal,
+                        PublicationDate = paperDetail.PublicationDate,
+                        Abstract = paperDetail.Abstract,
+                        IsNonEnglish = paperDetail.IsNonEnglish,
+                    };
+                    context.PubmedPapers.Add(paper);
+                }
+
+                var existingLink = await context.InvestigatorPapers
+                    .AnyAsync(ip => ip.InvestigatorPersonId == personId && ip.PubmedPaperId == paper.Id, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!existingLink)
+                {
+                    context.InvestigatorPapers.Add(new InvestigatorPaperEntity
+                    {
+                        InvestigatorPersonId = personId,
+                        PubmedPaperId = paper.Id,
+                    });
+                }
+
+                if (paperDetail == null && person.Orcid == null)
+                {
+                    paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (paperDetail?.Authors != null && person.Orcid == null)
+                {
+                    var fullNameParts = person.FullName.Split(',')[0].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    var lastName = fullNameParts.LastOrDefault();
+                    var foreName = fullNameParts.FirstOrDefault();
+
+                    foreach (var author in paperDetail.Authors)
+                    {
+                        if (author.Orcid != null
+                            && string.Equals(author.LastName, lastName, StringComparison.OrdinalIgnoreCase)
+                            && (author.ForeName == null || foreName == null || author.ForeName.StartsWith(foreName[0].ToString(), StringComparison.OrdinalIgnoreCase)))
+                        {
+                            person.Orcid = author.Orcid;
+                            person.VerifiedAt = DateTime.UtcNow;
+                            person.VerificationSource = "PubMed";
+                            break;
+                        }
+                    }
+                }
+            }
+
+            person.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         private ClinicalTrialsContext CreateContext()

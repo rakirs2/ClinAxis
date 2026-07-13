@@ -82,10 +82,9 @@ namespace Scrapers.IntegrationTests.Utilities
                 Affiliation = "Sample Univ"
             });
 
-            // PubMed study
-            ctx.PubmedStudies.Add(new PubmedStudyEntity
+            // PubMed paper
+            var pubmedPaper = new PubmedPaperEntity
             {
-                StudyNctId = "NCT00000001",
                 Pmid = "12345678",
                 Doi = "10.1000/xyz123",
                 Title = "Sample PubMed Study",
@@ -93,7 +92,12 @@ namespace Scrapers.IntegrationTests.Utilities
                 PublicationDate = new DateTime(2020, 2, 1),
                 Abstract = "Sample abstract",
                 IsNonEnglish = false,
-                CreatedAt = DateTime.UtcNow
+            };
+            ctx.PubmedPapers.Add(pubmedPaper);
+            ctx.StudyPapers.Add(new StudyPaperEntity
+            {
+                StudyNctId = "NCT00000001",
+                PubmedPaperId = pubmedPaper.Id,
             });
 
             // Pipeline run

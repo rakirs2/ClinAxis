@@ -54,6 +54,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new DeadLetterProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
             checkIntervalMinutes: 5));
+
+        services.AddHostedService(sp => new InvestigatorPublicationScrubService(
+            cs,
+            sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>()));
     })
     .Build();
 
