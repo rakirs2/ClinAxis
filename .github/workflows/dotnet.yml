@@ -84,9 +84,9 @@ jobs:
 
       - name: Start services (background)
         run: |
-          nohup dotnet run --project DataApi/DataApi.csproj --configuration Release --no-build > /tmp/dataapi.log 2>&1 &
+          nohup dotnet run --project DataApi/DataApi.csproj --no-build > /tmp/dataapi.log 2>&1 &
           echo "DataApi PID: $!"
-          nohup dotnet run --project Frontend/Frontend.csproj --configuration Release --no-build > /tmp/frontend.log 2>&1 &
+          nohup dotnet run --project Frontend/Frontend.csproj --no-build > /tmp/frontend.log 2>&1 &
           echo "Frontend PID: $!"
 
       - name: Wait for services
