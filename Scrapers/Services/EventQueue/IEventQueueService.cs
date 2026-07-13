@@ -17,7 +17,7 @@ public interface IEventQueueService
     /// Claim the next pending event for processing.
     /// Returns null if no events are pending or all are claimed.
     /// </summary>
-    Task<PipelineEventEntity?> ClaimNextPendingEventAsync(string claimedBy, CancellationToken ct = default);
+    Task<PipelineEventEntity?> ClaimNextPendingEventAsync(string claimedBy, string[]? eventTypes = null, CancellationToken ct = default);
 
     /// <summary>
     /// Mark an event as successfully completed.
@@ -52,6 +52,11 @@ public interface IEventQueueService
     /// Status becomes 'completed' with error_message preserved.
     /// </summary>
     Task IgnoreDeadLetterEventAsync(int eventId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Release a single claimed event back to pending for another service to claim.
+    /// </summary>
+    Task ReleaseEventAsync(int eventId, CancellationToken ct = default);
 
     /// <summary>
     /// Release claimed events that have been stuck for timeout period.

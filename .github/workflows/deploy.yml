@@ -103,7 +103,12 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
           sleep 5
-          echo "POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}" | sudo tee /etc/clinicaltrialdata.env > /dev/null
+          cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
+          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
+          INGESTION_STUDY_LIMIT=0
+          INGESTION_RESET_DB=true
+          ASPNETCORE_ENVIRONMENT=Production
+          EOF
           EOSSH
 
       - name: Start services

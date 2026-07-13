@@ -42,7 +42,7 @@ public sealed class EventQueueService : IEventQueueService
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    public async Task<PipelineEventEntity?> ClaimNextPendingEventAsync(string claimedBy, CancellationToken ct = default)
+    public async Task<PipelineEventEntity?> ClaimNextPendingEventAsync(string claimedBy, string[]? eventTypes = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(claimedBy))
             throw new ArgumentException("Service identifier cannot be null or empty", nameof(claimedBy));
@@ -56,8 +56,12 @@ public sealed class EventQueueService : IEventQueueService
         await ReleaseStuckEventsAsync(TimeSpan.FromMinutes(ClaimedEventTimeoutMinutes), ct).ConfigureAwait(false);
 
         // Claim the oldest pending event atomically
-        var @event = await context.PipelineEvents
-            .Where(e => e.Status == "pending")
+        var query = context.PipelineEvents.Where(e => e.Status == "pending");
+        if (eventTypes is { Length: > 0 })
+        {
+            query = query.Where(e => eventTypes.Contains(e.EventType));
+        }
+        var @event = await query
             .OrderBy(e => e.CreatedAt)
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
@@ -89,6 +93,27 @@ public sealed class EventQueueService : IEventQueueService
 
         @event.Status = "completed";
         @event.CompletedAt = DateTime.UtcNow;
+        @event.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task ReleaseEventAsync(int eventId, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(_connectionString)
+                .Options);
+
+        var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        if (@event == null)
+            throw new InvalidOperationException($"Event {eventId} not found");
+
+        @event.Status = "pending";
+        @event.ClaimedBy = null;
+        @event.ClaimedAt = null;
         @event.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
