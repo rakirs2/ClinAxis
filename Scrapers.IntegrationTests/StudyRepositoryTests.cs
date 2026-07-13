@@ -208,6 +208,55 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.AreEqual("33333333", refs[0].Pmid);
     }
 
+    [TestMethod]
+    public async Task UpsertStudiesAsync_CreatesNormalizedInvestigatorPersons()
+    {
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT01000001", "Study Alpha", "RECRUITING",
+                [
+                    new Investigator { Name = "Alice Smith", Affiliation = "Acme Research", Role = "PRINCIPAL_INVESTIGATOR" },
+                    new Investigator { Name = "Bob Jones", Affiliation = "Acme Research", Role = "SUB_INVESTIGATOR" }
+                ]),
+            CreateRecord("NCT01000002", "Study Beta", "COMPLETED",
+                [new Investigator { Name = "Carol White", Affiliation = "Health Org", Role = "STUDY_DIRECTOR" }])
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        List<InvestigatorPersonEntity> persons = await Context.InvestigatorPersons
+            .OrderBy(p => p.FullName)
+            .ToListAsync();
+
+        Assert.AreEqual(3, persons.Count, "Should create one person per unique name");
+        Assert.AreEqual("Alice Smith", persons[0].FullName);
+        Assert.AreEqual("Bob Jones", persons[1].FullName);
+        Assert.AreEqual("Carol White", persons[2].FullName);
+    }
+
+    [TestMethod]
+    public async Task UpsertStudiesAsync_DeduplicatesInvestigatorPersonsByName()
+    {
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT01000003", "Study Gamma", "RECRUITING",
+                [new Investigator { Name = "Alice Smith", Affiliation = "Acme Research", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT01000004", "Study Delta", "COMPLETED",
+                [new Investigator { Name = "Alice Smith", Affiliation = "Different Hospital", Role = "PRINCIPAL_INVESTIGATOR" }])
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        List<InvestigatorPersonEntity> persons = await Context.InvestigatorPersons.ToListAsync();
+        Assert.AreEqual(1, persons.Count, "Same name should map to one person record");
+        Assert.AreEqual("Alice Smith", persons[0].FullName);
+
+        List<StudyInvestigatorEntity> junctions = await Context.StudyInvestigators.ToListAsync();
+        Assert.AreEqual(2, junctions.Count, "Two studies means two junction rows");
+        Assert.IsTrue(junctions.All(j => j.InvestigatorPersonId == persons[0].Id),
+            "Both junctions should reference the same person");
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null)
     {
