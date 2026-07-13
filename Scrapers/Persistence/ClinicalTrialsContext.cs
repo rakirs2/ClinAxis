@@ -22,6 +22,7 @@ namespace Scrapers.Persistence
         public DbSet<DataSourceStateEntity> DataSourceStates => Set<DataSourceStateEntity>();
         public DbSet<SourceFetchHistoryEntity> SourceFetchHistories => Set<SourceFetchHistoryEntity>();
         public DbSet<ScraperPivotEntity> ScraperPivots => Set<ScraperPivotEntity>();
+        public DbSet<StudyReferenceEntity> StudyReferences => Set<StudyReferenceEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -166,6 +167,25 @@ namespace Scrapers.Persistence
                     .HasForeignKey(e => e.StudyNctId)
                     .HasPrincipalKey(s => s.NctId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<StudyReferenceEntity>(entity =>
+            {
+                entity.ToTable("study_references");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
+                entity.Property(e => e.Citation).HasColumnName("citation");
+                entity.Property(e => e.Type).HasColumnName("type");
+
+                entity.HasOne(e => e.Study)
+                    .WithMany(s => s.References)
+                    .HasForeignKey(e => e.StudyNctId)
+                    .HasPrincipalKey(s => s.NctId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.Pmid);
             });
 
             modelBuilder.Entity<StudyAuthorEntity>(entity =>

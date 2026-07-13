@@ -154,6 +154,24 @@ public class DatabaseSeeder
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Drops the database, recreates the schema, and seeds with the current corpus
+    /// (120 auto-generated studies). Useful for testing and development.
+    /// </summary>
+    public async Task InitializeAndSeedAsync(CancellationToken cancellationToken = default)
+    {
+        var repo = new StudyRepository(_connectionString);
+        await repo.ResetDatabaseAsync(cancellationToken);
+
+        // Database is now empty — seed with current corpus
+        var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ClinicalTrialsContext>();
+        optionsBuilder.UseNpgsql(_connectionString);
+        using ClinicalTrialsContext context = new(optionsBuilder.Options);
+        var studies = GenerateStudies(120);
+        await context.Studies.AddRangeAsync(studies, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private static List<StudyEntity> GenerateStudies(int count)
     {
         // Use RandomNumberGenerator wrapper to avoid CA5394
