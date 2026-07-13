@@ -38,9 +38,10 @@ internal sealed class EventProcessingService : BackgroundService
                     TimeSpan.FromMinutes(_claimedEventTimeoutMinutes),
                     stoppingToken).ConfigureAwait(false);
 
-                // Try to claim and process one event
+                // Try to claim and process one event (we only handle studies.discovered)
                 var @event = await _eventQueueService.ClaimNextPendingEventAsync(
                     _serviceInstanceId,
+                    eventTypes: ["studies.discovered"],
                     stoppingToken).ConfigureAwait(false);
 
                 if (@event == null)
@@ -78,15 +79,7 @@ internal sealed class EventProcessingService : BackgroundService
 
     private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
     {
-        switch (@event.EventType)
-        {
-            case "studies.discovered":
-                await HandleStudiesDiscoveredAsync(@event, ct).ConfigureAwait(false);
-                break;
-
-            default:
-                break;
-        }
+        await HandleStudiesDiscoveredAsync(@event, ct).ConfigureAwait(false);
     }
 
     private async Task HandleStudiesDiscoveredAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
