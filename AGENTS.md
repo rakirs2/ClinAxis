@@ -60,7 +60,22 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
   - No data is silently dropped during mapping
   - Full field coverage is tested via assertions or schema guards
 
-### 7. Test Conventions
+### 7. Tests Required for Every Code Change
+- **Every code change MUST include corresponding tests.** A PR that adds or modifies production code without new or updated tests will be rejected.
+- **New features** require tests covering the happy path, edge cases, and any data persistence verification.
+- **Bug fixes** require a test that reproduces the bug before the fix and passes after.
+- **Refactors** must not reduce existing test coverage. If existing tests don't cover the refactored code, add tests.
+- **Patterns to follow:**
+  - **Unit tests** (`Scrapers.Tests/`) — for client deserialization, mapping logic, and any code that can run without a database. Use `FakeHttpMessageHandler` with captured JSON fixtures for HTTP clients.
+  - **DB integration tests** (`Scrapers.IntegrationTests/` via `DbTestBase`) — for repository persistence, data loss verification, and any code that writes to PostgreSQL.
+  - **End-to-end tests** (in `Scrapers.IntegrationTests/`) — for full pipeline flows using `SnapshotDb` with golden data.
+- **Data loss verification:** Any new entity or column must have a test that:
+  1. Arranges known input data (fixture or inline)
+  2. Runs it through the full mapping/persistence path
+  3. Asserts row counts and field values in the corresponding database table(s)
+- **Verify before committing:** Run `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass) before creating the PR.
+
+### 8. Test Conventions
 - **Avoid mocks. Prefer pre-seeded data.** Most tests should use `SnapshotDb` with known golden data in a real PostgreSQL database. Only use fake HTTP handlers when testing an HTTP client against an external API that cannot be called in CI (e.g., third-party rate limits).
 - **MSTest only.** Do not introduce xUnit, NUnit, or any other framework.
 - **Per-API coverage:** Every external API we call must have:
@@ -75,7 +90,7 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 1. Ensure Docker Desktop is running (Testcontainers manages containers automatically — no manual `docker compose` needed)
 2. Click **Run All Tests** in the test runner — every test, including integration tests against a real Postgres via Testcontainers, executes locally. No exceptions. No manual setup.
 
-### 8. Deployment Standard
+### 9. Deployment Standard
 - `dotnet publish --self-contained -r linux-x64`
 - SCP publish output to Droplet
 - systemd unit files for process management
@@ -83,17 +98,17 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - No Docker for .NET apps in production. Docker is for local PostgreSQL only.
 - No nginx. Keep the stack minimal.
 
-### 9. It's OK to Delete Bad Code
+### 10. It's OK to Delete Bad Code
 - Refactor first, add features second.
 - If code is duplicated, convoluted, or hard to test, delete it and replace with a simpler version.
 - Do this in a dedicated PR before the feature PR.
 
-### 10. Document Attempts — Do Not Repeat Failures
+### 11. Document Attempts — Do Not Repeat Failures
 - Update `.opencode/plans/PLAN.md` with what was tried and what happened.
 - Never retry an approach that already failed in a prior PR.
 - Keep the decision log with choices and rationales.
 
-### 11. When in Doubt, Default to User Choice
+### 12. When in Doubt, Default to User Choice
 - If there is no clear default documented here, **present options to the user and let them decide**. Don't guess and don't default to a personal preference.
 - If standard docs answer the question, reference them (e.g., [MS Learn](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx), [DO guides](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/)).
 - If standard docs don't give a clear default, list the plausible approaches with trade-offs and ask.

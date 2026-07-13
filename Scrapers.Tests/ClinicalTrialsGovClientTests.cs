@@ -64,6 +64,23 @@ public sealed class ClinicalTrialsGovClientTests
     }
 
     [TestMethod]
+    public async Task GetTrialRecordsAsync_ReturnsReferences()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        IReadOnlyList<ClinicalTrialRecord> records = await client.GetTrialRecordsAsync(count: 1);
+
+        Assert.AreEqual(1, records.Count);
+        Assert.IsNotNull(records[0]!.References, "Expected references to be parsed from fixture.");
+        Assert.IsTrue(records[0]!.References!.Count > 0, "Expected at least one reference.");
+        Assert.AreEqual("24906040", records[0]!.References![0].Pmid);
+        Assert.IsNotNull(records[0]!.References![0]!.Citation);
+        Assert.IsNotNull(records[0]!.References![0]!.Type);
+    }
+
+    [TestMethod]
     public void SchemaGuard_RequiredFieldsRemainPresent()
     {
         var json = FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json");

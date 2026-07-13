@@ -22,6 +22,7 @@ namespace Scrapers.Persistence
         public DbSet<DataSourceStateEntity> DataSourceStates => Set<DataSourceStateEntity>();
         public DbSet<SourceFetchHistoryEntity> SourceFetchHistories => Set<SourceFetchHistoryEntity>();
         public DbSet<ScraperPivotEntity> ScraperPivots => Set<ScraperPivotEntity>();
+        public DbSet<StudyReferenceEntity> StudyReferences => Set<StudyReferenceEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
