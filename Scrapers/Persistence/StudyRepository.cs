@@ -28,7 +28,10 @@ namespace Scrapers.Persistence
         public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            // Create schema based on EF Core model (no migrations needed until production)
+            // Drop and recreate schema fresh on every startup.
+            // No production data exists yet — schema migrations are still in flux.
+            // This ensures a clean state for every redeploy.
+            await context.Database.EnsureDeletedAsync(cancellationToken).ConfigureAwait(false);
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
         }
 
