@@ -331,6 +331,12 @@ app.MapGet("/api/telemetry", async () =>
     var piCount = await repo.CountPiAggregationsAsync();
     IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
 
+    // Enrichment coverage stats
+    var totalInvestigatorsForCoverage = investigators > 0 ? investigators : 1;
+    var withOrcid = await repo.CountInvestigatorsWithOrcidAsync();
+    var withNpi = await repo.CountInvestigatorsWithNpiAsync();
+    var withNpiOrOrcid = await repo.CountInvestigatorsWithNpiOrOrcidAsync();
+
     return Results.Ok(new
     {
         db = new
@@ -339,6 +345,16 @@ app.MapGet("/api/telemetry", async () =>
             totalInvestigators = investigators,
             totalPubmedPapers = pubmedPapers,
             totalKeywords = keywords
+        },
+        enrichment = new
+        {
+            totalInvestigators = investigators,
+            withOrcid,
+            withNpi,
+            withNpiOrOrcid,
+            orcidCoveragePct = Math.Round((double)withOrcid / totalInvestigatorsForCoverage * 100, 1),
+            npiCoveragePct = Math.Round((double)withNpi / totalInvestigatorsForCoverage * 100, 1),
+            totalCoveragePct = Math.Round((double)withNpiOrOrcid / totalInvestigatorsForCoverage * 100, 1)
         },
         pipelineRuns = recentRuns.Select(r => StudyMapper.ToPipelineRun(r)),
         recentEvents = recentEvents.Select(e => new

@@ -388,6 +388,24 @@ namespace Scrapers.Persistence
             return await context.StudyKeywords.Select(k => k.Keyword).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<int> CountInvestigatorsWithOrcidAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.InvestigatorPersons.CountAsync(p => p.Orcid != null && p.IsHuman, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountInvestigatorsWithNpiAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.InvestigatorPersons.CountAsync(p => p.Npi != null && p.IsHuman, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountInvestigatorsWithNpiOrOrcidAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.InvestigatorPersons.CountAsync(p => (p.Npi != null || p.Orcid != null) && p.IsHuman, cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(run);
@@ -1254,7 +1272,7 @@ namespace Scrapers.Persistence
                 return existing;
             }
 
-            // 3. Create new person record and enqueue a scrub event
+            // 3. Create new person record and enqueue scrub + enrichment events
             var person = new InvestigatorPersonEntity
             {
                 Id = Guid.NewGuid(),
@@ -1264,13 +1282,22 @@ namespace Scrapers.Persistence
                 UpdatedAt = DateTime.UtcNow
             };
             context.InvestigatorPersons.Add(person);
+            var now = DateTime.UtcNow;
             context.PipelineEvents.Add(new PipelineEventEntity
             {
                 EventType = "investigator.discovered",
                 Data = person.Id.ToString(),
                 Status = "pending",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            context.PipelineEvents.Add(new PipelineEventEntity
+            {
+                EventType = "investigator.enrichment",
+                Data = person.Id.ToString(),
+                Status = "pending",
+                CreatedAt = now,
+                UpdatedAt = now
             });
             batchPersons[fullName] = person;
             return person;

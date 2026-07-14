@@ -223,12 +223,22 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("full_name");
 
                     b.Property<bool>("IsHuman")
-                        .HasColumnType("boolean");
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_human");
 
                     b.Property<string>("NcbiId")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("ncbi_id");
+
+                    b.Property<string>("Npi")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("npi");
+
+                    b.Property<DateTime?>("NpiLookupAttemptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("npi_lookup_attempted_at");
 
                     b.Property<string>("Orcid")
                         .HasMaxLength(50)
@@ -261,11 +271,89 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("ncbi_id IS NOT NULL");
 
+                    b.HasIndex("Npi")
+                        .IsUnique()
+                        .HasFilter("npi IS NOT NULL");
+
                     b.HasIndex("Orcid")
                         .IsUnique()
                         .HasFilter("orcid IS NOT NULL");
 
                     b.ToTable("investigator_persons", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IdentifierType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("identifier_type");
+
+                    b.Property<string>("IdentifierValue")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("identifier_value");
+
+                    b.Property<bool>("IsAutoApproved")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_auto_approved");
+
+                    b.Property<bool>("IsResolved")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_resolved");
+
+                    b.Property<string>("MatchedAffiliation")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("matched_affiliation");
+
+                    b.Property<string>("MatchedFullName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("matched_full_name");
+
+                    b.Property<string>("MatchedState")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("matched_state");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<DateTime?>("SourceDeactivatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_deactivated_at");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("source_name");
+
+                    b.Property<string>("SourceStatus")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("source_status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("PersonId", "IdentifierType");
+
+                    b.ToTable("person_identifier_candidates", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PiAggregationEntity", b =>
@@ -1175,6 +1263,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("PubmedPaper");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "Person")
+                        .WithMany("IdentifierCandidates")
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.PipelineRunEntity", "PipelineRun")
@@ -1303,6 +1402,8 @@ namespace Scrapers.Persistence.Migrations
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPersonEntity", b =>
                 {
                     b.Navigation("Affiliations");
+
+                    b.Navigation("IdentifierCandidates");
 
                     b.Navigation("InvestigatorPapers");
 
