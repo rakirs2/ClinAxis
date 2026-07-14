@@ -10,6 +10,15 @@ var connectionString = ConnectionStringProvider.Default;
 
 // Retry database connection during startup to handle transient DB delays
 var startupRepo = new StudyRepository(connectionString);
+
+// MVP mode: reset database on every startup for a clean slate.
+// Pass --preserve-db or set DATAPI_PRESERVE_DB=true to skip reset.
+if (!args.Contains("--preserve-db") && Environment.GetEnvironmentVariable("DATAPI_PRESERVE_DB") != "true")
+{
+    await startupRepo.ResetDatabaseAsync();
+    await Console.Out.WriteLineAsync("Database reset complete. Starting normally.");
+}
+
 var maxRetries = 5;
 var retryDelay = TimeSpan.FromSeconds(3);
 for (int attempt = 1; attempt <= maxRetries; attempt++)
