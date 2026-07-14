@@ -232,6 +232,11 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("orcid");
 
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prefix");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -475,6 +480,45 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("pubmed_papers", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.RejectedEntityEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<DateTime>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("rejected_entities", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>

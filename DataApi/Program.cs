@@ -191,6 +191,7 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
         PageSize = ps
     };
 
+    var total = await repo.CountStudiesByInvestigatorPersonIdAsync(uuid, criteria);
     var studies = await repo.GetStudiesByInvestigatorPersonIdAsync(uuid, criteria);
 
     // Apply client-side sorting if requested
@@ -213,10 +214,10 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
     return Results.Ok(new
     {
         data = studies.Select(s => StudyMapper.ToSummary(s)),
-        total = studies.Count,
+        total,
         page = p,
         pageSize = ps,
-        totalPages = (int)Math.Ceiling((double)studies.Count / ps)
+        totalPages = (int)Math.Ceiling((double)total / ps)
     });
 });
 

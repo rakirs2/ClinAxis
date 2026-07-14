@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
+using Scrapers.Utilities;
 
 namespace Scrapers.Persistence
 {
@@ -52,6 +53,8 @@ namespace Scrapers.Persistence
 
             using ClinicalTrialsContext context = CreateContext();
             var batchPersons = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
+            var rejectedNames = new List<string>();
+            var rejectedKeywords = new List<string>();
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -65,9 +68,21 @@ namespace Scrapers.Persistence
                 }
 
                 var incomplete = false;
-                List<Investigator>? officials = record.OverallOfficials?
+                var allOfficials = record.OverallOfficials?
                     .Where(i => i != null && !string.IsNullOrWhiteSpace(i.Name))
+                    .Select(i => (Name: i!.Name!, Role: i.Role))
                     .ToList();
+                var officials = allOfficials?
+                    .Where(t => NameFilter.IsHumanName(t.Name, t.Role))
+                    .ToList();
+
+                if (allOfficials != null && officials != null)
+                {
+                    rejectedNames.AddRange(allOfficials
+                        .Where(o => !officials.Any(f => f.Name == o.Name))
+                        .Select(o => $"{record.NctId}: {o.Name}"));
+                }
+
                 if (officials == null || officials.Count == 0)
                 {
                     incomplete = true;
@@ -107,16 +122,14 @@ namespace Scrapers.Persistence
                 if (!incomplete)
                 {
                     entity.StudyInvestigators!.Clear();
-                    foreach (Investigator investigator in officials!)
+                    foreach (var (officialName, officialRole) in officials!)
                     {
-                        var name = investigator!.Name!;
-
-                        var person = await FindOrCreatePersonAsync(context, batchPersons, name, cancellationToken);
+                        var person = await FindOrCreatePersonAsync(context, batchPersons, officialName, cancellationToken);
                         entity.StudyInvestigators.Add(new StudyInvestigatorEntity
                         {
                             StudyNctId = record.NctId!,
                             InvestigatorPersonId = person.Id,
-                            RoleOnStudy = investigator.Role,
+                            RoleOnStudy = officialRole,
                             IsOverallOfficial = true
                         });
                     }
@@ -124,12 +137,37 @@ namespace Scrapers.Persistence
                     entity.Keywords!.Clear();
                     if (record.Keywords != null)
                     {
-                        foreach (var kw in record.Keywords)
+                        var conditions = record.Conditions?
+                            .Where(c => !string.IsNullOrWhiteSpace(c))
+                            .Select(c => c.Trim())
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        var knownShortMedicalTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                         {
-                            if (!string.IsNullOrWhiteSpace(kw))
-                            {
-                                entity.Keywords.Add(new StudyKeywordEntity { StudyNctId = record.NctId!, Keyword = kw.Trim() });
-                            }
+                            "HIV", "HPV", "ALS", "MS", "IBS", "COPD", "ICU", "GI",
+                            "ENT", "CT", "MRI", "PET", "CVD", "CHF", "CAD", "CKD",
+                            "UTI", "STD", "PTSD", "ADHD", "GERD", "RA", "SLE",
+                            "NASH", "NAFLD", "COPD", "OSA", "PCOS", "TBI", "SCI",
+                        };
+
+                        var originalKeywords = record.Keywords
+                            .Where(k => !string.IsNullOrWhiteSpace(k))
+                            .Select(k => k.Trim())
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+                        var cleanedKeywords = originalKeywords
+                            .Where(k => k.Length >= 4 || (k.Length >= 2 && knownShortMedicalTerms.Contains(k)))
+                            .Where(k => k.Length <= 200)
+                            .Where(k => conditions == null || !conditions.Contains(k))
+                            .ToList();
+
+                        var rejected = originalKeywords.Except(cleanedKeywords, StringComparer.OrdinalIgnoreCase).ToList();
+                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
+
+                        foreach (var kw in cleanedKeywords)
+                        {
+                            entity.Keywords.Add(new StudyKeywordEntity { StudyNctId = record.NctId!, Keyword = kw });
                         }
                     }
 
@@ -199,6 +237,36 @@ namespace Scrapers.Persistence
             }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            foreach (var entry in rejectedNames)
+            {
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
+                {
+                    EntityType = "investigator_name",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
+                });
+            }
+
+            foreach (var entry in rejectedKeywords)
+            {
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
+                {
+                    EntityType = "keyword",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
+                });
+            }
+
+            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0)
+            {
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             return recordList.Count;
         }
 
@@ -443,6 +511,66 @@ namespace Scrapers.Persistence
                 .Take(criteria.PageSize);
 
             return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountStudiesByInvestigatorPersonIdAsync(Guid personId, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+
+            using ClinicalTrialsContext context = CreateContext();
+
+            var query = context.Studies
+                .AsNoTracking()
+                .Where(s => s.StudyInvestigators != null && s.StudyInvestigators.Any(si => si.InvestigatorPersonId == personId));
+
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                query = query.Where(s => s.OverallStatus != null && criteria.Statuses.Contains(s.OverallStatus));
+            }
+
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase != null && criteria.Phases.Contains(p.Phase)));
+            }
+
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+            }
+
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
@@ -1059,27 +1187,44 @@ namespace Scrapers.Persistence
         private static async Task<InvestigatorPersonEntity> FindOrCreatePersonAsync(
             ClinicalTrialsContext context,
             Dictionary<string, InvestigatorPersonEntity> batchPersons,
-            string name,
+            string rawName,
             CancellationToken cancellationToken)
         {
-            var trimmed = name.Trim();
+            var (prefix, fullName, _) = NameParser.Parse(rawName);
+            var raw = rawName.Trim();
 
-            // 1. Check batch-local cache first (same batch, not yet saved)
-            if (batchPersons.TryGetValue(trimmed, out var cached))
+            // 1. Check batch-local cache by parsed fullName, then by raw name
+            if (batchPersons.TryGetValue(fullName, out var cached) ||
+                (fullName != raw && batchPersons.TryGetValue(raw, out cached)))
             {
                 cached.UpdatedAt = DateTime.UtcNow;
+                if (cached.Prefix == null && prefix != null)
+                {
+                    cached.Prefix = prefix;
+                }
                 return cached;
             }
 
-            // 2. Check database for previously persisted person
+            // 2. Check database by parsed fullName, then by raw name (legacy records)
             var existing = await context.InvestigatorPersons
-                .FirstOrDefaultAsync(p => p.FullName == trimmed, cancellationToken)
+                .FirstOrDefaultAsync(p => p.FullName == fullName, cancellationToken)
                 .ConfigureAwait(false);
+
+            if (existing == null && fullName != raw)
+            {
+                existing = await context.InvestigatorPersons
+                    .FirstOrDefaultAsync(p => p.FullName == raw, cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             if (existing != null)
             {
                 existing.UpdatedAt = DateTime.UtcNow;
-                batchPersons[trimmed] = existing;
+                if (existing.Prefix == null && prefix != null)
+                {
+                    existing.Prefix = prefix;
+                }
+                batchPersons[fullName] = existing;
                 return existing;
             }
 
@@ -1087,7 +1232,8 @@ namespace Scrapers.Persistence
             var person = new InvestigatorPersonEntity
             {
                 Id = Guid.NewGuid(),
-                FullName = trimmed,
+                FullName = fullName,
+                Prefix = prefix,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -1100,7 +1246,7 @@ namespace Scrapers.Persistence
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
-            batchPersons[trimmed] = person;
+            batchPersons[fullName] = person;
             return person;
         }
 
