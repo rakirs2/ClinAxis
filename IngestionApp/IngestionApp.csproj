@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);CA1849;CA1031</NoWarn>
+    <Version>1.0.0.0</Version>
+    <InformationalVersion>1.0.0+build.local</InformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
