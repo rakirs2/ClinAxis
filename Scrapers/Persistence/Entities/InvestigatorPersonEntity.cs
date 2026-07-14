@@ -10,6 +10,9 @@ namespace Scrapers.Persistence.Entities
         public string? Prefix { get; set; }
         public string? Orcid { get; set; }
         public string? NcbiId { get; set; }
+        public string? Npi { get; set; }
+        public DateTime? NpiLookupAttemptedAt { get; set; }
+        public string? NpiEnrichmentResult { get; set; }
         public bool IsHuman { get; set; } = true;
         public DateTime? VerifiedAt { get; set; }
         public string? VerificationSource { get; set; }
@@ -19,5 +22,6 @@ namespace Scrapers.Persistence.Entities
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
         public ICollection<InvestigatorAffiliationEntity>? Affiliations { get; set; }
         public ICollection<InvestigatorPaperEntity>? InvestigatorPapers { get; set; }
+        public ICollection<PersonIdentifierCandidateEntity>? IdentifierCandidates { get; set; }
     }
 }

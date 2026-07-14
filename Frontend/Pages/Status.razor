@@ -44,6 +44,21 @@ else
         </div>
     </div>
 
+    <div class="row">
+        <div class="col-md-6">
+            <h3 class="mt-4">Investigator Enrichment</h3>
+            <table class="table table-sm" style="max-width: 400px">
+                <tbody>
+                    <tr><th>Total Investigators</th><td>@(telemetry.enrichment?.totalInvestigators ?? 0)</td></tr>
+                    <tr><th>With NPI</th><td><strong>@(telemetry.enrichment?.withNpi ?? 0) (@(telemetry.enrichment?.npiCoveragePct ?? 0)%)</strong></td></tr>
+                    <tr><th>Not Found</th><td>@(telemetry.enrichment?.notFound ?? 0)</td></tr>
+                    <tr><th>Ambiguous (2+ matches)</th><td>@(telemetry.enrichment?.ambiguous ?? 0)</td></tr>
+                    <tr><th>Not Yet Attempted</th><td>@(telemetry.enrichment?.notAttempted ?? 0)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <h3 class="mt-4">Rejected Investigator Names</h3>
     @if (rejectedNames is null)
     {
@@ -378,9 +393,20 @@ else
     private class TelemetryResponse
     {
         public DbStats? db { get; set; }
+        public EnrichmentStats? enrichment { get; set; }
         public List<PipelineRunItem>? pipelineRuns { get; set; }
         public List<ScrapeEventItem>? recentEvents { get; set; }
         public AggStats? aggregations { get; set; }
+    }
+
+    private class EnrichmentStats
+    {
+        public int totalInvestigators { get; set; }
+        public int withNpi { get; set; }
+        public int notFound { get; set; }
+        public int ambiguous { get; set; }
+        public int notAttempted { get; set; }
+        public double npiCoveragePct { get; set; }
     }
 
     private class DbStats
