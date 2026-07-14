@@ -21,6 +21,7 @@ namespace Scrapers.Utilities
             "CELGENE", "MYLAN", "TEVA", "SANDOZ",
             "MEDTRONIC", "STRYKER", "BAUSCH",
             "VIATRIS", "BOEHRINGER",
+            "GSK", "CHUGAI",
         };
 
         private static readonly HashSet<string> OrgKeywords = new(StringComparer.OrdinalIgnoreCase)
@@ -46,6 +47,7 @@ namespace Scrapers.Utilities
         {
             "CONTACT FOR", "CONTACT", "STUDY DIRECTOR",
             "SCIENTIFIC CONTACT", "PUBLIC QUERIES", "PUBLIC CONTACT",
+            "SPONSOR",
         };
 
         internal static bool IsHumanName(string name, string? role)
