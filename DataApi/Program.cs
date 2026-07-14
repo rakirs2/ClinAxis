@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using DataApi;
 using Scrapers;
@@ -39,7 +40,25 @@ builder.Services.AddHealthChecks();
 
 WebApplication app = builder.Build();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        var assembly = typeof(Program).Assembly;
+        var version = assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var infoVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? version;
+        var response = new
+        {
+            status = report.Status.ToString(),
+            application = "DataApi",
+            version,
+            informationalVersion = infoVersion,
+            framework = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+        };
+        context.Response.ContentType = "application/json";
+        await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.Body, response).ConfigureAwait(false);
+    }
+});
 
 // Endpoints for advanced search filter options
 app.MapGet("/api/distinct-conditions", async () =>

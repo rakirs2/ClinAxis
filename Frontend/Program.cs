@@ -1,3 +1,4 @@
+using System.Reflection;
 using Frontend.Components;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -16,7 +17,25 @@ WebApplication app = builder.Build();
 app.UseAntiforgery();
 app.UseStaticFiles();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        var assembly = typeof(Program).Assembly;
+        var version = assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var infoVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? version;
+        var response = new
+        {
+            status = report.Status.ToString(),
+            application = "Frontend",
+            version,
+            informationalVersion = infoVersion,
+            framework = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+        };
+        context.Response.ContentType = "application/json";
+        await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.Body, response).ConfigureAwait(false);
+    }
+});
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
