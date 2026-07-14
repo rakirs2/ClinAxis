@@ -133,14 +133,14 @@ app.MapGet("/api/studies/{nctId}", async (string nctId) =>
     return study is null ? Results.NotFound(new { error = "Study not found" }) : Results.Ok(StudyMapper.ToDetail(study));
 });
 
-app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search) =>
+app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search, bool? hasNpi) =>
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
     var ps = Math.Clamp(pageSize ?? 20, 1, 100);
 
-    var persons = await repo.GetInvestigatorPersonsPagedAsync(p, ps, search);
-    var total = await repo.CountInvestigatorPersonsFilteredAsync(search);
+    var persons = await repo.GetInvestigatorPersonsPagedAsync(p, ps, search, hasNpi);
+    var total = await repo.CountInvestigatorPersonsFilteredAsync(search, hasNpi);
 
     return Results.Ok(new
     {
@@ -150,6 +150,7 @@ app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search
             name = p.Name,
             orcid = p.Orcid,
             ncbiId = p.NcbiId,
+            npi = p.Npi,
             studyCount = p.StudyCount,
             paperCount = p.PaperCount,
             primaryAffiliation = p.PrimaryAffiliation
@@ -331,11 +332,12 @@ app.MapGet("/api/telemetry", async () =>
     var piCount = await repo.CountPiAggregationsAsync();
     IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
 
-    // Enrichment coverage stats
+    // Enrichment coverage stats (NPI)
     var totalInvestigatorsForCoverage = investigators > 0 ? investigators : 1;
-    var withOrcid = await repo.CountInvestigatorsWithOrcidAsync();
     var withNpi = await repo.CountInvestigatorsWithNpiAsync();
-    var withNpiOrOrcid = await repo.CountInvestigatorsWithNpiOrOrcidAsync();
+    var notFound = await repo.CountInvestigatorsByEnrichmentResultAsync("not_found");
+    var ambiguous = await repo.CountInvestigatorsByEnrichmentResultAsync("ambiguous");
+    var notAttempted = await repo.CountInvestigatorsNotAttemptedAsync();
 
     return Results.Ok(new
     {
@@ -349,12 +351,11 @@ app.MapGet("/api/telemetry", async () =>
         enrichment = new
         {
             totalInvestigators = investigators,
-            withOrcid,
             withNpi,
-            withNpiOrOrcid,
-            orcidCoveragePct = Math.Round((double)withOrcid / totalInvestigatorsForCoverage * 100, 1),
-            npiCoveragePct = Math.Round((double)withNpi / totalInvestigatorsForCoverage * 100, 1),
-            totalCoveragePct = Math.Round((double)withNpiOrOrcid / totalInvestigatorsForCoverage * 100, 1)
+            notFound,
+            ambiguous,
+            notAttempted,
+            npiCoveragePct = Math.Round((double)withNpi / totalInvestigatorsForCoverage * 100, 1)
         },
         pipelineRuns = recentRuns.Select(r => StudyMapper.ToPipelineRun(r)),
         recentEvents = recentEvents.Select(e => new

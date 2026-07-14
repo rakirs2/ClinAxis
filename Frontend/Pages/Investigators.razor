@@ -39,7 +39,7 @@ else if (investigators is not null)
                 <tr>
                     <th>Name</th>
                     <th>Affiliation</th>
-                    <th>ORCID</th>
+                    <th>NPI</th>
                     <th>Studies</th>
                     <th>Papers</th>
                 </tr>
@@ -51,9 +51,9 @@ else if (investigators is not null)
                         <td><a href="/investigator/@inv.uuid">@inv.name</a></td>
                         <td>@inv.primaryAffiliation</td>
                         <td>
-                            @if (inv.orcid is not null)
+                            @if (inv.npi is not null)
                             {
-                                <a href="https://orcid.org/@inv.orcid" target="_blank">@inv.orcid</a>
+                                <code>@inv.npi</code>
                             }
                             else
                             {
@@ -128,7 +128,7 @@ else if (investigators is not null)
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            string url = $"/api/investigators?page={page}&pageSize={pageSize}";
+            string url = $"/api/investigators?page={page}&pageSize={pageSize}&hasNpi=true";
             if (!string.IsNullOrEmpty(search))
             {
                 url += $"&search={Uri.EscapeDataString(search)}";
@@ -165,8 +165,7 @@ else if (investigators is not null)
     {
         public Guid uuid { get; set; }
         public string? name { get; set; }
-        public string? orcid { get; set; }
-        public string? ncbiId { get; set; }
+        public string? npi { get; set; }
         public int studyCount { get; set; }
         public int paperCount { get; set; }
         public string? primaryAffiliation { get; set; }

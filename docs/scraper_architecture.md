@@ -80,8 +80,12 @@ StudyEntity (table: studies)
 InvestigatorPersonEntity (table: investigator_persons)
 ├── Id (PK, Guid, auto-generated)
 ├── FullName (string)
+├── Prefix (string?)                 — honorific (e.g., "Dr.")
 ├── Orcid (string?, unique)
 ├── NcbiId (string?, unique)
+├── Npi (string?, unique)            — National Provider Identifier
+├── IsHuman (bool)                   — name filter classification
+├── NpiLookupAttemptedAt (DateTime?) — when NPPES query was last attempted
 ├── VerifiedAt (DateTime?)           — When identity was verified
 ├── VerificationSource (string?)     — e.g., "PubMed", "ORCID API"
 ├── CreatedAt (DateTime)
@@ -180,6 +184,27 @@ StudyArmGroupEntity (table: study_arm_groups)
 └── Description (string?)
 ```
 
+### 3.10 Person Identifier Candidate (NEW — NPI Enrichment)
+
+```
+PersonIdentifierCandidateEntity (table: person_identifier_candidates)
+├── Id (PK, Guid)
+├── PersonId (FK → InvestigatorPersonEntity)
+├── IdentifierType (string)          — "NPI"
+├── IdentifierValue (string)
+├── SourceName (string)              — "NPPES"
+├── MatchedFullName (string?)
+├── MatchedAffiliation (string?)
+├── MatchedState (string?)
+├── SourceStatus (string?)           — "A" (active) or "D" (deactivated)
+├── SourceDeactivatedAt (DateTime?)
+├── IsAutoApproved (bool)            — auto-assigned to person.Npi
+├── IsResolved (bool)                — manually reviewed
+└── CreatedAt (DateTime)
+```
+
+Stores every API result from NPPES NPI Registry during enrichment, regardless of whether it was auto-assigned. When exactly 1 active match is found, `IsAutoApproved` is set to `true` and `InvestigatorPersonEntity.Npi` is populated. If 0 or 2+ matches, candidates are preserved for manual review.
+
 ---
 
 ## 4. Pipeline Architecture
@@ -204,13 +229,13 @@ StudyArmGroupEntity (table: study_arm_groups)
 │ Calls StudyRepository.UpdateStudiesWithClinicalTrialsAsync │
 └─────────────────────┬──────────────────────────────────────┘
                       │
-          ┌───────────┼───────────┐
-          │           │           │
-          ▼           ▼           ▼
+           ┌───────────┼───────────┐
+           │           │           │
+           ▼           ▼           ▼
 ┌──────────────┐ ┌──────────┐ ┌───────────────────────┐
 │ Persist      │ │ Create   │ │ Enqueue               │
 │ StudyEntity  │ │/match    │ │ "investigator          │
-│ + children   │ │Invest-   │ │ .discovered"           │
+│ + children   │ │Invest-   │ │ .enrichment"           │
 │ (conditions, │ │igator    │ │ event per              │
 │ keywords,    │ │Person    │ │ unique person          │
 │ phases,      │ │records   │ │                       │
@@ -219,25 +244,44 @@ StudyArmGroupEntity (table: study_arm_groups)
 └──────────────┘ └──────────┘ └───────────────────────┘
 ```
 
+### Phase 1.5: Investigator NPI Enrichment (Event-Driven)
+
+```
+                    ┌──────────────────────┐
+                    │ Event Queue           │
+                    │ "investigator.enrichment"
+                    └──────────┬───────────┘
+                               │ claim (every 30s)
+                               ▼
+┌────────────────────────────────────────────────────────────┐
+│ InvestigatorEnrichmentService                               │
+│ 1. Query NPPES NPI Registry by first/last + affiliation     │
+│ 2. Exactly 1 active match → auto-assign NPI to person      │
+│    0 or 2+ matches → store candidates in                   │
+│    PersonIdentifierCandidateEntity for review               │
+│ 3. Set NpiLookupAttemptedAt (prevents re-query)            │
+│ 4. Enqueue "investigator.discovered" for next phase        │
+│ 5. Mark enrichment event complete                          │
+│ 6. On API failure → event retries (up to 3, then dead-letter)
+└─────────────────────┬──────────────────────────────────────┘
+                       │ enqueue
+                       ▼
+```
+
 ### Phase 2: Investigator Publication Scrub (Event-Driven)
 
 ```
                     ┌──────────────────────┐
                     │ Event Queue           │
                     │ "investigator.discovered"
+                    │ ← from enrichment service
                     └──────────┬───────────┘
                                │ claim
                                ▼
 ┌────────────────────────────────────────────────────────────┐
-│ EventProcessingService                                     │
-│ → Claim next pending event                                 │
-│ → Dispatch by event type ("investigator.discovered")       │
-└─────────────────────┬──────────────────────────────────────┘
-                      │
-                      ▼
-┌────────────────────────────────────────────────────────────┐
-│ InvestigatorPublicationScrubService (NEW)                  │
+│ InvestigatorPublicationScrubService                         │
 │ 1. Search PubMed by investigator name + affiliation         │
+│    (NPI may be used for disambiguation if available)        │
 │ 2. For each PMID not already in PubmedPaperEntity:         │
 │    → Fetch paper details from NCBI E-utilities             │
 │    → Create PubmedPaperEntity                              │
@@ -267,7 +311,8 @@ StudyArmGroupEntity (table: study_arm_groups)
 | Event Type | Emitter | Consumer | Description |
 |-----------|---------|----------|-------------|
 | `studies.discovered` | `ClinicalTrialsScrapeService` | `EventProcessingService` → `ClinicalTrialsIngestionService.IngestAsync` | New study batch fetched from CT.gov |
-| `investigator.discovered` | `StudyRepository` (during study ingestion) | `InvestigatorPublicationScrubService` | New investigator person record created |
+| `investigator.enrichment` | `StudyRepository` (during study ingestion) | `InvestigatorEnrichmentService` | New person created, needs NPI lookup |
+| `investigator.discovered` | `InvestigatorEnrichmentService` | `InvestigatorPublicationScrubService` | NPI enrichment done, ready for PubMed scrub |
 | `investigator.publications.scrubbed` | `InvestigatorPublicationScrubService` | (future: triggers enrichment pivot) | Investigator's full publication list updated |
 
 ### 5.2 Event Lifecycle

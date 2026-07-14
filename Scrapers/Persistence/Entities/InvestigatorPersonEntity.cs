@@ -12,6 +12,7 @@ namespace Scrapers.Persistence.Entities
         public string? NcbiId { get; set; }
         public string? Npi { get; set; }
         public DateTime? NpiLookupAttemptedAt { get; set; }
+        public string? NpiEnrichmentResult { get; set; }
         public bool IsHuman { get; set; } = true;
         public DateTime? VerifiedAt { get; set; }
         public string? VerificationSource { get; set; }

@@ -236,6 +236,11 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("npi");
 
+                    b.Property<string>("NpiEnrichmentResult")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("npi_enrichment_result");
+
                     b.Property<DateTime?>("NpiLookupAttemptedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("npi_lookup_attempted_at");

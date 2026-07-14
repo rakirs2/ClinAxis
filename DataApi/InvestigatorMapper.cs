@@ -88,6 +88,7 @@ internal static class InvestigatorMapper
             name = person.FullName,
             orcid = person.Orcid,
             ncbiId = person.NcbiId,
+            npi = person.Npi,
             paperCount = person.InvestigatorPapers?.Count ?? 0,
             primaryAffiliation = person.Affiliations?.FirstOrDefault(a => a.IsPrimary)?.InstitutionName,
             affiliations = person.Affiliations?.Select(a => new
