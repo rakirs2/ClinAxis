@@ -44,6 +44,20 @@ else
         </div>
     </div>
 
+    <div class="row">
+        <div class="col-md-6">
+            <h3 class="mt-4">Investigator Enrichment</h3>
+            <table class="table table-sm" style="max-width: 400px">
+                <tbody>
+                    <tr><th>Total Investigators</th><td>@(telemetry.enrichment?.totalInvestigators ?? 0)</td></tr>
+                    <tr><th>With ORCID</th><td>@(telemetry.enrichment?.withOrcid ?? 0) (@(telemetry.enrichment?.orcidCoveragePct ?? 0)%)</td></tr>
+                    <tr><th>With NPI</th><td>@(telemetry.enrichment?.withNpi ?? 0) (@(telemetry.enrichment?.npiCoveragePct ?? 0)%)</td></tr>
+                    <tr><th>With NPI or ORCID</th><td><strong>@(telemetry.enrichment?.withNpiOrOrcid ?? 0) (@(telemetry.enrichment?.totalCoveragePct ?? 0)%)</strong></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <h3 class="mt-4">Rejected Investigator Names</h3>
     @if (rejectedNames is null)
     {
@@ -378,9 +392,21 @@ else
     private class TelemetryResponse
     {
         public DbStats? db { get; set; }
+        public EnrichmentStats? enrichment { get; set; }
         public List<PipelineRunItem>? pipelineRuns { get; set; }
         public List<ScrapeEventItem>? recentEvents { get; set; }
         public AggStats? aggregations { get; set; }
+    }
+
+    private class EnrichmentStats
+    {
+        public int totalInvestigators { get; set; }
+        public int withOrcid { get; set; }
+        public int withNpi { get; set; }
+        public int withNpiOrOrcid { get; set; }
+        public double orcidCoveragePct { get; set; }
+        public double npiCoveragePct { get; set; }
+        public double totalCoveragePct { get; set; }
     }
 
     private class DbStats

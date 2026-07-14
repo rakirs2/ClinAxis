@@ -30,6 +30,7 @@ namespace Scrapers.Persistence
         public DbSet<StudyArmGroupEntity> StudyArmGroups => Set<StudyArmGroupEntity>();
         public DbSet<RejectedEntityEntity> RejectedEntities => Set<RejectedEntityEntity>();
         public DbSet<RejectedInvestigatorNameEntity> RejectedInvestigatorNames => Set<RejectedInvestigatorNameEntity>();
+        public DbSet<PersonIdentifierCandidateEntity> PersonIdentifierCandidates => Set<PersonIdentifierCandidateEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -207,6 +208,8 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Prefix).HasColumnName("prefix").HasMaxLength(50);
                 entity.Property(e => e.Orcid).HasColumnName("orcid").HasMaxLength(50);
                 entity.Property(e => e.NcbiId).HasColumnName("ncbi_id").HasMaxLength(50);
+                entity.Property(e => e.Npi).HasColumnName("npi").HasMaxLength(20);
+                entity.Property(e => e.NpiLookupAttemptedAt).HasColumnName("npi_lookup_attempted_at");
                 entity.Property(e => e.IsHuman).HasColumnName("is_human");
                 entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
                 entity.Property(e => e.VerificationSource).HasColumnName("verification_source").HasMaxLength(50);
@@ -215,7 +218,35 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.Orcid).IsUnique().HasFilter("orcid IS NOT NULL");
                 entity.HasIndex(e => e.NcbiId).IsUnique().HasFilter("ncbi_id IS NOT NULL");
+                entity.HasIndex(e => e.Npi).IsUnique().HasFilter("npi IS NOT NULL");
                 entity.HasIndex(e => e.FullName);
+            });
+
+            modelBuilder.Entity<PersonIdentifierCandidateEntity>(entity =>
+            {
+                entity.ToTable("person_identifier_candidates");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.PersonId).HasColumnName("person_id");
+                entity.Property(e => e.IdentifierType).HasColumnName("identifier_type").HasMaxLength(20);
+                entity.Property(e => e.IdentifierValue).HasColumnName("identifier_value").HasMaxLength(50);
+                entity.Property(e => e.SourceName).HasColumnName("source_name").HasMaxLength(50);
+                entity.Property(e => e.MatchedFullName).HasColumnName("matched_full_name").HasMaxLength(300);
+                entity.Property(e => e.MatchedAffiliation).HasColumnName("matched_affiliation").HasMaxLength(300);
+                entity.Property(e => e.MatchedState).HasColumnName("matched_state").HasMaxLength(100);
+                entity.Property(e => e.SourceStatus).HasColumnName("source_status").HasMaxLength(10);
+                entity.Property(e => e.SourceDeactivatedAt).HasColumnName("source_deactivated_at");
+                entity.Property(e => e.IsAutoApproved).HasColumnName("is_auto_approved");
+                entity.Property(e => e.IsResolved).HasColumnName("is_resolved");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(e => e.Person)
+                    .WithMany(p => p.IdentifierCandidates)
+                    .HasForeignKey(e => e.PersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.PersonId);
+                entity.HasIndex(e => new { e.PersonId, e.IdentifierType });
             });
 
             modelBuilder.Entity<InvestigatorAffiliationEntity>(entity =>

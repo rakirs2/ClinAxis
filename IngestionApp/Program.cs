@@ -7,6 +7,7 @@ using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Services;
 using Scrapers.Services.CrawlServices;
+using Scrapers.Services.Enrichment;
 using Scrapers.Services.EventQueue;
 
 if (args.Contains("--version") || args.Contains("-v"))
@@ -81,6 +82,16 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new InvestigatorPublicationScrubService(
             cs,
             sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>()));
+
+        // Enrichment services (NPI / ORCID lookup)
+        services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
+        services.AddSingleton<OrcidApiClient>(_ => new OrcidApiClient(new HttpClient()));
+        services.AddHostedService(sp => new InvestigatorEnrichmentService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<NppesNpiRegistryClient>(),
+            sp.GetRequiredService<OrcidApiClient>(),
+            cs,
+            pollIntervalSeconds: 30));
     })
     .Build();
 
