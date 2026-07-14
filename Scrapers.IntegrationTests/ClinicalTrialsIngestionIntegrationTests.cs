@@ -27,7 +27,7 @@ public sealed class ClinicalTrialsIngestionIntegrationTests : DbTestBase
 
         Assert.AreEqual(5, saved, "Ingestion should report five persisted studies.");
         Assert.AreEqual(5, await _repo.CountStudiesAsync(), "Database should contain five studies after ingestion.");
-        Assert.IsTrue(investigatorCount > 0, "Investigators table should have at least one row after ingestion.");
+        Assert.IsTrue(investigatorCount > 0, "Investigator persons table should have at least one row after ingestion.");
     }
 
     [TestMethod]

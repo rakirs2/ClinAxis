@@ -214,6 +214,13 @@ public sealed class EventQueueService : IEventQueueService
 
         var failureRate = totalProcessed > 0 ? (double)failed / totalProcessed : 0.0;
 
+        double? estimatedTimeRemainingMs = null;
+        if (pending > 0 && avgProcessingTime > 0)
+        {
+            var effectiveWorkers = Math.Max(processing, 1);
+            estimatedTimeRemainingMs = pending * avgProcessingTime / effectiveWorkers;
+        }
+
         return new EventQueueStats
         {
             PendingCount = pending,
@@ -222,7 +229,8 @@ public sealed class EventQueueService : IEventQueueService
             DeadLetterCount = deadLetter,
             FailedCount = failed,
             AverageProcessingTimeMs = avgProcessingTime,
-            FailureRate = failureRate
+            FailureRate = failureRate,
+            EstimatedTimeRemainingMs = estimatedTimeRemainingMs
         };
     }
 

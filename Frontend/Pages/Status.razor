@@ -116,6 +116,7 @@ else
         <table class="table table-sm" style="max-width: 600px">
             <tbody>
                 <tr><th>Pending Events</th><td>@queueStats.pendingCount</td></tr>
+                <tr><th>Estimated Time Remaining</th><td>@FormatDuration(queueStats.estimatedTimeRemainingMs)</td></tr>
                 <tr><th>Processing</th><td>@queueStats.processingCount</td></tr>
                 <tr><th>Completed</th><td>@queueStats.completedCount</td></tr>
                 <tr><th>Dead Letter</th><td><span class="badge bg-@(queueStats.deadLetterCount > 0 ? "danger" : "success")">@queueStats.deadLetterCount</span></td></tr>
@@ -262,6 +263,16 @@ else
     private static string FormatDate(DateTime dt) =>
         dt.ToString("yyyy-MM-dd HH:mm");
 
+    private static string FormatDuration(double? ms)
+    {
+        if (ms is not > 0)
+            return "--";
+        var totalSeconds = (int)(ms.Value / 1000);
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        return minutes > 0 ? $"~{minutes}m {seconds}s" : $"~{seconds}s";
+    }
+
     private static RenderFragment StatusBadge(string? status) => builder =>
     {
         var color = status switch
@@ -361,6 +372,7 @@ else
         public int failedCount { get; set; }
         public double averageProcessingTimeMs { get; set; }
         public double failureRate { get; set; }
+        public double? estimatedTimeRemainingMs { get; set; }
     }
 
     private class DeadLetterEventItem

@@ -13,7 +13,7 @@ public sealed class DebugDbConnection : DbTestBase
     {
         Console.WriteLine($"Connection: {ConnectionString}");
         Console.WriteLine($"Studies: {await Context.Studies.CountAsync()}");
-        Console.WriteLine($"Investigators: {await Context.Investigators.CountAsync()}");
+        Console.WriteLine($"Investigator Persons: {await Context.InvestigatorPersons.CountAsync()}");
         // Connect via pgAdmin4 using the connection string printed above.
         Assert.IsTrue(true);
     }

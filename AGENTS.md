@@ -17,7 +17,7 @@ These are non-negotiable. Never violate these rules.
 - **Rider runs every test locally.** All integration tests execute against a Docker PostgreSQL container. No tests are gated behind `[Ignore]`, environment checks, or manual approval.
 - **Never** merge or deploy changes that have not passed locally.
 - Minimum verification: `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass).
-- Release verification: `dotnet build -c Release` (0 errors, 0 warnings). The deploy pipeline uses `-c Release` with stricter code analysis (CA* rules from `.editorconfig`) — Debug build may pass while Release fails.
+- **Note on CA* rules**: Code analysis rules from `.editorconfig` are enforced locally but not in CI. Run `dotnet build -c Release` locally before pushing to validate them.
 - Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
 - **If local verification cannot be performed, the change must not proceed until the gap is resolved.** No exceptions.
 
@@ -113,6 +113,43 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - If there is no clear default documented here, **present options to the user and let them decide**. Don't guess and don't default to a personal preference.
 - If standard docs answer the question, reference them (e.g., [MS Learn](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx), [DO guides](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/)).
 - If standard docs don't give a clear default, list the plausible approaches with trade-offs and ask.
+
+### 13. YAML File Verification for GitHub Actions
+- **Rule: All YAML file changes in `.github/workflows/` must pass local validation before creating a PR.**
+- **Mandatory verifications before pushing:**
+  1. `actionlint .github/workflows/<file.yml>` — zero errors permitted
+  2. Line length check — all lines ≤ 120 characters
+  3. Indentation consistency — 2-space indentation per `.editorconfig` [*.yml] rules
+  4. No mixed tabs/spaces — spaces only
+  5. Heredoc content alignment — consistent indentation with surrounding run block
+  6. sudo permissions — workflows writing to `/etc/` must use `sudo tee` or `sudo -c` to avoid "Permission denied" errors
+- **GitHub Actions YAML indentation standard:**
+  - Top-level job list items: 2 spaces + `-`
+  - Job properties (needs, if, runs-on): 4 spaces
+  - Step list items within a job: 6 spaces + `-`
+  - Step properties (name, run, uses, with): 8 spaces
+  - `run: |` script content: 10 spaces base + 1 space per nesting level
+  - Heredoc delimiters (EOF, EOSSH): align with run block content indentation
+- **Line length standard:** Maximum 120 characters per line (practical GitHub Actions limit)
+- **Actionlint installation:** `brew install actionlint` (Homebrew)
+- **Validation script:** Run `bash scripts/validate-workflows.sh` before creating a PR — automatically checks:
+  - actionlint compliance
+  - Line length violations
+  - sudo permission issues (detects unsafe `/etc/` writes)
+  - Indentation consistency
+- **Common mistakes to avoid:**
+  - Adding extra spaces when editing step blocks → breaks YAML list syntax (actionlinter catches this)
+  - Indenting heredoc content that shouldn't be indented → adds unwanted spaces to file output
+  - Long command chains in `run:` blocks → break into multiple lines using shell variables
+  - Not aligning nested heredoc delimiters → breaks shell parsing
+  - Writing to `/etc/` without sudo → causes "Permission denied" errors at deploy time
+- **PR verification checklist:**
+  - [ ] Run validation script: `bash scripts/validate-workflows.sh` with zero failures
+  - [ ] All workflows pass actionlint with zero errors
+  - [ ] No lines exceed 120 characters in `.github/workflows/*.yml`
+  - [ ] Sudo permission checks pass (no unsafe `/etc/` writes)
+  - [ ] Include validation results in PR description: ✅ `bash scripts/validate-workflows.sh` passes
+- **If local verification cannot be performed, the change must not proceed.** No exceptions.
 
 ---
 

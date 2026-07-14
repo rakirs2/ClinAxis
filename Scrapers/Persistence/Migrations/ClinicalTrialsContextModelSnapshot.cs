@@ -180,43 +180,6 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("investigator_affiliations", (string)null);
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Affiliation")
-                        .HasColumnType("text")
-                        .HasColumnName("affiliation");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("text")
-                        .HasColumnName("name");
-
-                    b.Property<string>("Role")
-                        .HasColumnType("text")
-                        .HasColumnName("role");
-
-                    b.Property<string>("StudyNctId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("study_nct_id");
-
-                    b.Property<Guid>("Uuid")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudyNctId");
-
-                    b.ToTable("investigators", (string)null);
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
                 {
                     b.Property<Guid>("InvestigatorPersonId")
@@ -268,6 +231,11 @@ namespace Scrapers.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("orcid");
+
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prefix");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -512,6 +480,45 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("pubmed_papers", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.RejectedEntityEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<DateTime>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("rejected_entities", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
@@ -1096,17 +1103,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("InvestigatorPerson");
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
-                        .WithMany("Investigators")
-                        .HasForeignKey("StudyNctId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Study");
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
@@ -1272,8 +1268,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("ArmGroups");
 
                     b.Navigation("Conditions");
-
-                    b.Navigation("Investigators");
 
                     b.Navigation("Keywords");
 
