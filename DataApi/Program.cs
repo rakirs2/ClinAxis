@@ -11,10 +11,9 @@ var connectionString = ConnectionStringProvider.Default;
 // Retry database connection during startup to handle transient DB delays
 var startupRepo = new StudyRepository(connectionString);
 
-// Reset database on demand: dotnet run --project DataApi/DataApi.csproj -- --reset-db
-// Use this for first deploy or anytime you want a clean slate.
-// The systemd unit file never passes --reset-db, so production restarts are safe.
-if (args.Contains("--reset-db"))
+// MVP mode: reset database on every startup for a clean slate.
+// Pass --preserve-db to skip reset (e.g., in deploy script after MVP).
+if (!args.Contains("--preserve-db"))
 {
     await startupRepo.ResetDatabaseAsync();
     await Console.Out.WriteLineAsync("Database reset complete. Starting normally.");
