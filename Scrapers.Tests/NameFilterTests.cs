@@ -27,7 +27,7 @@ public sealed class NameFilterTests
     [TestMethod]
     public void IsHumanName_KnownPiRole_ReturnsTrue()
     {
-        Assert.IsTrue(NameFilter.IsHumanName("Study Coordinator", "PRINCIPAL_INVESTIGATOR"));
+        Assert.IsTrue(NameFilter.IsHumanName("Jane Smith", "PRINCIPAL_INVESTIGATOR"));
     }
 
     [TestMethod]
@@ -150,5 +150,77 @@ public sealed class NameFilterTests
     public void IsHumanName_ChugaiPharma_ReturnsFalse()
     {
         Assert.IsFalse(NameFilter.IsHumanName("Chugai", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_GskClinicalTrialsWithStudyDirectorRole_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("GSK Clinical Trials", "STUDY_DIRECTOR"));
+    }
+
+    [TestMethod]
+    public void IsHumanName_PfizerCtgovCallCenter_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Pfizer CT.gov Call Center", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_MedicalDirector_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Medical Director", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_GileadStudyDirectorWithRole_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Gilead Study Director", "STUDY_DIRECTOR"));
+    }
+
+    [TestMethod]
+    public void IsHumanName_GlobalClinicalRegistry_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Global Clinical Registry", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_StudyDriector_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Study Driector", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_MedicalMontiior_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Medical Montiior", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_MedicalResponsible_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Medical Responsible", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_UcbCares_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("UCB Cares", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_ClinicalTrialManagement_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Clinical Trial Management", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_NovartisPharmaceutricals_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Novartis Pharmaceutricals", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_AbbVieInc_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("AbbVie Inc", null));
     }
 }
