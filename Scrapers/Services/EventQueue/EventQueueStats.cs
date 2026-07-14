@@ -12,4 +12,5 @@ public sealed class EventQueueStats
     public double AverageProcessingTimeMs { get; set; }
     public double FailureRate { get; set; }  // 0-1 (percentage of failed events)
     public int FailedCount { get; set; }
+    public double? EstimatedTimeRemainingMs { get; set; }
 }
