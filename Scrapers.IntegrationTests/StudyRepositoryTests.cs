@@ -408,8 +408,21 @@ public sealed class StudyRepositoryTests : DbTestBase
             BriefTitle = "Keyword Filter Test",
             OverallStatus = "RECRUITING",
             Conditions = ["cancer"],
-            Keywords = ["cancer", "cancer", "lung cancer", "l", "HIV",
-                "A very long keyword that exceeds two hundred characters so it should be rejected by the keyword filter because it is way too long and not useful for search purposes at all and should not be stored in the database"],
+            Keywords =
+            [
+                "cancer", "cancer",                          // condition duplicate + dup → removed
+                "lung cancer",                                // valid → kept
+                "l",                                          // too short, not known medical term → removed
+                "HIV",                                        // 3 chars but in knownShortMedicalTerms → kept
+                "A very long keyword over one hundred fifty characters that should be rejected by the filter because it is way too long for a keyword",
+                "treatment",                                  // keywordBlocklist match → removed
+                "healthy subjects",                           // keywordBlocklist match → removed
+                "safety",                                     // keywordBlocklist match → removed
+                "diabetes; obesity",                          // contains semicolon → removed
+                "clinical trial",                             // keywordBlocklist match → removed
+                "cancer, ",                                   // trailing comma normalized to "cancer" → condition dup → removed
+                "Parkinson's disease",                        // valid → kept
+            ],
             OverallOfficials = [new Investigator { Name = "Test Researcher", Role = "PRINCIPAL_INVESTIGATOR" }]
         };
 
@@ -420,14 +433,10 @@ public sealed class StudyRepositoryTests : DbTestBase
             .Select(k => k.Keyword)
             .ToListAsync();
 
-        // "cancer" is a condition duplicate → skipped
-        // "cancer" appears twice → deduped
-        // "l" is too short and not a known medical term → skipped
-        // HIV is 3 chars but is known medical term → kept
-        // long keyword > 200 chars → skipped
-        Assert.AreEqual(2, keywords.Count, "Only 'lung cancer' and 'HIV' should remain");
+        Assert.AreEqual(3, keywords.Count, "Only 'lung cancer', 'HIV', and 'Parkinson's disease' should remain");
         Assert.IsTrue(keywords.Contains("lung cancer"));
         Assert.IsTrue(keywords.Contains("HIV"));
+        Assert.IsTrue(keywords.Contains("Parkinson's disease"));
     }
 
     [TestMethod]
