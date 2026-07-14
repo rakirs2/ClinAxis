@@ -24,6 +24,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Scrapers.Tests" />
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
+    <InternalsVisibleTo Include="Scrapers.Validation" />
   </ItemGroup>
 
 </Project>

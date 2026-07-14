@@ -222,6 +222,9 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("full_name");
 
+                    b.Property<bool>("IsHuman")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("NcbiId")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -519,6 +522,56 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("StudyNctId");
 
                     b.ToTable("rejected_entities", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.RejectedInvestigatorNameEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("full_name");
+
+                    b.Property<bool?>("IsHumanOverride")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_human_override");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("note");
+
+                    b.Property<int>("OccurrenceCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("occurrence_count");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<int>("StudyCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("study_count");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FullName")
+                        .IsUnique();
+
+                    b.ToTable("rejected_investigator_names", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
