@@ -147,18 +147,40 @@ namespace Scrapers.Persistence
                             "HIV", "HPV", "ALS", "MS", "IBS", "COPD", "ICU", "GI",
                             "ENT", "CT", "MRI", "PET", "CVD", "CHF", "CAD", "CKD",
                             "UTI", "STD", "PTSD", "ADHD", "GERD", "RA", "SLE",
-                            "NASH", "NAFLD", "COPD", "OSA", "PCOS", "TBI", "SCI",
+                            "NASH", "NAFLD", "OSA", "PCOS", "TBI", "SCI",
+                        };
+
+                        var keywordBlocklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            "randomized controlled trial", "randomized clinical trial",
+                            "randomized controlled study", "randomised controlled trial",
+                            "randomised clinical trial", "cluster randomized controlled trial",
+                            "observational study", "interventional study", "clinical trial",
+                            "pilot study", "case-control", "cross-sectional study",
+                            "prospective study", "retrospective study", "cohort study",
+                            "longitudinal study", "controlled clinical trial",
+                            "phase 1", "phase i", "phase 2", "phase ii",
+                            "phase 3", "phase iii", "phase 4", "phase iv",
+                            "healthy volunteer study", "healthy subjects", "healthy volunteers",
+                            "treatment", "safety", "efficacy", "outcomes",
+                            "patient", "patients", "subjects", "human",
+                            "participation", "participatory", "measurement",
+                            "multicenter", "multicentric",
                         };
 
                         var originalKeywords = record.Keywords
                             .Where(k => !string.IsNullOrWhiteSpace(k))
                             .Select(k => k.Trim())
+                            .Select(k => k.TrimEnd(',', ';', ':', '.', '!', '?'))
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .ToList();
 
                         var cleanedKeywords = originalKeywords
                             .Where(k => k.Length >= 4 || (k.Length >= 2 && knownShortMedicalTerms.Contains(k)))
-                            .Where(k => k.Length <= 200)
+                            .Where(k => k.Length <= 150)
+                            .Where(k => !keywordBlocklist.Contains(k))
+                            .Where(k => !k.Contains(';', StringComparison.Ordinal))
+                            .Where(k => k.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 10)
                             .Where(k => conditions == null || !conditions.Contains(k))
                             .ToList();
 
@@ -363,7 +385,7 @@ namespace Scrapers.Persistence
         public async Task<int> CountKeywordsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.StudyKeywords.CountAsync(cancellationToken).ConfigureAwait(false);
+            return await context.StudyKeywords.Select(k => k.Keyword).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
