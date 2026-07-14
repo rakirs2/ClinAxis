@@ -120,7 +120,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                     {
                         PersonId = personId,
                         IdentifierType = "NPI",
-                        IdentifierValue = result.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        IdentifierValue = result.Number ?? "",
                         SourceName = "NPPES",
                         MatchedFullName = $"{result.Basic?.FirstName} {result.Basic?.LastName}".Trim(),
                         MatchedAffiliation = result.Basic?.OrganizationName,
@@ -137,7 +137,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                 // Auto-assign only when exactly 1 result and it's active
                 if (npiResults.Count == 1 && npiResults[0].Status != "D")
                 {
-                    person.Npi = npiResults[0].Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    person.Npi = npiResults[0].Number;
                     // Update the candidate to mark it auto-approved
                     var candidate = await context.PersonIdentifierCandidates
                         .Where(c => c.PersonId == personId && c.IdentifierType == "NPI")
