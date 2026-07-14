@@ -127,4 +127,28 @@ public sealed class NameFilterTests
     {
         Assert.IsFalse(NameFilter.IsHumanName("Cleveland Clinic", null));
     }
+
+    [TestMethod]
+    public void IsHumanName_GskPharma_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("GSK", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_GskClinicalTrials_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("GSK Clinical Trials", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_SponsorPrefix_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Sponsor Chugai Pharmaceutical CO.Ltd", null));
+    }
+
+    [TestMethod]
+    public void IsHumanName_ChugaiPharma_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Chugai", null));
+    }
 }

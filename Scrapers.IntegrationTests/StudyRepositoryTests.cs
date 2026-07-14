@@ -430,6 +430,67 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.IsTrue(keywords.Contains("HIV"));
     }
 
+    [TestMethod]
+    public async Task CountStudiesByInvestigatorPersonIdAsync_ReturnsCorrectTotal()
+    {
+        var investigatorName = "Dr. Jane Doe";
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT00001001", "Study Alpha", "RECRUITING",
+                [new Investigator { Name = investigatorName, Affiliation = "Med Corp", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT00001002", "Study Beta", "COMPLETED",
+                [new Investigator { Name = investigatorName, Affiliation = "Med Corp", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT00001003", "Study Gamma", "TERMINATED",
+                [new Investigator { Name = investigatorName, Affiliation = "Med Corp", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT00001004", "Other Study", "RECRUITING",
+                [new Investigator { Name = "Other Person", Affiliation = "Other Corp", Role = "PRINCIPAL_INVESTIGATOR" }])
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        var personId = await Context.InvestigatorPersons
+            .Where(p => p.FullName == "Jane Doe")
+            .Select(p => p.Id)
+            .FirstAsync();
+
+        var criteria = new StudySearchCriteria { Page = 1, PageSize = 20 };
+        var total = await _repo.CountStudiesByInvestigatorPersonIdAsync(personId, criteria);
+
+        Assert.AreEqual(3, total, "Investigator with 3 studies should return count of 3");
+    }
+
+    [TestMethod]
+    public async Task CountStudiesByInvestigatorPersonIdAsync_WithFilter_ReturnsFilteredTotal()
+    {
+        var investigatorName = "Dr. John Smith";
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT00002001", "Cancer Research Alpha", "RECRUITING",
+                [new Investigator { Name = investigatorName, Affiliation = "Research Co", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT00002002", "Heart Study Beta", "COMPLETED",
+                [new Investigator { Name = investigatorName, Affiliation = "Research Co", Role = "PRINCIPAL_INVESTIGATOR" }]),
+            CreateRecord("NCT00002003", "Cancer Research Gamma", "TERMINATED",
+                [new Investigator { Name = investigatorName, Affiliation = "Research Co", Role = "PRINCIPAL_INVESTIGATOR" }])
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        var personId = await Context.InvestigatorPersons
+            .Where(p => p.FullName == "John Smith")
+            .Select(p => p.Id)
+            .FirstAsync();
+
+        var criteria = new StudySearchCriteria
+        {
+            Page = 1,
+            PageSize = 20,
+            Keyword = "cancer"
+        };
+        var total = await _repo.CountStudiesByInvestigatorPersonIdAsync(personId, criteria);
+
+        Assert.AreEqual(2, total, "Filtering by 'cancer' should return 2 studies");
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null)
     {

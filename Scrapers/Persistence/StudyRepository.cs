@@ -513,6 +513,66 @@ namespace Scrapers.Persistence
             return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<int> CountStudiesByInvestigatorPersonIdAsync(Guid personId, StudySearchCriteria criteria, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(criteria);
+
+            using ClinicalTrialsContext context = CreateContext();
+
+            var query = context.Studies
+                .AsNoTracking()
+                .Where(s => s.StudyInvestigators != null && s.StudyInvestigators.Any(si => si.InvestigatorPersonId == personId));
+
+            if (!string.IsNullOrWhiteSpace(criteria.Keyword))
+            {
+                var keyword = $"%{criteria.Keyword}%";
+                query = query.Where(s =>
+                    (s.BriefTitle != null && EF.Functions.ILike(s.BriefTitle, keyword)) ||
+                    (s.OfficialTitle != null && EF.Functions.ILike(s.OfficialTitle, keyword)) ||
+                    (s.BriefSummary != null && EF.Functions.ILike(s.BriefSummary, keyword)) ||
+                    EF.Functions.ILike(s.NctId, keyword));
+            }
+
+            if (criteria.Statuses != null && criteria.Statuses.Count > 0)
+            {
+                query = query.Where(s => s.OverallStatus != null && criteria.Statuses.Contains(s.OverallStatus));
+            }
+
+            if (criteria.Phases != null && criteria.Phases.Count > 0)
+            {
+                query = query.Where(s => s.Phases != null && s.Phases.Any(p => p.Phase != null && criteria.Phases.Contains(p.Phase)));
+            }
+
+            if (criteria.Conditions != null && criteria.Conditions.Count > 0)
+            {
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+            }
+
+            if (criteria.EnrollmentMin.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount >= criteria.EnrollmentMin.Value);
+            }
+
+            if (criteria.EnrollmentMax.HasValue)
+            {
+                query = query.Where(s => s.EnrollmentCount.HasValue && s.EnrollmentCount <= criteria.EnrollmentMax.Value);
+            }
+
+            if (criteria.StartDateFrom.HasValue)
+            {
+                var fromDate = new DateOnly(criteria.StartDateFrom.Value.Year, criteria.StartDateFrom.Value.Month, criteria.StartDateFrom.Value.Day);
+                query = query.Where(s => s.StartDate >= fromDate);
+            }
+
+            if (criteria.StartDateTo.HasValue)
+            {
+                var toDate = new DateOnly(criteria.StartDateTo.Value.Year, criteria.StartDateTo.Value.Month, criteria.StartDateTo.Value.Day);
+                query = query.Where(s => s.StartDate <= toDate);
+            }
+
+            return await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         public async Task<IReadOnlyList<StudyEntity>> GetAllStudiesWithFullDataAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
