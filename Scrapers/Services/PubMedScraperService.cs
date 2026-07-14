@@ -32,6 +32,8 @@ namespace Scrapers.Services
 
             using (var context = new ClinicalTrialsContext(contextOptions))
             {
+                var seenPmids = new Dictionary<string, PubmedPaperEntity>(StringComparer.OrdinalIgnoreCase);
+
                 var studiesWithReferences = await context.Studies
                     .Where(s => !s.IsIncomplete && s.OverallStatus != "COMPLETED")
                     .Include(s => s.References)
@@ -61,26 +63,38 @@ namespace Scrapers.Services
                         }
 
                         // Find or create canonical PubmedPaperEntity by Pmid
-                        var pubmedPaper = await context.PubmedPapers
-                            .FirstOrDefaultAsync(p => p.Pmid == reference.Pmid, cancellationToken)
-                            .ConfigureAwait(false);
-
-                        if (pubmedPaper == null)
+                        // Check both DB and in-memory set to avoid duplicate key violations
+                        // when the same PMID appears in multiple studies within this batch
+                        PubmedPaperEntity? pubmedPaper;
+                        if (seenPmids.TryGetValue(reference.Pmid, out var existing))
                         {
-                            PaperDetail? paperDetail = await FetchPaperDetailAsync(reference.Pmid, cancellationToken).ConfigureAwait(false);
+                            pubmedPaper = existing;
+                        }
+                        else
+                        {
+                            pubmedPaper = await context.PubmedPapers
+                                .FirstOrDefaultAsync(p => p.Pmid == reference.Pmid, cancellationToken)
+                                .ConfigureAwait(false);
 
-                            pubmedPaper = new PubmedPaperEntity
+                            if (pubmedPaper == null)
                             {
-                                Pmid = reference.Pmid,
-                                Doi = paperDetail?.Doi,
-                                Title = paperDetail?.Title,
-                                Journal = paperDetail?.Journal,
-                                PublicationDate = paperDetail?.PublicationDate,
-                                Abstract = paperDetail?.Abstract,
-                                IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
-                            };
+                                PaperDetail? paperDetail = await FetchPaperDetailAsync(reference.Pmid, cancellationToken).ConfigureAwait(false);
 
-                            context.PubmedPapers.Add(pubmedPaper);
+                                pubmedPaper = new PubmedPaperEntity
+                                {
+                                    Pmid = reference.Pmid,
+                                    Doi = paperDetail?.Doi,
+                                    Title = paperDetail?.Title,
+                                    Journal = paperDetail?.Journal,
+                                    PublicationDate = paperDetail?.PublicationDate,
+                                    Abstract = paperDetail?.Abstract,
+                                    IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
+                                };
+
+                                context.PubmedPapers.Add(pubmedPaper);
+                            }
+
+                            seenPmids.Add(reference.Pmid, pubmedPaper);
                         }
 
                         // Create the link between this study and the paper

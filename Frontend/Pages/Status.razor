@@ -44,6 +44,71 @@ else
         </div>
     </div>
 
+    <h3 class="mt-4">Rejected Investigator Names</h3>
+    @if (rejectedNames is null)
+    {
+        <p class="text-muted">Loading...</p>
+    }
+    else if (rejectedNames.Count == 0)
+    {
+        <p class="text-success">✓ No names currently rejected by NameFilter.</p>
+    }
+    else
+    {
+        var byReason = rejectedNames
+            .GroupBy(n => n.rejectionReason ?? "Unknown")
+            .Select(g => (Reason: g.Key, Count: g.Count()))
+            .OrderByDescending(g => g.Count);
+        <p>
+            <strong>@rejectedNames.Count</strong> distinct names rejected.
+            Breakdown:
+            @foreach (var (reason, count) in byReason)
+            {
+                <span class="badge bg-warning text-dark me-1" title="Names rejected by this rule">@reason: @count</span>
+            }
+        </p>
+        <table class="table table-sm table-striped" style="max-width: 100%">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Occurrences</th>
+                    <th>Studies</th>
+                    <th>Reason</th>
+                    <th>Override</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var name in rejectedNames.Take(50))
+                {
+                    <tr>
+                        <td>@name.name</td>
+                        <td>@name.occurrenceCount</td>
+                        <td>@name.studyCount</td>
+                        <td><code>@name.rejectionReason</code></td>
+                        <td>
+                            @if (name.isHumanOverride == true)
+                            {
+                                <span class="badge bg-success">Human</span>
+                            }
+                            else if (name.isHumanOverride == false)
+                            {
+                                <span class="badge bg-danger">Not Human</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Unreviewed</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (rejectedNames.Count > 50)
+        {
+            <p class="text-muted"><em>Showing top 50 of @rejectedNames.Count rejected names.</em></p>
+        }
+    }
+
     <h3 class="mt-4">Recent Pipeline Runs</h3>
     @if (telemetry.pipelineRuns is null || telemetry.pipelineRuns.Count == 0)
     {
@@ -209,6 +274,7 @@ else
     private List<DataSourceStateItem>? dataSourceStates;
     private QueueStatsItem? queueStats;
     private List<DeadLetterEventItem>? deadLetterEvents;
+    private List<RejectedNameItem>? rejectedNames;
     private int deadLetterCount = 0;
     private string lastUpdated = "";
     private Timer? _timer;
@@ -234,6 +300,7 @@ else
             dataSourceStates = await Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state");
             queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
             deadLetterEvents = await Client.GetFromJsonAsync<List<DeadLetterEventItem>>("/api/event-queue/dead-letter");
+            rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
             deadLetterCount = deadLetterEvents?.Count ?? 0;
             lastUpdated = DateTime.Now.ToString("HH:mm:ss");
         }
@@ -385,5 +452,16 @@ else
         public int retryCount { get; set; }
         public DateTime createdAt { get; set; }
         public DateTime? completedAt { get; set; }
+    }
+
+    private class RejectedNameItem
+    {
+        public Guid id { get; set; }
+        public string? name { get; set; }
+        public int occurrenceCount { get; set; }
+        public int studyCount { get; set; }
+        public string? rejectionReason { get; set; }
+        public bool? isHumanOverride { get; set; }
+        public string? note { get; set; }
     }
 }
