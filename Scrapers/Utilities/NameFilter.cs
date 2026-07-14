@@ -21,7 +21,7 @@ namespace Scrapers.Utilities
             "CELGENE", "MYLAN", "TEVA", "SANDOZ",
             "MEDTRONIC", "STRYKER", "BAUSCH",
             "VIATRIS", "BOEHRINGER",
-            "GSK", "CHUGAI",
+            "GSK", "CHUGAI", "UCB",
         };
 
         private static readonly HashSet<string> OrgKeywords = new(StringComparer.OrdinalIgnoreCase)
@@ -41,6 +41,10 @@ namespace Scrapers.Utilities
             "LIMITED LIABILITY", "SOCIETE", "GESELLSCHAFT", "GMBH",
             "AKTIENGESELLSCHAFT", "AG", "NV", "PTY", "PTY LTD",
             "AND ASSOCIATES", "AND COMPANY", "& CO", "& ASSOCIATES",
+            "DIRECTOR", "MEDICAL", "STUDY", "CLINICAL",
+            "REGISTRY", "MONITOR", "COORDINATOR",
+            "MANAGEMENT", "RESPONSIBLE", "CALL CENTER",
+            "CENTER", "CORPORATE", "CARE",
         };
 
         private static readonly HashSet<string> RolePrefixes = new(StringComparer.OrdinalIgnoreCase)
@@ -80,11 +84,6 @@ namespace Scrapers.Utilities
                 return false;
             }
 
-            if (role != null && KnownPiRoles.Contains(role.Trim()))
-            {
-                return true;
-            }
-
             var upperName = trimmed.ToUpperInvariant();
 
             if (RolePrefixes.Any(prefix => upperName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
@@ -110,7 +109,12 @@ namespace Scrapers.Utilities
                 return false;
             }
 
-            if (words.Length == 1 && PharmaBlocklist.Contains(words[0].TrimEnd(',', '.')))
+            if (role != null && KnownPiRoles.Contains(role.Trim()))
+            {
+                return true;
+            }
+
+            if (PharmaBlocklist.Contains(words[0].TrimEnd(',', '.')))
             {
                 return false;
             }
