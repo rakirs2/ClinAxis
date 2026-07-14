@@ -258,7 +258,7 @@ public sealed class StudyRepositoryTests : DbTestBase
     }
 
     [TestMethod]
-    public async Task UpsertStudiesAsync_EnqueuesInvestigatorDiscoveredEventForNewPerson()
+    public async Task UpsertStudiesAsync_EnqueuesInvestigatorEnrichmentEventForNewPerson()
     {
         ClinicalTrialRecord[] records =
         [
@@ -269,9 +269,9 @@ public sealed class StudyRepositoryTests : DbTestBase
         await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
 
         List<PipelineEventEntity> events = await Context.PipelineEvents
-            .Where(e => e.EventType == "investigator.discovered")
+            .Where(e => e.EventType == "investigator.enrichment")
             .ToListAsync();
-        Assert.AreEqual(1, events.Count, "Should enqueue one investigator.discovered event");
+        Assert.AreEqual(1, events.Count, "Should enqueue one investigator.enrichment event");
         Assert.AreEqual("pending", events[0].Status);
     }
 
@@ -498,6 +498,143 @@ public sealed class StudyRepositoryTests : DbTestBase
         var total = await _repo.CountStudiesByInvestigatorPersonIdAsync(personId, criteria);
 
         Assert.AreEqual(2, total, "Filtering by 'cancer' should return 2 studies");
+    }
+
+    [TestMethod]
+    public async Task CountInvestigatorsWithNpiAsync_ReturnsCorrectCount()
+    {
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "John Smith",
+            Npi = "1234567890",
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Jane Doe",
+            Npi = null,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Non-Human Entity",
+            Npi = "9999999999",
+            IsHuman = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await Context.SaveChangesAsync();
+
+        Assert.AreEqual(1, await _repo.CountInvestigatorsWithNpiAsync());
+    }
+
+    [TestMethod]
+    public async Task CountInvestigatorsByEnrichmentResultAsync_ReturnsCorrectCounts()
+    {
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Assigned Doc",
+            NpiEnrichmentResult = "assigned",
+            NpiLookupAttemptedAt = DateTime.UtcNow,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Not Found Doc",
+            NpiEnrichmentResult = "not_found",
+            NpiLookupAttemptedAt = DateTime.UtcNow,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Ambiguous Doc",
+            NpiEnrichmentResult = "ambiguous",
+            NpiLookupAttemptedAt = DateTime.UtcNow,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Non-Human With Result",
+            NpiEnrichmentResult = "assigned",
+            NpiLookupAttemptedAt = DateTime.UtcNow,
+            IsHuman = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await Context.SaveChangesAsync();
+
+        Assert.AreEqual(1, await _repo.CountInvestigatorsByEnrichmentResultAsync("assigned"));
+        Assert.AreEqual(1, await _repo.CountInvestigatorsByEnrichmentResultAsync("not_found"));
+        Assert.AreEqual(1, await _repo.CountInvestigatorsByEnrichmentResultAsync("ambiguous"));
+    }
+
+    [TestMethod]
+    public async Task CountInvestigatorsNotAttemptedAsync_ReturnsCorrectCount()
+    {
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Attempted Doc",
+            NpiLookupAttemptedAt = DateTime.UtcNow,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Not Attempted Doc",
+            NpiLookupAttemptedAt = null,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Non-Human Not Attempted",
+            NpiLookupAttemptedAt = null,
+            IsHuman = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await Context.SaveChangesAsync();
+
+        Assert.AreEqual(1, await _repo.CountInvestigatorsNotAttemptedAsync());
+    }
+
+    [TestMethod]
+    public async Task CountInvestigatorsByEnrichmentResultAsync_UnknownResult_ReturnsZero()
+    {
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Some Doc",
+            NpiEnrichmentResult = null,
+            IsHuman = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await Context.SaveChangesAsync();
+
+        Assert.AreEqual(0, await _repo.CountInvestigatorsByEnrichmentResultAsync("bogus_value"));
     }
 
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,

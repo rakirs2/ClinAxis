@@ -210,6 +210,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.NcbiId).HasColumnName("ncbi_id").HasMaxLength(50);
                 entity.Property(e => e.Npi).HasColumnName("npi").HasMaxLength(20);
                 entity.Property(e => e.NpiLookupAttemptedAt).HasColumnName("npi_lookup_attempted_at");
+                entity.Property(e => e.NpiEnrichmentResult).HasColumnName("npi_enrichment_result").HasMaxLength(20);
                 entity.Property(e => e.IsHuman).HasColumnName("is_human");
                 entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
                 entity.Property(e => e.VerificationSource).HasColumnName("verification_source").HasMaxLength(50);

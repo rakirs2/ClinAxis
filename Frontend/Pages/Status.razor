@@ -50,9 +50,10 @@ else
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
                     <tr><th>Total Investigators</th><td>@(telemetry.enrichment?.totalInvestigators ?? 0)</td></tr>
-                    <tr><th>With ORCID</th><td>@(telemetry.enrichment?.withOrcid ?? 0) (@(telemetry.enrichment?.orcidCoveragePct ?? 0)%)</td></tr>
-                    <tr><th>With NPI</th><td>@(telemetry.enrichment?.withNpi ?? 0) (@(telemetry.enrichment?.npiCoveragePct ?? 0)%)</td></tr>
-                    <tr><th>With NPI or ORCID</th><td><strong>@(telemetry.enrichment?.withNpiOrOrcid ?? 0) (@(telemetry.enrichment?.totalCoveragePct ?? 0)%)</strong></td></tr>
+                    <tr><th>With NPI</th><td><strong>@(telemetry.enrichment?.withNpi ?? 0) (@(telemetry.enrichment?.npiCoveragePct ?? 0)%)</strong></td></tr>
+                    <tr><th>Not Found</th><td>@(telemetry.enrichment?.notFound ?? 0)</td></tr>
+                    <tr><th>Ambiguous (2+ matches)</th><td>@(telemetry.enrichment?.ambiguous ?? 0)</td></tr>
+                    <tr><th>Not Yet Attempted</th><td>@(telemetry.enrichment?.notAttempted ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -401,12 +402,11 @@ else
     private class EnrichmentStats
     {
         public int totalInvestigators { get; set; }
-        public int withOrcid { get; set; }
         public int withNpi { get; set; }
-        public int withNpiOrOrcid { get; set; }
-        public double orcidCoveragePct { get; set; }
+        public int notFound { get; set; }
+        public int ambiguous { get; set; }
+        public int notAttempted { get; set; }
         public double npiCoveragePct { get; set; }
-        public double totalCoveragePct { get; set; }
     }
 
     private class DbStats

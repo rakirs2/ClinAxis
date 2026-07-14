@@ -388,22 +388,22 @@ namespace Scrapers.Persistence
             return await context.StudyKeywords.Select(k => k.Keyword).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> CountInvestigatorsWithOrcidAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.InvestigatorPersons.CountAsync(p => p.Orcid != null && p.IsHuman, cancellationToken).ConfigureAwait(false);
-        }
-
         public async Task<int> CountInvestigatorsWithNpiAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.InvestigatorPersons.CountAsync(p => p.Npi != null && p.IsHuman, cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> CountInvestigatorsWithNpiOrOrcidAsync(CancellationToken cancellationToken = default)
+        public async Task<int> CountInvestigatorsByEnrichmentResultAsync(string result, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.InvestigatorPersons.CountAsync(p => (p.Npi != null || p.Orcid != null) && p.IsHuman, cancellationToken).ConfigureAwait(false);
+            return await context.InvestigatorPersons.CountAsync(p => p.NpiEnrichmentResult == result && p.IsHuman, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<int> CountInvestigatorsNotAttemptedAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.InvestigatorPersons.CountAsync(p => p.NpiLookupAttemptedAt == null && p.IsHuman, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
@@ -1155,7 +1155,7 @@ namespace Scrapers.Persistence
         }
 
         public async Task<IReadOnlyList<InvestigatorPersonSummary>> GetInvestigatorPersonsPagedAsync(
-            int page, int pageSize, string? search = null,
+            int page, int pageSize, string? search = null, bool? hasNpi = null,
             CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -1166,6 +1166,11 @@ namespace Scrapers.Persistence
                 .Include(p => p.InvestigatorPapers)
                 .AsNoTracking()
                 .Where(p => p.IsHuman);
+
+            if (hasNpi == true)
+            {
+                query = query.Where(p => p.Npi != null);
+            }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1179,6 +1184,7 @@ namespace Scrapers.Persistence
                     Name = p.FullName,
                     Orcid = p.Orcid,
                     NcbiId = p.NcbiId,
+                    Npi = p.Npi,
                     PrimaryAffiliation = p.Affiliations!
                         .Where(a => a.IsPrimary)
                         .Select(a => a.InstitutionName)
@@ -1193,11 +1199,16 @@ namespace Scrapers.Persistence
             return await result.ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> CountInvestigatorPersonsFilteredAsync(string? search = null, CancellationToken cancellationToken = default)
+        public async Task<int> CountInvestigatorPersonsFilteredAsync(string? search = null, bool? hasNpi = null, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
 
             IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons.AsNoTracking().Where(p => p.IsHuman);
+
+            if (hasNpi == true)
+            {
+                query = query.Where(p => p.Npi != null);
+            }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1272,7 +1283,7 @@ namespace Scrapers.Persistence
                 return existing;
             }
 
-            // 3. Create new person record and enqueue scrub + enrichment events
+            // 3. Create new person record and enqueue enrichment event
             var person = new InvestigatorPersonEntity
             {
                 Id = Guid.NewGuid(),
@@ -1283,14 +1294,6 @@ namespace Scrapers.Persistence
             };
             context.InvestigatorPersons.Add(person);
             var now = DateTime.UtcNow;
-            context.PipelineEvents.Add(new PipelineEventEntity
-            {
-                EventType = "investigator.discovered",
-                Data = person.Id.ToString(),
-                Status = "pending",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
             context.PipelineEvents.Add(new PipelineEventEntity
             {
                 EventType = "investigator.enrichment",
@@ -1468,6 +1471,7 @@ namespace Scrapers.Persistence
         public string? Name { get; set; }
         public string? Orcid { get; set; }
         public string? NcbiId { get; set; }
+        public string? Npi { get; set; }
         public string? PrimaryAffiliation { get; set; }
         public int StudyCount { get; set; }
         public int PaperCount { get; set; }
