@@ -26,7 +26,7 @@ namespace Scrapers.IntegrationTests
             await coordinator.FullScraperPipelineAsync(5);
 
             var studyCount = await Context.Studies.CountAsync();
-            var investigatorCount = await Context.Investigators.CountAsync();
+            var investigatorCount = await Context.InvestigatorPersons.CountAsync();
             Assert.IsTrue(studyCount > 0, "No studies found after clinical trials ingestion.");
             Assert.IsTrue(investigatorCount > 0, "No investigators found after clinical trials ingestion.");
         }

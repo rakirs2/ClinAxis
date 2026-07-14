@@ -42,7 +42,6 @@ internal static class PostgresTestHelper
         await context.Database.MigrateAsync();
         context.PiAggregations.RemoveRange(context.PiAggregations);
         context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
-        context.Investigators.RemoveRange(context.Investigators);
         context.Studies.RemoveRange(context.Studies);
         await context.SaveChangesAsync();
     }

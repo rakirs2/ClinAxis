@@ -59,29 +59,6 @@ namespace Scrapers.Services
                         piMap[person.FullName] = entry;
                     }
                 }
-                else if (study.Investigators != null)
-                {
-                    foreach (InvestigatorEntity investigator in study.Investigators)
-                    {
-                        if (string.IsNullOrWhiteSpace(investigator.Name))
-                        {
-                            continue;
-                        }
-
-                        if (!piMap.TryGetValue(investigator.Name, out var entry))
-                        {
-                            entry = (new HashSet<string>(), new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0);
-                        }
-
-                        entry.StudyIds.Add(study.NctId);
-                        if (!string.IsNullOrWhiteSpace(investigator.Affiliation))
-                        {
-                            entry.Affiliations.Add(investigator.Affiliation);
-                        }
-                        entry.PubmedCount += pubmedCount;
-                        piMap[investigator.Name] = entry;
-                    }
-                }
             }
 
             var aggregations = piMap

@@ -10,6 +10,15 @@ var connectionString = ConnectionStringProvider.Default;
 
 // Retry database connection during startup to handle transient DB delays
 var startupRepo = new StudyRepository(connectionString);
+
+// MVP mode: reset database on every startup for a clean slate.
+// Pass --preserve-db or set DATAPI_PRESERVE_DB=true to skip reset.
+if (!args.Contains("--preserve-db") && Environment.GetEnvironmentVariable("DATAPI_PRESERVE_DB") != "true")
+{
+    await startupRepo.ResetDatabaseAsync();
+    await Console.Out.WriteLineAsync("Database reset complete. Starting normally.");
+}
+
 var maxRetries = 5;
 var retryDelay = TimeSpan.FromSeconds(3);
 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -191,7 +200,8 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
         PageSize = ps
     };
 
-    var studies = await repo.GetStudiesByInvestigatorUuidAsync(uuid, criteria);
+    var total = await repo.CountStudiesByInvestigatorPersonIdAsync(uuid, criteria);
+    var studies = await repo.GetStudiesByInvestigatorPersonIdAsync(uuid, criteria);
 
     // Apply client-side sorting if requested
     if (!string.IsNullOrEmpty(sort))
@@ -213,10 +223,10 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
     return Results.Ok(new
     {
         data = studies.Select(s => StudyMapper.ToSummary(s)),
-        total = studies.Count,
+        total,
         page = p,
         pageSize = ps,
-        totalPages = (int)Math.Ceiling((double)studies.Count / ps)
+        totalPages = (int)Math.Ceiling((double)total / ps)
     });
 });
 

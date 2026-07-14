@@ -73,13 +73,21 @@ namespace Scrapers.IntegrationTests.Utilities
                 CreatedAt = DateTime.UtcNow
             });
 
-            // Investigator
-            ctx.Investigators.Add(new InvestigatorEntity
+            // Investigator person
+            var person = new InvestigatorPersonEntity
+            {
+                Id = Guid.Parse("A0000000-0000-0000-0000-000000000001"),
+                FullName = "Dr. Sample",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            ctx.InvestigatorPersons.Add(person);
+            ctx.StudyInvestigators.Add(new StudyInvestigatorEntity
             {
                 StudyNctId = "NCT00000001",
-                Name = "Dr. Sample",
-                Role = "Principal Investigator",
-                Affiliation = "Sample Univ"
+                InvestigatorPersonId = person.Id,
+                RoleOnStudy = "PRINCIPAL_INVESTIGATOR",
+                IsOverallOfficial = true
             });
 
             // PubMed paper

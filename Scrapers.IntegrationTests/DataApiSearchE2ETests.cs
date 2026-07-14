@@ -17,6 +17,7 @@ public sealed class DataApiSearchE2ETests
     {
         _snapshot = new SnapshotDb();
         Environment.SetEnvironmentVariable("POSTGRES_CONNECTION_STRING", _snapshot.ConnectionString);
+        Environment.SetEnvironmentVariable("DATAPI_PRESERVE_DB", "true");
         _factory = new WebApplicationFactory<DataApi.Program>();
         _client = _factory.CreateClient();
     }
@@ -27,6 +28,7 @@ public sealed class DataApiSearchE2ETests
         _client.Dispose();
         await _factory.DisposeAsync();
         await _snapshot.DisposeAsync();
+        Environment.SetEnvironmentVariable("DATAPI_PRESERVE_DB", null);
     }
 
     [TestMethod]

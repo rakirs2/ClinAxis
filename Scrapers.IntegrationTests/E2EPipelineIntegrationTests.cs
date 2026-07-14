@@ -41,19 +41,19 @@ namespace Scrapers.IntegrationTests
 
             await clinicalTrialsIngestionService.IngestAsync(5);
 
-            foreach (StudyEntity? study in await Context.Studies.Include(s => s.Investigators).ToListAsync())
+            foreach (StudyEntity? study in await Context.Studies.Include(s => s.StudyInvestigators).ToListAsync())
             {
                 Assert.IsNotNull(study.NctId);
                 Assert.IsFalse(string.IsNullOrWhiteSpace(study.BriefTitle));
 
-                if (study.Investigators is null)
+                if (study.StudyInvestigators is null)
                 {
                     continue;
                 }
 
-                foreach (InvestigatorEntity investigator in study.Investigators)
+                foreach (StudyInvestigatorEntity si in study.StudyInvestigators)
                 {
-                    Assert.AreEqual(study.NctId, investigator.StudyNctId);
+                    Assert.AreEqual(study.NctId, si.StudyNctId);
                 }
             }
         }
