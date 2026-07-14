@@ -29,6 +29,7 @@ namespace Scrapers.Persistence
         public DbSet<StudyOutcomeEntity> StudyOutcomes => Set<StudyOutcomeEntity>();
         public DbSet<StudyArmGroupEntity> StudyArmGroups => Set<StudyArmGroupEntity>();
         public DbSet<RejectedEntityEntity> RejectedEntities => Set<RejectedEntityEntity>();
+        public DbSet<RejectedInvestigatorNameEntity> RejectedInvestigatorNames => Set<RejectedInvestigatorNameEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -206,6 +207,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Prefix).HasColumnName("prefix").HasMaxLength(50);
                 entity.Property(e => e.Orcid).HasColumnName("orcid").HasMaxLength(50);
                 entity.Property(e => e.NcbiId).HasColumnName("ncbi_id").HasMaxLength(50);
+                entity.Property(e => e.IsHuman).HasColumnName("is_human");
                 entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
                 entity.Property(e => e.VerificationSource).HasColumnName("verification_source").HasMaxLength(50);
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
@@ -475,6 +477,23 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.EntityType);
                 entity.HasIndex(e => e.StudyNctId);
+            });
+
+            modelBuilder.Entity<RejectedInvestigatorNameEntity>(entity =>
+            {
+                entity.ToTable("rejected_investigator_names");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(300);
+                entity.Property(e => e.OccurrenceCount).HasColumnName("occurrence_count");
+                entity.Property(e => e.StudyCount).HasColumnName("study_count");
+                entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(100);
+                entity.Property(e => e.IsHumanOverride).HasColumnName("is_human_override");
+                entity.Property(e => e.Note).HasColumnName("note");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(e => e.FullName).IsUnique();
             });
         }
     }

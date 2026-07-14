@@ -120,6 +120,21 @@ dotnet test         # All tests must pass
 7. Request review
 8. **Do not merge without approval** - CI must pass + human review required
 
+## Database Operations
+
+**Truncate all scraped data** (keeps schema + scraper config):
+```bash
+psql -d clinical_trial_data -f scripts/truncate-local-db.sql
+# or via env var:
+psql "$POSTGRES_CONNECTION_STRING" -f scripts/truncate-local-db.sql
+```
+
+**Full validation pipeline** (truncate + rescrape + validate 3000 studies):
+```bash
+POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_data;Username=<user>" \
+  dotnet run --project Scrapers.Validation -- 3000 --truncate
+```
+
 ## Code Style
 
 All style rules are in `.editorconfig` - this is the single source of truth. If a rule fires, fix the code—do not suppress it. No `#pragma` directives, no `<NoWarn>` in `.csproj` files.

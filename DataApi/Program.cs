@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using DataApi;
 using Scrapers;
 using Scrapers.Persistence;
@@ -236,6 +237,26 @@ app.MapGet("/api/pipeline-runs", async (int? page, int? pageSize) =>
     var ps = Math.Clamp(pageSize ?? 20, 1, 100);
     List<PipelineRunEntity> runs = await repo.GetPipelineRunsAsync(p, ps);
     return Results.Ok(new { data = runs.Select(r => StudyMapper.ToPipelineRun(r)) });
+});
+
+app.MapGet("/api/rejected-names", async () =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+    var names = await ctx.Set<RejectedInvestigatorNameEntity>()
+        .OrderByDescending(n => n.OccurrenceCount)
+        .Select(n => new
+        {
+            id = n.Id,
+            name = n.FullName,
+            occurrenceCount = n.OccurrenceCount,
+            studyCount = n.StudyCount,
+            rejectionReason = n.RejectionReason,
+            isHumanOverride = n.IsHumanOverride,
+            note = n.Note
+        })
+        .ToListAsync();
+    return Results.Ok(names);
 });
 
 app.MapGet("/api/stats", async () =>

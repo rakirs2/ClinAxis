@@ -49,7 +49,6 @@ public abstract class DbTestBase
             Database = dbName
         }.ConnectionString;
 
-        // Create schema based on EF Core model (no migrations needed until production)
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         using var ctx = new ClinicalTrialsContext(opts);

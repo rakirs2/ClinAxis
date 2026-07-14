@@ -30,7 +30,6 @@ namespace Scrapers.Persistence
         public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            // Create schema based on EF Core model (no migrations needed until production)
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -73,7 +72,7 @@ namespace Scrapers.Persistence
                     .Select(i => (Name: i!.Name!, Role: i.Role))
                     .ToList();
                 var officials = allOfficials?
-                    .Where(t => NameFilter.IsHumanName(t.Name, t.Role))
+                    .Where(t => NameFilter.IsHumanName(t.Name, t.Role).IsHuman)
                     .ToList();
 
                 if (allOfficials != null && officials != null)
@@ -125,6 +124,7 @@ namespace Scrapers.Persistence
                     foreach (var (officialName, officialRole) in officials!)
                     {
                         var person = await FindOrCreatePersonAsync(context, batchPersons, officialName, cancellationToken);
+                        person.IsHuman = true;
                         entity.StudyInvestigators.Add(new StudyInvestigatorEntity
                         {
                             StudyNctId = record.NctId!,
@@ -351,7 +351,7 @@ namespace Scrapers.Persistence
         public async Task<int> CountInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.InvestigatorPersons.CountAsync(cancellationToken).ConfigureAwait(false);
+            return await context.InvestigatorPersons.CountAsync(p => p.IsHuman, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> CountPubmedPapersAsync(CancellationToken cancellationToken = default)
@@ -1124,7 +1124,8 @@ namespace Scrapers.Persistence
                 .Include(p => p.StudyInvestigators)
                 .Include(p => p.Affiliations)
                 .Include(p => p.InvestigatorPapers)
-                .AsNoTracking();
+                .AsNoTracking()
+                .Where(p => p.IsHuman);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1156,7 +1157,7 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
 
-            IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons.AsNoTracking();
+            IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons.AsNoTracking().Where(p => p.IsHuman);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1174,6 +1175,7 @@ namespace Scrapers.Persistence
                 .Include(p => p.Affiliations)
                 .Include(p => p.InvestigatorPapers)
                 .AsNoTracking()
+                .Where(p => p.IsHuman)
                 .FirstOrDefaultAsync(p => p.Id == uuid, cancellationToken)
                 .ConfigureAwait(false);
         }
