@@ -27,7 +27,6 @@ public sealed class SnapshotDb : IAsyncDisposable
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         var ctx = new ClinicalTrialsContext(opts);
-        // Create schema based on EF Core model (no migrations needed until production)
         ctx.Database.EnsureCreatedAsync().GetAwaiter().GetResult();
         SeedData.SeedAsync(ctx).GetAwaiter().GetResult();
         ctx.Dispose();

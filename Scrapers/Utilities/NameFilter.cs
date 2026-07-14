@@ -4,6 +4,8 @@ using System.Linq;
 
 namespace Scrapers.Utilities
 {
+    public record NameFilterResult(bool IsHuman, string? RejectionReason);
+
     internal static class NameFilter
     {
         private static readonly HashSet<string> KnownPiRoles = new(StringComparer.OrdinalIgnoreCase)
@@ -22,6 +24,15 @@ namespace Scrapers.Utilities
             "MEDTRONIC", "STRYKER", "BAUSCH",
             "VIATRIS", "BOEHRINGER",
             "GSK", "CHUGAI", "UCB",
+            "BRISTOL-MYERS", "BRISTOL",
+            "MEDIMMUNE",
+        };
+
+        private static readonly HashSet<string> KnownNonHumanNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "USE CENTRAL CONTACT",
+            "BRISTOL-MYERS SQUIBB",
+            "BRISTOL MYERS SQUIBB",
         };
 
         private static readonly HashSet<string> OrgKeywords = new(StringComparer.OrdinalIgnoreCase)
@@ -44,7 +55,8 @@ namespace Scrapers.Utilities
             "DIRECTOR", "MEDICAL", "STUDY", "CLINICAL",
             "REGISTRY", "MONITOR", "COORDINATOR",
             "MANAGEMENT", "RESPONSIBLE", "CALL CENTER",
-            "CENTER", "CORPORATE", "CARE",
+            "CENTER", "CORPORATE", "CARE", "TBD",
+            "SPONSOR",
         };
 
         private static readonly HashSet<string> RolePrefixes = new(StringComparer.OrdinalIgnoreCase)
@@ -54,11 +66,11 @@ namespace Scrapers.Utilities
             "SPONSOR",
         };
 
-        internal static bool IsHumanName(string name, string? role)
+        internal static NameFilterResult IsHumanName(string name, string? role)
         {
             if (string.IsNullOrWhiteSpace(name))
             {
-                return false;
+                return new NameFilterResult(false, "EmptyOrNull");
             }
 
             var trimmed = name.Trim();
@@ -66,29 +78,38 @@ namespace Scrapers.Utilities
 
             if (IsNonLatinName(words))
             {
-                return trimmed.Length >= 2 && words.Length <= 6;
+                var ok = trimmed.Length >= 2 && words.Length <= 6;
+                return ok
+                    ? new NameFilterResult(true, null)
+                    : new NameFilterResult(false, "NonLatinName");
             }
 
             if (trimmed.Length < 3)
             {
-                return false;
+                return new NameFilterResult(false, "TooShort");
             }
 
             if (trimmed.Length > 100)
             {
-                return false;
+                return new NameFilterResult(false, "TooLong");
             }
 
             if (words.Length > 6)
             {
-                return false;
+                return new NameFilterResult(false, "TooManyWords");
             }
 
             var upperName = trimmed.ToUpperInvariant();
 
-            if (RolePrefixes.Any(prefix => upperName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            if (KnownNonHumanNames.Contains(upperName))
             {
-                return false;
+                return new NameFilterResult(false, $"KnownNonHumanName:{upperName}");
+            }
+
+            var matchedPrefix = RolePrefixes.FirstOrDefault(prefix => upperName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            if (matchedPrefix != null)
+            {
+                return new NameFilterResult(false, $"RolePrefix:{matchedPrefix}");
             }
 
             var lastWord = words[^1].TrimEnd(',', '.').ToUpperInvariant();
@@ -96,40 +117,36 @@ namespace Scrapers.Utilities
                 or "CORP." or "CORPORATION" or "GMBH" or "AG" or "NV" or "PLC"
                 or "SA" or "SARL" or "PTY" or "LIMITED" or "COMPANY" or "CO")
             {
-                return false;
+                return new NameFilterResult(false, $"CorporateSuffix:{lastWord}");
             }
 
             if (trimmed.Contains(" & ", StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                return new NameFilterResult(false, "Ampersand");
             }
 
-            if (OrgKeywords.Any(kw => ContainsWord(upperName, kw)))
+            var matchedOrgKw = OrgKeywords.FirstOrDefault(kw => ContainsWord(upperName, kw));
+            if (matchedOrgKw != null)
             {
-                return false;
-            }
-
-            if (role != null && KnownPiRoles.Contains(role.Trim()))
-            {
-                return true;
+                return new NameFilterResult(false, $"OrgKeywords:{matchedOrgKw}");
             }
 
             if (PharmaBlocklist.Contains(words[0].TrimEnd(',', '.')))
             {
-                return false;
+                return new NameFilterResult(false, $"PharmaBlocklist:{words[0].TrimEnd(',', '.')}");
+            }
+
+            if (role != null && KnownPiRoles.Contains(role.Trim()))
+            {
+                return new NameFilterResult(true, null);
             }
 
             if (words.Length == 1 && trimmed.Length > 20)
             {
-                return false;
+                return new NameFilterResult(false, "SingleLongWord");
             }
 
-            if (words.Length >= 3 && words.All(w => w.All(c => !char.IsLower(c))))
-            {
-                return false;
-            }
-
-            return true;
+            return new NameFilterResult(true, null);
         }
 
         private static bool ContainsWord(string text, string word)

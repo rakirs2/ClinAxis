@@ -10,6 +10,7 @@ namespace Scrapers.Persistence.Entities
         public string? Prefix { get; set; }
         public string? Orcid { get; set; }
         public string? NcbiId { get; set; }
+        public bool IsHuman { get; set; } = true;
         public DateTime? VerifiedAt { get; set; }
         public string? VerificationSource { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
