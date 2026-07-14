@@ -36,6 +36,12 @@ internal static class StudyMapper
             primaryPurpose = s.PrimaryPurpose,
             interventionModel = s.InterventionModel,
             allocation = s.Allocation,
+            masking = s.Masking,
+            orgStudyId = s.OrgStudyId,
+            leadSponsorName = s.LeadSponsorName,
+            collaboratorNames = s.CollaboratorNames,
+            eligibilityCriteria = s.EligibilityCriteria,
+            healthyVolunteers = s.HealthyVolunteers,
             enrollmentCount = s.EnrollmentCount,
             sex = s.Sex,
             minimumAge = s.MinimumAge,
@@ -54,6 +60,32 @@ internal static class StudyMapper
             conditions = s.Conditions?.Select(c => c.Condition).ToList(),
             keywords = s.Keywords?.Select(k => k.Keyword).ToList(),
             phases = s.Phases?.Select(p => p.Phase).ToList(),
+            locations = s.Locations?.Select(l => new
+            {
+                facility = l.Facility,
+                city = l.City,
+                state = l.State,
+                country = l.Country
+            }).ToList(),
+            references = s.References?.Select(r => new
+            {
+                pmid = r.Pmid,
+                citation = r.Citation,
+                type = r.Type
+            }).ToList(),
+            outcomes = s.Outcomes?.Select(o => new
+            {
+                outcomeType = o.OutcomeType,
+                measure = o.Measure,
+                description = o.Description,
+                timeFrame = o.TimeFrame
+            }).ToList(),
+            armGroups = s.ArmGroups?.Select(a => new
+            {
+                label = a.Label,
+                type = a.Type,
+                description = a.Description
+            }).ToList(),
             pubmedPapers = s.StudyPapers?.Select(sp => new
             {
                 pmid = sp.PubmedPaper?.Pmid,

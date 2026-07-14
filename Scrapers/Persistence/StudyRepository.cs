@@ -1037,6 +1037,8 @@ namespace Scrapers.Persistence
                 .Include(s => s.Conditions)
                 .Include(s => s.Phases)
                 .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
+                .Include(s => s.Locations)
+                .Include(s => s.References)
                 .Include(s => s.Outcomes)
                 .Include(s => s.ArmGroups)
                 .AsNoTracking()
