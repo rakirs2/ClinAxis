@@ -69,7 +69,7 @@ public sealed class NpiSearchResponse
 
 public sealed class NpiRegistryResult
 {
-    public long Number { get; set; }
+    public string? Number { get; set; }
     public NpiBasic? Basic { get; set; }
     public IReadOnlyList<NpiAddress>? Addresses { get; set; }
     public IReadOnlyList<NpiTaxonomy>? Taxonomies { get; set; }
