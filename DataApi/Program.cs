@@ -12,8 +12,8 @@ var connectionString = ConnectionStringProvider.Default;
 var startupRepo = new StudyRepository(connectionString);
 
 // MVP mode: reset database on every startup for a clean slate.
-// Pass --preserve-db to skip reset (e.g., in deploy script after MVP).
-if (!args.Contains("--preserve-db"))
+// Pass --preserve-db or set DATAPI_PRESERVE_DB=true to skip reset.
+if (!args.Contains("--preserve-db") && Environment.GetEnvironmentVariable("DATAPI_PRESERVE_DB") != "true")
 {
     await startupRepo.ResetDatabaseAsync();
     await Console.Out.WriteLineAsync("Database reset complete. Starting normally.");
