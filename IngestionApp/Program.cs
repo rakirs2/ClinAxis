@@ -1,3 +1,4 @@
+using System.Reflection;
 using IngestionApp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -7,6 +8,15 @@ using Scrapers.Persistence;
 using Scrapers.Services;
 using Scrapers.Services.CrawlServices;
 using Scrapers.Services.EventQueue;
+
+if (args.Contains("--version") || args.Contains("-v"))
+{
+    var assembly = System.Reflection.Assembly.GetEntryAssembly()!;
+    var version = assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+    var infoVersion = assembly.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? version;
+    await Console.Out.WriteLineAsync($"{assembly.GetName().Name} {version} ({infoVersion})").ConfigureAwait(false);
+    return 0;
+}
 
 var cs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(cs))
