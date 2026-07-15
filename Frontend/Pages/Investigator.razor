@@ -142,7 +142,7 @@
                                     @foreach (var phase in investigator.statistics.byPhase)
                                     {
                                         <li class="list-group-item d-flex justify-content-between">
-                                            <span>@(string.IsNullOrEmpty(phase.Key) ? "Not Specified" : phase.Key)</span>
+                                            <span>@(string.IsNullOrEmpty(phase.Key) ? "Not Specified" : PhaseHelpers.DisplayName(phase.Key))</span>
                                             <span class="badge bg-primary">@phase.Value</span>
                                         </li>
                                     }
@@ -211,7 +211,7 @@
                                             <td>
                                                 @if (study.phases?.Count > 0)
                                                 {
-                                                    @string.Join(", ", study.phases)
+                                                    @PhaseHelpers.DisplayPhases(study.phases)
                                                 }
                                                 else
                                                 {
