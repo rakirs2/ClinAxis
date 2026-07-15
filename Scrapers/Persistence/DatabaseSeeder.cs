@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Scrapers.Models;
 using Scrapers.Persistence.Entities;
 
 namespace Scrapers.Persistence;
@@ -227,10 +228,10 @@ public class DatabaseSeeder
             var phaseChoice = randomWrapper.Next(100);
             var phaseStr = phaseChoice switch
             {
-                < 20 => "Early Phase 1",
-                < 50 => randomWrapper.Next(2) == 0 ? "Phase 1" : "Phase 2",
-                < 80 => "Phase 3",
-                _ => "Phase 4"
+                < 20 => PhaseConstants.EarlyPhase1,
+                < 50 => randomWrapper.Next(2) == 0 ? PhaseConstants.Phase1 : PhaseConstants.Phase2,
+                < 80 => PhaseConstants.Phase3,
+                _ => PhaseConstants.Phase4
             };
 
             // Random enrollment (5-1000)

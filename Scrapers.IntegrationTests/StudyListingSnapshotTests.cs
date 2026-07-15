@@ -9,11 +9,11 @@ namespace Scrapers.IntegrationTests;
 public sealed class StudyListingSnapshotTests
 {
     [TestMethod]
-    public async Task SnapshotData_HasElevenStudies()
+    public async Task SnapshotData_HasTwelveStudies()
     {
         await using SnapshotDb snapshot = new();
         var repo = new StudyRepository(snapshot.ConnectionString);
-        Assert.AreEqual(11, await repo.CountStudiesAsync());
+        Assert.AreEqual(12, await repo.CountStudiesAsync());
     }
 
     [TestMethod]
@@ -36,7 +36,7 @@ public sealed class StudyListingSnapshotTests
 
         IReadOnlyList<StudyEntity> recruiting = await repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING");
 
-        Assert.AreEqual(5, recruiting.Count);
+        Assert.AreEqual(6, recruiting.Count);
     }
 
     [TestMethod]

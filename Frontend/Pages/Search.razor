@@ -39,7 +39,7 @@
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="phase_@phase" 
                                    @onchange="@((ChangeEventArgs e) => TogglePhase(phase, (bool)e.Value!))" />
-                            <label class="form-check-label" for="phase_@phase">@phase</label>
+                             <label class="form-check-label" for="phase_@phase">@PhaseHelpers.DisplayName(phase)</label>
                         </div>
                     }
                 </div>
@@ -204,7 +204,7 @@ else if (searchExecuted && studies is not null)
                         <td>@s.briefTitle</td>
                         <td><span class="badge bg-@StatusColor(s.overallStatus)">@s.overallStatus</span></td>
                         <td>@(s.conditions is not null ? string.Join(", ", s.conditions) : "")</td>
-                        <td>@(s.phases is not null ? string.Join(", ", s.phases) : "")</td>
+                        <td>@PhaseHelpers.DisplayPhases(s.phases ?? [])</td>
                         <td>@s.enrollmentCount</td>
                     </tr>
                 }
@@ -247,7 +247,7 @@ else if (searchExecuted && studies is not null)
 
     // Filter dropdown values
     private List<string> statuses = new() { "RECRUITING", "ACTIVE", "COMPLETED", "WITHDRAWN", "SUSPENDED", "TERMINATED", "UNKNOWN" };
-    private List<string> phases = new() { "EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4" };
+    private List<string> phases = new() { "EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA" };
     private List<string> availableConditions = new();
     private List<string> availableCountries = new();
     private List<string> availableStates = new();

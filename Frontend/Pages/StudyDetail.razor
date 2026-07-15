@@ -80,7 +80,7 @@ else
             <p>@(study.keywords != null ? string.Join(", ", study.keywords) : "None")</p>
 
             <h5>Phases</h5>
-            <p>@(study.phases != null ? string.Join(", ", study.phases) : "None")</p>
+            <p>@PhaseHelpers.DisplayPhases(study.phases)</p>
 
             @if (study.outcomes != null && study.outcomes.Count > 0)
             {

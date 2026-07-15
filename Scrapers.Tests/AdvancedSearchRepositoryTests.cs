@@ -153,6 +153,28 @@ public sealed class AdvancedSearchRepositoryTests : DbTestBase
     }
 
     [TestMethod]
+    public async Task SearchStudies_ByPhase_NA_FiltersCorrectly()
+    {
+        // Arrange
+        var criteria = new StudySearchCriteria
+        {
+            Phases = new[] { "NA" },
+            Page = 1,
+            PageSize = 100
+        };
+        var repo = new StudyRepository(ConnectionString);
+
+        // Act
+        var results = await repo.SearchStudiesAsync(criteria);
+        var count = await repo.CountStudiesFilteredAsync(criteria);
+
+        // Assert
+        Assert.AreEqual(count, results.Count, "Count should match results");
+        Assert.IsTrue(results.All(s => s.Phases != null && s.Phases.Any(p => p.Phase == "NA")),
+            "All results should have NA phase");
+    }
+
+    [TestMethod]
     public async Task SearchStudies_ByCondition_FiltersCorrectly()
     {
         // Arrange - Using actual seed data condition

@@ -139,6 +139,21 @@ internal static class SeedData
         ]
     };
 
+    internal static readonly StudyEntity Study12 = new()
+    {
+        NctId = "NCT00000012",
+        BriefTitle = "Observational Biomarker Discovery Study",
+        OverallStatus = "RECRUITING",
+        EnrollmentCount = 500,
+        StartDate = new DateOnly(2024, 6, 1),
+        Conditions = [new StudyConditionEntity { Condition = "Biomarker" }],
+        Phases = [new StudyPhaseEntity { Phase = "NA" }],
+        Locations =
+        [
+            new StudyLocationEntity { Country = "United States", State = "CA", City = "Stanford", Facility = "Stanford Medical Center" }
+        ]
+    };
+
     internal static readonly StudyEntity Study11 = new()
     {
         NctId = "NCT00000011",
@@ -369,7 +384,7 @@ internal static class SeedData
         ctx.InvestigatorPersons.AddRange(
             Person1, Person2, Person3, Person4, Person5, Person6,
             Person7, Person8, Person9, Person10, Person11, Person12);
-        ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5, Study6, Study7, Study8, Study9, Study10, Study11);
+        ctx.Studies.AddRange(Study1, Study2, Study3, Study4, Study5, Study6, Study7, Study8, Study9, Study10, Study11, Study12);
         ctx.StudyInvestigators.AddRange(
             StudyInvestigator1, StudyInvestigator2, StudyInvestigator3, StudyInvestigator4,
             StudyInvestigator5, StudyInvestigator6, StudyInvestigator7, StudyInvestigator8,
