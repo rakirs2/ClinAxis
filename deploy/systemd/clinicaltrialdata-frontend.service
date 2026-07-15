@@ -11,6 +11,7 @@ EnvironmentFile=/etc/clinicaltrialdata.env
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 Environment="ASPNETCORE_URLS=http://localhost:5001"
 ExecStart=/opt/clinicaltrialdata/frontend/Frontend
+ExecStop=/bin/sh -c '/usr/bin/fuser -k 5001/tcp || true'
 Restart=always
 RestartSec=10
 StandardOutput=journal
