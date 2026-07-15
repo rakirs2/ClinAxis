@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
+    <InternalsVisibleTo Include="Frontend.Tests" />
   </ItemGroup>
 </Project>
