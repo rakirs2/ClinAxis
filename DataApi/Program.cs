@@ -92,7 +92,7 @@ app.MapGet("/api/studies", async (
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     // Build search criteria from query parameters
     var criteria = new StudySearchCriteria
@@ -137,7 +137,7 @@ app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     var persons = await repo.GetInvestigatorPersonsPagedAsync(p, ps, search, hasNpi);
     var total = await repo.CountInvestigatorPersonsFilteredAsync(search, hasNpi);
@@ -203,7 +203,7 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
     }
 
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     // Build StudySearchCriteria from query parameters
     var criteria = new StudySearchCriteria
