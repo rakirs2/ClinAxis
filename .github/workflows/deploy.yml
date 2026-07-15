@@ -67,6 +67,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Install dotnet-ef tool
+        run: dotnet tool install --global dotnet-ef
+
       - name: Publish DataApi
         run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/dataapi
 
