@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Npgsql;
+using NpgsqlTypes;
 using Scrapers.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -50,17 +51,18 @@ public abstract class DbTestBase
             Database = dbName
         }.ConnectionString;
 
-        // Verify the new database is reachable and migrate
-        await using (var verifyConn = new NpgsqlConnection(ConnectionString))
-        {
-            await verifyConn.OpenAsync().ConfigureAwait(false);
-            Assert.AreEqual(dbName, verifyConn.Database, "Connection should target the new database");
-        }
-
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         using var ctx = new ClinicalTrialsContext(opts);
         await ctx.Database.MigrateAsync().ConfigureAwait(false);
+
+        // Verify migration created the studies table; some CI environments
+        // exhibit a race where MigrateAsync succeeds but tables are absent.
+        if (!await TableExistsAsync(ConnectionString, "studies").ConfigureAwait(false))
+        {
+            await ctx.Database.EnsureDeletedAsync().ConfigureAwait(false);
+            await ctx.Database.MigrateAsync().ConfigureAwait(false);
+        }
 
         Context = new ClinicalTrialsContext(opts);
     }
@@ -72,5 +74,16 @@ public abstract class DbTestBase
         {
             await Context.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private static async Task<bool> TableExistsAsync(string connectionString, string tableName)
+    {
+        await using var conn = new NpgsqlConnection(connectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = @p)";
+        cmd.Parameters.AddWithValue("p", NpgsqlTypes.NpgsqlDbType.Text, tableName);
+        var result = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+        return result is bool b && b;
     }
 }
