@@ -139,7 +139,7 @@ public sealed class DataLossRemediationTests : DbTestBase
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
 
         DbConnection connection = context.Database.GetDbConnection();
         await connection.OpenAsync();
@@ -173,7 +173,7 @@ public sealed class DataLossRemediationTests : DbTestBase
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
 
         DbConnection connection = context.Database.GetDbConnection();
         await connection.OpenAsync();

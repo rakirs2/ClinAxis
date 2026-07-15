@@ -21,7 +21,7 @@ public class ClinicalTrialsIngestionService
             return 0;
         }
 
-        await _repository.EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+        await _repository.MigrateSchemaAsync(cancellationToken).ConfigureAwait(false);
 
         var totalIngested = 0;
 

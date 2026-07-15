@@ -27,7 +27,7 @@ namespace Scrapers.Persistence
             _options = builder.Options;
         }
 
-        public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
+        public async Task MigrateSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);

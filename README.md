@@ -15,12 +15,15 @@ docker compose up -d postgres
 
 # Build everything
 dotnet build
+
+# Apply database migrations (required on first run)
+dotnet ef database update --project Scrapers/
 ```
 
 ## Run
 
 ```bash
-# Start the API (port 5003)
+# Start the API (port 5003) — applies pending migrations on startup
 dotnet run --project DataApi/
 
 # Start the frontend (port 5001) — separate terminal
@@ -76,10 +79,14 @@ Push code changes to `main` and GitHub Actions automatically deploys only the ch
 
 Each workflow:
 1. Builds the service with `dotnet publish --self-contained -r linux-x64`
-2. SSHes to the droplet using GitHub Secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`)
-3. Deploys binaries to `/opt/clinicaltrialdata/{service}/`
-4. Restarts only the corresponding systemd service
-5. Validates health before completing
+2. Generates a migration bundle via `dotnet ef migrations bundle --self-contained -r linux-x64`
+3. SSHes to the droplet using GitHub Secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`)
+4. Deploys binaries to `/opt/clinicaltrialdata/{service}/`
+5. Copies the migration bundle to `/opt/clinicaltrialdata/efbundle`
+6. Stops all services
+7. Applies pending migrations via `./efbundle --connection "$PROD_DB_CONNECTION"`
+8. Restarts services
+9. Validates health before completing
 
 ### Manual Deployment
 
