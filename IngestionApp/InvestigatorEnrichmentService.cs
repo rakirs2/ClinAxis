@@ -162,6 +162,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         if (enqueueDiscovered)
         {
             await _eventQueueService.EnqueueAsync("investigator.discovered", personId.ToString(), ct).ConfigureAwait(false);
+            await _eventQueueService.EnqueueAsync("medicare.utilization", personId.ToString(), ct).ConfigureAwait(false);
         }
     }
 }

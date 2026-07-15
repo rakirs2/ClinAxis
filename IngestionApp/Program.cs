@@ -90,6 +90,14 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<NppesNpiRegistryClient>(),
             cs,
             pollIntervalSeconds: 30));
+
+        // Medicare Utilization enrichment
+        services.AddSingleton<CmsMedicareClient>(_ => new CmsMedicareClient(new HttpClient { BaseAddress = new Uri("https://data.cms.gov/data-api/v1/dataset/") }));
+        services.AddHostedService(sp => new MedicareUtilizationService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<CmsMedicareClient>(),
+            cs,
+            pollIntervalSeconds: 30));
     })
     .Build();
 
