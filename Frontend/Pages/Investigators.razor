@@ -1,6 +1,7 @@
 @page "/investigators"
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@implements IDisposable
 
 <h1>Principal Investigators</h1>
 
@@ -95,10 +96,19 @@ else if (investigators is not null)
     private bool loading;
     private string? error;
     private List<InvestigatorItem>? investigators;
+    private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPage(1);
+        _timer = new Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                if (!loading) await LoadPage(currentPage);
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
     private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
@@ -159,6 +169,11 @@ else if (investigators is not null)
         public int page { get; set; }
         public int pageSize { get; set; }
         public int totalPages { get; set; }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
     }
 
     private class InvestigatorItem
