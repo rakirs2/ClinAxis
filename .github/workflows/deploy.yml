@@ -134,6 +134,9 @@ jobs:
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
           scp -i ~/.ssh/deploy_key "$PWD/publish/efbundle" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
+          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-api.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
+          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-frontend.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
+          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-ingestion.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
 
       - name: Stop services and update environment
         run: |
@@ -143,9 +146,17 @@ jobs:
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
           POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
           INGESTION_STUDY_LIMIT=0
-          INGESTION_RESET_DB=true
           ASPNETCORE_ENVIRONMENT=Production
           EOF
+          EOSSH
+
+      - name: Install systemd unit files
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service
+          sudo systemctl daemon-reload
           EOSSH
 
       - name: Apply database migrations
