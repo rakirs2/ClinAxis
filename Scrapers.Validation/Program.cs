@@ -38,8 +38,7 @@ else
 DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
     .UseNpgsql(connectionString).Options;
 
-// Apply schema: drop all tables and recreate from model to handle schema drift
-// from old EnsureCreatedAsync runs (which are no-ops on existing databases).
+// Apply schema via migrations.
 await Console.Out.WriteLineAsync("Applying schema...");
 using (var ctx = new ClinicalTrialsContext(opts))
 {
@@ -58,7 +57,7 @@ using (var ctx = new ClinicalTrialsContext(opts))
         ");
     }
 
-    await ctx.Database.EnsureCreatedAsync();
+    await ctx.Database.MigrateAsync();
 }
 
 var studyRepo = new StudyRepository(connectionString!);

@@ -76,6 +76,11 @@ jobs:
       - name: Publish IngestionApp
         run: dotnet publish IngestionApp/ -c Release -r linux-x64 --self-contained -o publish/ingestion
 
+      - name: Generate migration bundle
+        run: |
+          dotnet ef migrations bundle --project Scrapers/ --self-contained -r linux-x64 -o publish/efbundle
+          chmod +x publish/efbundle
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -96,6 +101,7 @@ jobs:
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
+          scp -i ~/.ssh/deploy_key "$PWD/publish/efbundle" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
 
       - name: Stop services and update environment
         run: |
@@ -108,6 +114,16 @@ jobs:
           INGESTION_RESET_DB=true
           ASPNETCORE_ENVIRONMENT=Production
           EOF
+          EOSSH
+
+      - name: Apply database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Applying pending database migrations..."
+          chmod +x /opt/clinicaltrialdata/efbundle
+          cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
+          /opt/clinicaltrialdata/efbundle --connection "$cs"
+          echo "Migrations applied successfully."
           EOSSH
 
       - name: Start services

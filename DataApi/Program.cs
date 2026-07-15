@@ -26,7 +26,7 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
 {
     try
     {
-        await startupRepo.EnsureSchemaAsync();
+        await startupRepo.MigrateSchemaAsync();
         break;
     }
     catch (Exception ex) when (attempt < maxRetries)

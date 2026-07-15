@@ -20,6 +20,7 @@ public abstract class DbTestBase
         PostgreSqlContainer container = new PostgreSqlBuilder()
             .WithUsername("postgres")
             .WithPassword("postgres")
+            .WithCleanUp(false)
             .Build();
         await container.StartAsync().ConfigureAwait(false);
         _container = container;
@@ -49,10 +50,17 @@ public abstract class DbTestBase
             Database = dbName
         }.ConnectionString;
 
+        // Verify the new database is reachable and migrate
+        await using (var verifyConn = new NpgsqlConnection(ConnectionString))
+        {
+            await verifyConn.OpenAsync().ConfigureAwait(false);
+            Assert.AreEqual(dbName, verifyConn.Database, "Connection should target the new database");
+        }
+
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         using var ctx = new ClinicalTrialsContext(opts);
-        await ctx.Database.EnsureCreatedAsync().ConfigureAwait(false);
+        await ctx.Database.MigrateAsync().ConfigureAwait(false);
 
         Context = new ClinicalTrialsContext(opts);
     }
