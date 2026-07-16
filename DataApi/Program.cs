@@ -430,21 +430,44 @@ app.MapGet("/api/event-queue/stats", async () =>
     });
 });
 
-app.MapGet("/api/event-queue/dead-letter", async () =>
+app.MapGet("/api/event-queue/dead-letter", async (int? page, int? pageSize) =>
 {
     var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
-    var deadLetterEvents = await eventQueueService.GetDeadLetterEventsAsync(100);
-    return Results.Ok(deadLetterEvents.Select(e => new
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 100, 1, 200);
+    var (deadLetterEvents, total) = await eventQueueService.GetDeadLetterEventsPagedAsync(p, ps);
+    return Results.Ok(new
     {
-        e.Id,
-        e.EventType,
-        e.Data,
-        e.Status,
-        e.ErrorMessage,
-        e.RetryCount,
-        e.CreatedAt,
-        e.CompletedAt
-    }));
+        data = deadLetterEvents.Select(e => new
+        {
+            e.Id,
+            e.EventType,
+            e.Data,
+            e.Status,
+            e.ErrorMessage,
+            e.RetryCount,
+            e.CreatedAt,
+            e.CompletedAt
+        }),
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
+app.MapPost("/api/event-queue/dead-letter/{eventId:int}/retry", async (int eventId) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var result = await eventQueueService.RetryEventAsync(eventId);
+    return result ? Results.Ok() : Results.NotFound();
+});
+
+app.MapPost("/api/event-queue/dead-letter/{eventId:int}/ignore", async (int eventId) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var result = await eventQueueService.IgnoreEventAsync(eventId);
+    return result ? Results.Ok() : Results.NotFound();
 });
 
 app.MapGet("/api/data-source-state", async () =>
