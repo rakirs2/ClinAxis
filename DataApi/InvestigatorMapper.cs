@@ -118,6 +118,31 @@ internal static class InvestigatorMapper
             };
         }
 
+        object? metricsData = null;
+        if (person.Metrics is { Count: > 0 })
+        {
+            // Get latest Semantic Scholar metrics
+            var semanticScholarMetric = person.Metrics
+                .Where(m => m.Source == "SemanticScholar")
+                .OrderByDescending(m => m.LookupAttemptedAt)
+                .FirstOrDefault();
+
+            if (semanticScholarMetric != null)
+            {
+                metricsData = new
+                {
+                    source = semanticScholarMetric.Source,
+                    hIndex = semanticScholarMetric.HIndex,
+                    citationCount = semanticScholarMetric.CitationCount,
+                    i10Index = semanticScholarMetric.I10Index,
+                    totalPapers = semanticScholarMetric.TotalPapers,
+                    externalAuthorId = semanticScholarMetric.ExternalAuthorId,
+                    lookupAttemptedAt = semanticScholarMetric.LookupAttemptedAt,
+                    lookupResult = semanticScholarMetric.LookupResult
+                };
+            }
+        }
+
         return new
         {
             uuid = person.Id,
@@ -145,7 +170,8 @@ internal static class InvestigatorMapper
                 byStatus = statuses.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value),
                 byPhase = phases.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value)
             },
-            medicare = medicareData
+            medicare = medicareData,
+            metrics = metricsData
         };
     }
 }

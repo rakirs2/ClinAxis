@@ -81,7 +81,8 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService(sp => new InvestigatorPublicationScrubService(
             cs,
-            sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>()));
+            sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>(),
+            sp.GetRequiredService<IEventQueueService>()));
 
         // Enrichment services (NPI lookup via NPPES NPI Registry)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
@@ -104,6 +105,14 @@ var host = Host.CreateDefaultBuilder(args)
             cs,
             pollIntervalSeconds: 30,
             dataYear: medicareDataYear));
+
+        // Investigator Metrics enrichment (Semantic Scholar h-index and citations)
+        services.AddSingleton<SemanticScholarClient>(_ => new SemanticScholarClient(new HttpClient()));
+        services.AddHostedService(sp => new InvestigatorMetricsService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<SemanticScholarClient>(),
+            cs,
+            pollIntervalSeconds: 30));
     })
     .Build();
 

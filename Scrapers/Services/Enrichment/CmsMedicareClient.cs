@@ -1,16 +1,115 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Scrapers.Services.Enrichment;
+
+/// <summary>
+/// Custom JSON converter for nullable integers that gracefully handles
+/// string values from the CMS Medicare API (which may return strings instead of numbers).
+/// </summary>
+internal sealed class FlexibleNullableIntConverter : JsonConverter<int?>
+{
+    public override int? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.Null => null,
+            JsonTokenType.Number => reader.GetInt32(),
+            JsonTokenType.String => 
+                int.TryParse(reader.GetString(), out var value) ? value : null,
+            _ => throw new JsonException($"Unexpected token {reader.TokenType} when parsing int?")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, int? value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
+
+/// <summary>
+/// Custom JSON converter for nullable longs that gracefully handles
+/// string values from the CMS Medicare API.
+/// </summary>
+internal sealed class FlexibleNullableLongConverter : JsonConverter<long?>
+{
+    public override long? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.Null => null,
+            JsonTokenType.Number => reader.GetInt64(),
+            JsonTokenType.String => 
+                long.TryParse(reader.GetString(), out var value) ? value : null,
+            _ => throw new JsonException($"Unexpected token {reader.TokenType} when parsing long?")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, long? value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
+
+/// <summary>
+/// Custom JSON converter for nullable decimals that gracefully handles
+/// string values from the CMS Medicare API.
+/// </summary>
+internal sealed class FlexibleNullableDecimalConverter : JsonConverter<decimal?>
+{
+    public override decimal? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.Null => null,
+            JsonTokenType.Number => reader.GetDecimal(),
+            JsonTokenType.String => 
+                decimal.TryParse(reader.GetString(), out var value) ? value : null,
+            _ => throw new JsonException($"Unexpected token {reader.TokenType} when parsing decimal?")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal? value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
 
 public sealed class CmsMedicareClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _datasetUuid;
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    
+    private static readonly JsonSerializerOptions _jsonOptions = CreateJsonOptions();
+
+    private static JsonSerializerOptions CreateJsonOptions()
     {
-        PropertyNameCaseInsensitive = true
-    };
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        // Add converters for nullable numeric types that may come as strings from CMS API
+        options.Converters.Add(new FlexibleNullableIntConverter());
+        options.Converters.Add(new FlexibleNullableLongConverter());
+        options.Converters.Add(new FlexibleNullableDecimalConverter());
+
+        return options;
+    }
 
     public CmsMedicareClient(HttpClient httpClient, string datasetUuid = "8889d81e-2ee7-448f-8713-f071038289b5")
     {

@@ -1,0 +1,27 @@
+{
+  "total": 5,
+  "offset": 0,
+  "data": [
+    {
+      "authorId": "2259775814",
+      "name": "Albert Johnson",
+      "paperCount": 66,
+      "citationCount": 1071,
+      "hIndex": 15
+    },
+    {
+      "authorId": "2059041934",
+      "name": "Albert Johnson Jr",
+      "paperCount": 20,
+      "citationCount": 775,
+      "hIndex": 10
+    },
+    {
+      "authorId": "2059041896",
+      "name": "Albert Johnson Smith",
+      "paperCount": 5,
+      "citationCount": 0,
+      "hIndex": 0
+    }
+  ]
+}
