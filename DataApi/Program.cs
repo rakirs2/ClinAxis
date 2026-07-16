@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using DataApi;
 using Scrapers;
 using Scrapers.Persistence;
@@ -37,6 +38,7 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
 }
 
 builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache();
 
 WebApplication app = builder.Build();
 
@@ -61,24 +63,35 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 });
 
 // Endpoints for advanced search filter options
-app.MapGet("/api/distinct-conditions", async () =>
+app.MapGet("/api/distinct-conditions", async (IMemoryCache cache) =>
 {
+    var cacheKey = "conditions_list";
+    if (cache.TryGetValue(cacheKey, out List<string>? conditions) && conditions is not null)
+    {
+        return Results.Ok(conditions);
+    }
+
     var repo = new StudyRepository(connectionString);
-    var conditions = await repo.GetDistinctConditionsAsync();
+    conditions = await repo.GetDistinctConditionsAsync();
+    var ttl = TimeSpan.FromMinutes(app.Configuration.GetValue<int>("CacheSettings:ConditionsCacheDurationMinutes", 5));
+    cache.Set(cacheKey, conditions, ttl);
     return Results.Ok(conditions);
 });
 
-app.MapGet("/api/distinct-locations", async (string? country, string? state, string? city) =>
+app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country, string? state, string? city) =>
 {
+    var cacheKey = $"locations_{country ?? ""}_{state ?? ""}_{city ?? ""}";
+    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
+    {
+        return Results.Ok(cached);
+    }
+
     var repo = new StudyRepository(connectionString);
     var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync(country, state, city);
-    return Results.Ok(new
-    {
-        countries,
-        states,
-        cities,
-        facilities
-    });
+    var result = new { countries, states, cities, facilities };
+    var ttl = TimeSpan.FromMinutes(app.Configuration.GetValue<int>("CacheSettings:LocationsCacheDurationMinutes", 5));
+    cache.Set(cacheKey, result, ttl);
+    return Results.Ok(result);
 });
 
 app.MapGet("/api/studies", async (
