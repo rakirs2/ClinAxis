@@ -11,9 +11,11 @@ EnvironmentFile=/etc/clinicaltrialdata.env
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 Environment="ASPNETCORE_URLS=http://localhost:5003"
 ExecStart=/opt/clinicaltrialdata/api/DataApi
-ExecStop=/bin/sh -c '/usr/bin/fuser -k 5003/tcp || true'
+ExecStop=/bin/kill -TERM $MAINPID
+ExecStopPost=/bin/sh -c '/usr/bin/fuser -k 5003/tcp 2>/dev/null || true'
 Restart=always
 RestartSec=10
+TimeoutStopSec=15
 StandardOutput=journal
 StandardError=journal
 
