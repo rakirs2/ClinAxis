@@ -166,12 +166,13 @@ else
     }
     else
     {
-        <table class="table table-sm" style="max-width: 600px">
+        <table class="table table-sm" style="max-width: 800px">
             <thead>
                 <tr>
                     <th>Source</th>
                     <th>Last Sync</th>
                     <th>Status</th>
+                    <th>Rejected Keywords</th>
                     <th>Error</th>
                 </tr>
             </thead>
@@ -182,6 +183,7 @@ else
                         <td>@state.sourceName</td>
                         <td>@(state.lastSyncTimestamp.HasValue ? FormatDate(state.lastSyncTimestamp.Value) : "Never")</td>
                         <td>@StatusBadge(state.status)</td>
+                        <td>@state.rejectedKeywordsTotal.ToString("N0")</td>
                         <td><small class="text-danger">@(state.errorMessage ?? "")</small></td>
                     </tr>
                 }
@@ -494,6 +496,7 @@ else
         public string? status { get; set; }
         public string? errorMessage { get; set; }
         public DateTime updatedAt { get; set; }
+        public int rejectedKeywordsTotal { get; set; }
     }
 
     private class QueueStatsItem
