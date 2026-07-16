@@ -11,8 +11,7 @@ EnvironmentFile=/etc/clinicaltrialdata.env
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 Environment="ASPNETCORE_URLS=http://localhost:5001"
 ExecStart=/opt/clinicaltrialdata/frontend/Frontend
-ExecStop=/bin/kill -TERM $MAINPID
-ExecStopPost=/bin/sh -c '/usr/bin/fuser -k 5001/tcp 2>/dev/null || true'
+ExecStop=/bin/sh -c 'kill -TERM $MAINPID 2>/dev/null; sleep 5; /usr/bin/fuser -k 5001/tcp 2>/dev/null || true'
 TimeoutStopSec=15
 Restart=always
 RestartSec=10

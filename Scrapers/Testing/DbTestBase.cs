@@ -50,7 +50,7 @@ public abstract class DbTestBase
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         using var ctx = new ClinicalTrialsContext(opts);
-        await ctx.Database.EnsureCreatedAsync().ConfigureAwait(false);
+        await ctx.Database.MigrateAsync().ConfigureAwait(false);
 
         Context = new ClinicalTrialsContext(opts);
     }
