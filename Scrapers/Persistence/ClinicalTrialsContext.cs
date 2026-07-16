@@ -469,6 +469,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50);
                 entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
                 entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+                entity.Property(e => e.RejectedKeywordsTotal).HasColumnName("rejected_keywords_total");
 
                 entity.HasIndex(e => e.SourceName).IsUnique();
             });
