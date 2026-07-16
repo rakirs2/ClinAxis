@@ -53,7 +53,7 @@ CodeCoverage/
 .opencode/
 
 # EF Core auto-generated migration designer files
-*.Designer.cs
+# *.Designer.cs  -- see fix: prod deploy needs Designer.cs for ef bundle
 
 # MSBuild Binary and Structured Log
 *.binlog
