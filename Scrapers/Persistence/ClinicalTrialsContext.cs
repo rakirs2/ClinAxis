@@ -32,6 +32,7 @@ namespace Scrapers.Persistence
         public DbSet<RejectedInvestigatorNameEntity> RejectedInvestigatorNames => Set<RejectedInvestigatorNameEntity>();
         public DbSet<PersonIdentifierCandidateEntity> PersonIdentifierCandidates => Set<PersonIdentifierCandidateEntity>();
         public DbSet<MedicareUtilizationEntity> MedicareUtilizations => Set<MedicareUtilizationEntity>();
+        public DbSet<InvestigatorMetricEntity> InvestigatorMetrics => Set<InvestigatorMetricEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -576,6 +577,33 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear }).IsUnique();
+            });
+
+            modelBuilder.Entity<InvestigatorMetricEntity>(entity =>
+            {
+                entity.ToTable("investigator_metrics");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
+                entity.Property(e => e.HIndex).HasColumnName("h_index");
+                entity.Property(e => e.CitationCount).HasColumnName("citation_count");
+                entity.Property(e => e.I10Index).HasColumnName("i10_index");
+                entity.Property(e => e.TotalPapers).HasColumnName("total_papers");
+                entity.Property(e => e.ExternalAuthorId).HasColumnName("external_author_id").HasMaxLength(100);
+                entity.Property(e => e.LookupAttemptedAt).HasColumnName("lookup_attempted_at");
+                entity.Property(e => e.LookupResult).HasColumnName("lookup_result").HasMaxLength(20);
+                entity.Property(e => e.LookupErrorMessage).HasColumnName("lookup_error_message");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.Metrics)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.InvestigatorPersonId);
+                entity.HasIndex(e => new { e.InvestigatorPersonId, e.Source }).IsUnique();
             });
         }
     }
