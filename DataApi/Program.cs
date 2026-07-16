@@ -432,7 +432,8 @@ app.MapGet("/api/data-source-state", async () =>
         s.LastSyncTimestamp,
         s.Status,
         s.ErrorMessage,
-        s.UpdatedAt
+        s.UpdatedAt,
+        s.RejectedKeywordsTotal
     }));
 });
 

@@ -289,6 +289,18 @@ namespace Scrapers.Persistence
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
 
+            if (rejectedKeywords.Count > 0)
+            {
+                var state = await context.DataSourceStates
+                    .FirstOrDefaultAsync(s => s.SourceName == "ClinicalTrials.gov", cancellationToken)
+                    .ConfigureAwait(false);
+                if (state != null)
+                {
+                    state.RejectedKeywordsTotal += rejectedKeywords.Count;
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
             return recordList.Count;
         }
 
