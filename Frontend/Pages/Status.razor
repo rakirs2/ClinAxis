@@ -29,7 +29,6 @@ else
                     <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
                     <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
                     <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
-                    <tr><th>Authors</th><td>@(telemetry.db?.totalAuthors ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -415,7 +414,6 @@ else
         public int totalInvestigators { get; set; }
         public int totalPubmedPapers { get; set; }
         public int totalKeywords { get; set; }
-        public int totalAuthors { get; set; }
     }
 
     private class PipelineRunItem
