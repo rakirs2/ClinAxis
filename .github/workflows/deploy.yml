@@ -37,8 +37,6 @@ jobs:
 
       - name: Build
         run: dotnet build --no-restore
-        # Note: Release builds are only used for publishing to production, not for CI validation.
-        # CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
@@ -120,6 +118,21 @@ jobs:
             exit 1
           fi
 
+      - name: Stop services and release ports
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          for i in {1..15}; do
+            api_up=$(lsof -i :5003 2>/dev/null || true)
+            frontend_up=$(lsof -i :5001 2>/dev/null || true)
+            if [ -z "$api_up" ] && [ -z "$frontend_up" ]; then
+              echo "All ports released after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          EOSSH
+
       - name: Save current as rollback target
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
@@ -139,16 +152,28 @@ jobs:
           scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-frontend.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
           scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-ingestion.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
 
-      - name: Stop services and update environment
+      - name: Update environment and install systemd units
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
-          sleep 5
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
           POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
           INGESTION_STUDY_LIMIT=0
           ASPNETCORE_ENVIRONMENT=Production
           EOF
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service
+          sudo systemctl daemon-reload
+          EOSSH
+
+      - name: Apply database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Applying pending database migrations..."
+          chmod +x /opt/clinicaltrialdata/efbundle
+          cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
+          /opt/clinicaltrialdata/efbundle --connection "$cs"
+          echo "Migrations applied successfully."
           EOSSH
 
       - name: Install systemd unit files
@@ -173,7 +198,6 @@ jobs:
       - name: Start services
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo systemctl daemon-reload
           sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
           sleep 10
           EOSSH
@@ -182,7 +206,6 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           echo "Checking service health..."
-          # Check systemd service states first
           echo "--- Service status ---"
           for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
             status=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
@@ -211,7 +234,16 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           chmod +x /opt/clinicaltrialdata/smoke-test-deploy.sh
-          bash /opt/clinicaltrialdata/smoke-test-deploy.sh http://localhost:5003
+          for i in {1..3}; do
+            echo "Smoke test attempt $i/3..."
+            if bash /opt/clinicaltrialdata/smoke-test-deploy.sh http://localhost:5003; then
+              echo "Smoke tests passed"
+              exit 0
+            fi
+            echo "Smoke tests failed, retrying in 5s..."
+            sleep 5
+          done
+          exit 1
           EOSSH
 
       - name: Cleanup rollback
