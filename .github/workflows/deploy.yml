@@ -134,6 +134,7 @@ jobs:
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
           scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
           scp -i ~/.ssh/deploy_key "$PWD/publish/efbundle" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
+          scp -i ~/.ssh/deploy_key "$PWD/scripts/smoke-test-deploy.sh" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/smoke-test-deploy.sh
           scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-api.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
           scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-frontend.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
           scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-ingestion.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
@@ -204,6 +205,13 @@ jobs:
           echo "--- Frontend journal ---"
           sudo journalctl -u clinicaltrialdata-frontend --no-pager -n 20 2>/dev/null || true
           exit 1
+          EOSSH
+
+      - name: Business endpoint smoke tests
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          chmod +x /opt/clinicaltrialdata/smoke-test-deploy.sh
+          bash /opt/clinicaltrialdata/smoke-test-deploy.sh http://localhost:5003
           EOSSH
 
       - name: Cleanup rollback
