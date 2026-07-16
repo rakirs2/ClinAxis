@@ -176,30 +176,34 @@ jobs:
           echo "Migrations applied successfully."
           EOSSH
 
-      - name: Install systemd unit files
+      - name: Start DataApi first
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service
-          sudo systemctl daemon-reload
+          sudo systemctl start clinicaltrialdata-api
+          echo "Waiting for DataApi health check..."
+          for i in {1..30}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "DataApi healthy after ${i}s"
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "DataApi failed to start"
+              sudo journalctl -u clinicaltrialdata-api --no-pager -n 30
+              exit 1
+            fi
+            sleep 2
+          done
+          # Warm-up: trigger EF Core model compilation before frontend/ingestion start
+          for endpoint in /api/investigators?page=1\&pageSize=1 /api/stats; do
+            curl -s -o /dev/null --max-time 60 "http://localhost:5003$endpoint" 2>/dev/null || true
+          done
           EOSSH
 
-      - name: Apply database migrations
+      - name: Start remaining services
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          echo "Applying pending database migrations..."
-          chmod +x /opt/clinicaltrialdata/efbundle
-          cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
-          /opt/clinicaltrialdata/efbundle --connection "$cs"
-          echo "Migrations applied successfully."
-          EOSSH
-
-      - name: Start services
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
-          sleep 10
+          sudo systemctl start clinicaltrialdata-frontend clinicaltrialdata-ingestion
           EOSSH
 
       - name: Health check
