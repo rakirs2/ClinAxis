@@ -41,7 +41,8 @@ namespace Scrapers.Persistence.Migrations
                     last_sync_hash = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     error_message = table.Column<string>(type: "text", nullable: true),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    rejected_keywords_total = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -60,6 +61,8 @@ namespace Scrapers.Persistence.Migrations
                     npi = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     npi_lookup_attempted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     npi_enrichment_result = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    medicare_lookup_attempted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    medicare_lookup_result = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     is_human = table.Column<bool>(type: "boolean", nullable: false),
                     verified_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     verification_source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
@@ -281,6 +284,80 @@ namespace Scrapers.Persistence.Migrations
                     table.PrimaryKey("PK_investigator_affiliations", x => x.id);
                     table.ForeignKey(
                         name: "FK_investigator_affiliations_investigator_persons_investigator~",
+                        column: x => x.investigator_person_id,
+                        principalTable: "investigator_persons",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "investigator_metrics",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    investigator_person_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    h_index = table.Column<int>(type: "integer", nullable: true),
+                    citation_count = table.Column<int>(type: "integer", nullable: true),
+                    i10_index = table.Column<int>(type: "integer", nullable: true),
+                    total_papers = table.Column<int>(type: "integer", nullable: true),
+                    external_author_id = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    lookup_attempted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    lookup_result = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    lookup_error_message = table.Column<string>(type: "text", nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_investigator_metrics", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_investigator_metrics_investigator_persons_investigator_pers~",
+                        column: x => x.investigator_person_id,
+                        principalTable: "investigator_persons",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "medicare_utilizations",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    investigator_person_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    data_year = table.Column<int>(type: "integer", nullable: false),
+                    provider_type = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    total_beneficiaries = table.Column<int>(type: "integer", nullable: true),
+                    total_services = table.Column<long>(type: "bigint", nullable: true),
+                    total_submitted_charges = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    total_medicare_allowed_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    total_medicare_payment_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    total_medicare_standardized_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    medicare_participation_indicator = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    bene_age_lt65_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_age_65_to_74_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_age_75_to_84_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_age_gt84_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_female_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_male_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_dual_count = table.Column<int>(type: "integer", nullable: true),
+                    bene_non_dual_count = table.Column<int>(type: "integer", nullable: true),
+                    chronic_conditions_json = table.Column<string>(type: "text", nullable: true),
+                    avg_risk_score = table.Column<decimal>(type: "numeric(10,4)", nullable: true),
+                    medical_services = table.Column<long>(type: "bigint", nullable: true),
+                    drug_services = table.Column<long>(type: "bigint", nullable: true),
+                    medical_medicare_payment = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    drug_medicare_payment = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_medicare_utilizations", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_medicare_utilizations_investigator_persons_investigator_per~",
                         column: x => x.investigator_person_id,
                         principalTable: "investigator_persons",
                         principalColumn: "id",
@@ -600,6 +677,17 @@ namespace Scrapers.Persistence.Migrations
                 column: "investigator_person_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_investigator_metrics_investigator_person_id",
+                table: "investigator_metrics",
+                column: "investigator_person_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_investigator_metrics_investigator_person_id_source",
+                table: "investigator_metrics",
+                columns: new[] { "investigator_person_id", "source" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_investigator_papers_pubmed_paper_id",
                 table: "investigator_papers",
                 column: "pubmed_paper_id");
@@ -629,6 +717,17 @@ namespace Scrapers.Persistence.Migrations
                 column: "orcid",
                 unique: true,
                 filter: "orcid IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_medicare_utilizations_investigator_person_id",
+                table: "medicare_utilizations",
+                column: "investigator_person_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_medicare_utilizations_investigator_person_id_data_year",
+                table: "medicare_utilizations",
+                columns: new[] { "investigator_person_id", "data_year" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_person_identifier_candidates_person_id",
@@ -818,7 +917,13 @@ namespace Scrapers.Persistence.Migrations
                 name: "investigator_affiliations");
 
             migrationBuilder.DropTable(
+                name: "investigator_metrics");
+
+            migrationBuilder.DropTable(
                 name: "investigator_papers");
+
+            migrationBuilder.DropTable(
+                name: "medicare_utilizations");
 
             migrationBuilder.DropTable(
                 name: "person_identifier_candidates");
