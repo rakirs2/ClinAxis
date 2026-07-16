@@ -29,7 +29,6 @@ else
                     <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
                     <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
                     <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
-                    <tr><th>Authors</th><td>@(telemetry.db?.totalAuthors ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -208,6 +207,47 @@ else
     else
     {
         <p class="text-muted">Queue stats not available.</p>
+    }
+
+    @if (queueStats?.byEventType is { Count: > 0 })
+    {
+        <h3 class="mt-4">Event Type Breakdown</h3>
+        <table class="table table-sm table-striped" style="max-width: 100%">
+            <thead>
+                <tr>
+                    <th>Event Type</th>
+                    <th>Pending</th>
+                    <th>Processing</th>
+                    <th>Completed</th>
+                    <th>Failed</th>
+                    <th>Dead Letter</th>
+                    <th>Avg Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var et in queueStats.byEventType)
+                {
+                    var hasIssues = et.failed > 0 || et.deadLetter > 0;
+                    var isActive = et.pending > 0 || et.processing > 0;
+                    var rowClass = hasIssues ? "table-danger" : isActive ? "table-warning" : "";
+                    <tr class="@rowClass">
+                        <td><code>@et.eventType</code></td>
+                        <td>@et.pending</td>
+                        <td>@et.processing</td>
+                        <td>@et.completed</td>
+                        <td>
+                            @if (et.failed > 0) { <span class="badge bg-danger">@et.failed</span> }
+                            else { @et.failed }
+                        </td>
+                        <td>
+                            @if (et.deadLetter > 0) { <span class="badge bg-danger">@et.deadLetter</span> }
+                            else { @et.deadLetter }
+                        </td>
+                        <td>@(et.averageProcessingTimeMs > 0 ? $"{et.averageProcessingTimeMs:F1}ms" : "--")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     }
 
     <h3 class="mt-4">Dead Letter Queue @if (deadLetterCount > 0) { <span class="badge bg-danger">@deadLetterCount</span> }</h3>
@@ -415,7 +455,6 @@ else
         public int totalInvestigators { get; set; }
         public int totalPubmedPapers { get; set; }
         public int totalKeywords { get; set; }
-        public int totalAuthors { get; set; }
     }
 
     private class PipelineRunItem
@@ -466,6 +505,18 @@ else
         public double averageProcessingTimeMs { get; set; }
         public double failureRate { get; set; }
         public double? estimatedTimeRemainingMs { get; set; }
+        public List<EventTypeItem>? byEventType { get; set; }
+    }
+
+    private class EventTypeItem
+    {
+        public string eventType { get; set; } = string.Empty;
+        public int pending { get; set; }
+        public int processing { get; set; }
+        public int completed { get; set; }
+        public int failed { get; set; }
+        public int deadLetter { get; set; }
+        public double averageProcessingTimeMs { get; set; }
     }
 
     private class DeadLetterEventItem

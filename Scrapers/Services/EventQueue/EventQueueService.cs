@@ -234,6 +234,42 @@ public sealed class EventQueueService : IEventQueueService
         };
     }
 
+    public async Task<List<EventTypeBreakdown>> GetEventTypeBreakdownAsync(CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(_connectionString)
+                .Options);
+
+        var raw = await context.PipelineEvents
+            .GroupBy(e => e.EventType)
+            .Select(g => new
+            {
+                EventType = g.Key,
+                Pending = g.Count(e => e.Status == "pending"),
+                Processing = g.Count(e => e.Status == "processing"),
+                Completed = g.Count(e => e.Status == "completed"),
+                Failed = g.Count(e => e.Status == "failed"),
+                DeadLetter = g.Count(e => e.Status == "dead-letter"),
+                AvgProcessingMs = g.Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue)
+                    .Average(e => (double?)(e.CompletedAt!.Value - e.ClaimedAt!.Value).TotalMilliseconds) ?? 0.0
+            })
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return raw.Select(r => new EventTypeBreakdown
+        {
+            EventType = r.EventType,
+            Pending = r.Pending,
+            Processing = r.Processing,
+            Completed = r.Completed,
+            Failed = r.Failed,
+            DeadLetter = r.DeadLetter,
+            AverageProcessingTimeMs = r.AvgProcessingMs
+        }).ToList();
+    }
+
     public async Task RetryDeadLetterEventAsync(int eventId, CancellationToken ct = default)
     {
         using var context = new ClinicalTrialsContext(
