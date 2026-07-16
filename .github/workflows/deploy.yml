@@ -248,10 +248,11 @@ jobs:
           echo "Checking service health..."
           echo "--- Service status ---"
           for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
-            status=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
+            status=$(systemctl is-active "$svc" 2>/dev/null) || status="not-found"
             echo "  $svc: $status"
           done
           echo "--- Health check ---"
+          healthy=false
           for i in $(seq 1 20); do
             hc="http://localhost:5003/health"
             api_code=$(curl -s -o /dev/null -w "%{http_code}" "$hc" 2>/dev/null || echo "000")
@@ -260,16 +261,20 @@ jobs:
             echo "Attempt $i/20: DataApi=$api_code Frontend=$frontend_code"
             if [ "$api_code" = "200" ] && [ "$frontend_code" = "200" ]; then
               echo "Health check passed - All services healthy"
-              exit 0
+              healthy=true
+              break
             fi
             sleep 2
           done
-          echo "Health check failed - dumping service logs"
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
-            echo "--- $svc journal ---"
-            sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
-          done
-          exit 1
+          if [ "$healthy" != "true" ]; then
+            echo "Health check failed - dumping service logs"
+            for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
+              clinicaltrialdata-ingestion; do
+              echo "--- $svc journal ---"
+              sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
+            done
+            exit 1
+          fi
           EOSSH
 
       - name: Cleanup rollback
