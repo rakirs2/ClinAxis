@@ -1238,6 +1238,7 @@ namespace Scrapers.Persistence
                 .Include(p => p.Affiliations)
                 .Include(p => p.InvestigatorPapers)
                 .Include(p => p.MedicareUtilizations)
+                .Include(p => p.Metrics)
                 .AsNoTracking()
                 .Where(p => p.IsHuman)
                 .FirstOrDefaultAsync(p => p.Id == uuid, cancellationToken)
