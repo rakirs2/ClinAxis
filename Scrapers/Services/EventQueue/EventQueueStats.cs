@@ -14,3 +14,14 @@ public sealed class EventQueueStats
     public int FailedCount { get; set; }
     public double? EstimatedTimeRemainingMs { get; set; }
 }
+
+public sealed class EventTypeBreakdown
+{
+    public string EventType { get; set; } = string.Empty;
+    public int Pending { get; set; }
+    public int Processing { get; set; }
+    public int Completed { get; set; }
+    public int Failed { get; set; }
+    public int DeadLetter { get; set; }
+    public double AverageProcessingTimeMs { get; set; }
+}

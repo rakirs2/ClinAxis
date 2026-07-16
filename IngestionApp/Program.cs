@@ -81,13 +81,36 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService(sp => new InvestigatorPublicationScrubService(
             cs,
-            sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>()));
+            sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>(),
+            sp.GetRequiredService<IEventQueueService>()));
 
         // Enrichment services (NPI lookup via NPPES NPI Registry)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
         services.AddHostedService(sp => new InvestigatorEnrichmentService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<NppesNpiRegistryClient>(),
+            cs,
+            pollIntervalSeconds: 30));
+
+        // Medicare Utilization enrichment
+        var cmsBaseUrl = Environment.GetEnvironmentVariable("CMS_MEDICARE_BASE_URL") ?? "https://data.cms.gov/data-api/v1/dataset/";
+        var cmsDatasetUuid = Environment.GetEnvironmentVariable("CMS_MEDICARE_DATASET_UUID") ?? "8889d81e-2ee7-448f-8713-f071038289b5";
+        var medicareDataYear = int.TryParse(Environment.GetEnvironmentVariable("MEDICARE_DATA_YEAR"), out var my) ? my : 0;
+        services.AddSingleton<CmsMedicareClient>(_ => new CmsMedicareClient(
+            new HttpClient { BaseAddress = new Uri(cmsBaseUrl) },
+            datasetUuid: cmsDatasetUuid));
+        services.AddHostedService(sp => new MedicareUtilizationService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<CmsMedicareClient>(),
+            cs,
+            pollIntervalSeconds: 30,
+            dataYear: medicareDataYear));
+
+        // Investigator Metrics enrichment (Semantic Scholar h-index and citations)
+        services.AddSingleton<SemanticScholarClient>(_ => new SemanticScholarClient(new HttpClient()));
+        services.AddHostedService(sp => new InvestigatorMetricsService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<SemanticScholarClient>(),
             cs,
             pollIntervalSeconds: 30));
     })

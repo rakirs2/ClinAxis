@@ -87,7 +87,36 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "SSH key created. Testing ssh-keyscan..."
+          if ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>&1; then
+            echo "✓ Host key added to known_hosts"
+            cat ~/.ssh/known_hosts
+          else
+            echo "✗ ssh-keyscan failed. Host may be unreachable."
+            echo "Continuing anyway (will fail at connection test)..."
+          fi
+
+      - name: Test SSH connection
+        run: |
+          echo "Testing SSH connection to ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}..."
+          if ssh -vvv -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "echo '✓ SSH connection successful'" 2>&1; then
+            echo "✓ Connection test passed"
+          else
+            echo "✗ Connection test failed - see verbose output above"
+            echo ""
+            echo "Diagnostic info:"
+            echo "  - Key file readable: $(test -r ~/.ssh/deploy_key && echo 'YES' || echo 'NO')"
+            if [ -f ~/.ssh/deploy_key ]; then
+              echo "  - Key file exists: YES"
+            else
+              echo "  - Key file exists: NO"
+            fi
+            echo "  - known_hosts contents:"
+            cat ~/.ssh/known_hosts 2>/dev/null || echo "    (empty or missing)"
+            exit 1
+          fi
 
       - name: Stop services and release ports
         run: |
@@ -129,9 +158,27 @@ jobs:
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
           POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
           INGESTION_STUDY_LIMIT=0
-          INGESTION_RESET_DB=true
           ASPNETCORE_ENVIRONMENT=Production
           EOF
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
+          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service
+          sudo systemctl daemon-reload
+          EOSSH
+
+      - name: Apply database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "Applying pending database migrations..."
+          chmod +x /opt/clinicaltrialdata/efbundle
+          cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
+          /opt/clinicaltrialdata/efbundle --connection "$cs"
+          echo "Migrations applied successfully."
+          EOSSH
+
+      - name: Install systemd unit files
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
           sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
           sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service

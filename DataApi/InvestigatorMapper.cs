@@ -1,12 +1,10 @@
+using System.Text.Json;
 using Scrapers.Persistence.Entities;
 
 namespace DataApi;
 
 internal static class InvestigatorMapper
 {
-    /// <summary>
-    /// Maps an InvestigatorPersonEntity to a summary response for list views.
-    /// </summary>
     internal static object ToSummary(InvestigatorPersonEntity person)
     {
         return new
@@ -21,9 +19,6 @@ internal static class InvestigatorMapper
         };
     }
 
-    /// <summary>
-    /// Maps an InvestigatorPersonEntity to a detailed response.
-    /// </summary>
     internal static object ToDetail(InvestigatorPersonEntity person, IEnumerable<StudyEntity> studies)
     {
         var studyList = studies.ToList();
@@ -82,6 +77,72 @@ internal static class InvestigatorMapper
             }
         }
 
+        object? medicareData = null;
+        if (person.MedicareUtilizations is { Count: > 0 })
+        {
+            var latest = person.MedicareUtilizations
+                .OrderByDescending(m => m.DataYear)
+                .First();
+
+            Dictionary<string, decimal?>? chronicConditions = null;
+            if (!string.IsNullOrEmpty(latest.ChronicConditionsJson))
+            {
+                chronicConditions = JsonSerializer.Deserialize<Dictionary<string, decimal?>>(latest.ChronicConditionsJson);
+            }
+
+            medicareData = new
+            {
+                dataYear = latest.DataYear,
+                providerType = latest.ProviderType,
+                totalBeneficiaries = latest.TotalBeneficiaries,
+                totalServices = latest.TotalServices,
+                totalSubmittedCharges = latest.TotalSubmittedCharges,
+                totalMedicareAllowedAmount = latest.TotalMedicareAllowedAmount,
+                totalMedicarePaymentAmount = latest.TotalMedicarePaymentAmount,
+                totalMedicareStandardizedAmount = latest.TotalMedicareStandardizedAmount,
+                medicareParticipationIndicator = latest.MedicareParticipationIndicator,
+                beneAgeLt65Count = latest.BeneAgeLt65Count,
+                beneAge65To74Count = latest.BeneAge65To74Count,
+                beneAge75To84Count = latest.BeneAge75To84Count,
+                beneAgeGt84Count = latest.BeneAgeGt84Count,
+                beneFemaleCount = latest.BeneFemaleCount,
+                beneMaleCount = latest.BeneMaleCount,
+                beneDualCount = latest.BeneDualCount,
+                beneNonDualCount = latest.BeneNonDualCount,
+                avgRiskScore = latest.AvgRiskScore,
+                medicalServices = latest.MedicalServices,
+                drugServices = latest.DrugServices,
+                medicalMedicarePayment = latest.MedicalMedicarePayment,
+                drugMedicarePayment = latest.DrugMedicarePayment,
+                chronicConditions = chronicConditions
+            };
+        }
+
+        object? metricsData = null;
+        if (person.Metrics is { Count: > 0 })
+        {
+            // Get latest Semantic Scholar metrics
+            var semanticScholarMetric = person.Metrics
+                .Where(m => m.Source == "SemanticScholar")
+                .OrderByDescending(m => m.LookupAttemptedAt)
+                .FirstOrDefault();
+
+            if (semanticScholarMetric != null)
+            {
+                metricsData = new
+                {
+                    source = semanticScholarMetric.Source,
+                    hIndex = semanticScholarMetric.HIndex,
+                    citationCount = semanticScholarMetric.CitationCount,
+                    i10Index = semanticScholarMetric.I10Index,
+                    totalPapers = semanticScholarMetric.TotalPapers,
+                    externalAuthorId = semanticScholarMetric.ExternalAuthorId,
+                    lookupAttemptedAt = semanticScholarMetric.LookupAttemptedAt,
+                    lookupResult = semanticScholarMetric.LookupResult
+                };
+            }
+        }
+
         return new
         {
             uuid = person.Id,
@@ -108,7 +169,9 @@ internal static class InvestigatorMapper
             {
                 byStatus = statuses.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value),
                 byPhase = phases.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value)
-            }
+            },
+            medicare = medicareData,
+            metrics = metricsData
         };
     }
 }
