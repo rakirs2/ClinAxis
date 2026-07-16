@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using DataApi;
 using Scrapers;
 using Scrapers.Persistence;
@@ -26,7 +27,7 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
 {
     try
     {
-        await startupRepo.EnsureSchemaAsync();
+        await startupRepo.MigrateSchemaAsync();
         break;
     }
     catch (Exception ex) when (attempt < maxRetries)
@@ -37,6 +38,7 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
 }
 
 builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache();
 
 WebApplication app = builder.Build();
 
@@ -61,24 +63,35 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 });
 
 // Endpoints for advanced search filter options
-app.MapGet("/api/distinct-conditions", async () =>
+app.MapGet("/api/distinct-conditions", async (IMemoryCache cache) =>
 {
+    var cacheKey = "conditions_list";
+    if (cache.TryGetValue(cacheKey, out List<string>? conditions) && conditions is not null)
+    {
+        return Results.Ok(conditions);
+    }
+
     var repo = new StudyRepository(connectionString);
-    var conditions = await repo.GetDistinctConditionsAsync();
+    conditions = await repo.GetDistinctConditionsAsync();
+    var ttl = TimeSpan.FromMinutes(app.Configuration.GetValue<int>("CacheSettings:ConditionsCacheDurationMinutes", 5));
+    cache.Set(cacheKey, conditions, ttl);
     return Results.Ok(conditions);
 });
 
-app.MapGet("/api/distinct-locations", async (string? country, string? state, string? city) =>
+app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country, string? state, string? city) =>
 {
+    var cacheKey = $"locations_{country ?? ""}_{state ?? ""}_{city ?? ""}";
+    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
+    {
+        return Results.Ok(cached);
+    }
+
     var repo = new StudyRepository(connectionString);
     var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync(country, state, city);
-    return Results.Ok(new
-    {
-        countries,
-        states,
-        cities,
-        facilities
-    });
+    var result = new { countries, states, cities, facilities };
+    var ttl = TimeSpan.FromMinutes(app.Configuration.GetValue<int>("CacheSettings:LocationsCacheDurationMinutes", 5));
+    cache.Set(cacheKey, result, ttl);
+    return Results.Ok(result);
 });
 
 app.MapGet("/api/studies", async (
@@ -92,7 +105,7 @@ app.MapGet("/api/studies", async (
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     // Build search criteria from query parameters
     var criteria = new StudySearchCriteria
@@ -137,7 +150,7 @@ app.MapGet("/api/investigators", async (int? page, int? pageSize, string? search
 {
     var repo = new StudyRepository(connectionString);
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     var persons = await repo.GetInvestigatorPersonsPagedAsync(p, ps, search, hasNpi);
     var total = await repo.CountInvestigatorPersonsFilteredAsync(search, hasNpi);
@@ -203,7 +216,7 @@ app.MapGet("/api/investigators/{uuid}/studies", async (
     }
 
     var p = Math.Max(1, page ?? 1);
-    var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+    var ps = Math.Clamp(pageSize ?? 10, 1, 100);
 
     // Build StudySearchCriteria from query parameters
     var criteria = new StudySearchCriteria
@@ -402,24 +415,59 @@ app.MapGet("/api/event-queue/stats", async () =>
 {
     var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
     var stats = await eventQueueService.GetStatsAsync();
-    return Results.Ok(stats);
+    var byEventType = await eventQueueService.GetEventTypeBreakdownAsync();
+    return Results.Ok(new
+    {
+        stats.PendingCount,
+        stats.ProcessingCount,
+        stats.CompletedCount,
+        stats.DeadLetterCount,
+        stats.FailedCount,
+        stats.AverageProcessingTimeMs,
+        stats.FailureRate,
+        stats.EstimatedTimeRemainingMs,
+        byEventType
+    });
 });
 
-app.MapGet("/api/event-queue/dead-letter", async () =>
+app.MapGet("/api/event-queue/dead-letter", async (int? page, int? pageSize) =>
 {
     var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
-    var deadLetterEvents = await eventQueueService.GetDeadLetterEventsAsync(100);
-    return Results.Ok(deadLetterEvents.Select(e => new
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 100, 1, 200);
+    var (deadLetterEvents, total) = await eventQueueService.GetDeadLetterEventsPagedAsync(p, ps);
+    return Results.Ok(new
     {
-        e.Id,
-        e.EventType,
-        e.Data,
-        e.Status,
-        e.ErrorMessage,
-        e.RetryCount,
-        e.CreatedAt,
-        e.CompletedAt
-    }));
+        data = deadLetterEvents.Select(e => new
+        {
+            e.Id,
+            e.EventType,
+            e.Data,
+            e.Status,
+            e.ErrorMessage,
+            e.RetryCount,
+            e.CreatedAt,
+            e.CompletedAt
+        }),
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
+app.MapPost("/api/event-queue/dead-letter/{eventId:int}/retry", async (int eventId) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var result = await eventQueueService.RetryEventAsync(eventId);
+    return result ? Results.Ok() : Results.NotFound();
+});
+
+app.MapPost("/api/event-queue/dead-letter/{eventId:int}/ignore", async (int eventId) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var result = await eventQueueService.IgnoreEventAsync(eventId);
+    return result ? Results.Ok() : Results.NotFound();
 });
 
 app.MapGet("/api/data-source-state", async () =>
@@ -432,7 +480,8 @@ app.MapGet("/api/data-source-state", async () =>
         s.LastSyncTimestamp,
         s.Status,
         s.ErrorMessage,
-        s.UpdatedAt
+        s.UpdatedAt,
+        s.RejectedKeywordsTotal
     }));
 });
 

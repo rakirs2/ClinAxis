@@ -27,7 +27,7 @@ namespace Scrapers.Persistence
             _options = builder.Options;
         }
 
-        public async Task EnsureSchemaAsync(CancellationToken cancellationToken = default)
+        public async Task MigrateSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
@@ -287,6 +287,18 @@ namespace Scrapers.Persistence
             if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0)
             {
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (rejectedKeywords.Count > 0)
+            {
+                var state = await context.DataSourceStates
+                    .FirstOrDefaultAsync(s => s.SourceName == "ClinicalTrials.gov", cancellationToken)
+                    .ConfigureAwait(false);
+                if (state != null)
+                {
+                    state.RejectedKeywordsTotal += rejectedKeywords.Count;
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
             }
 
             return recordList.Count;
@@ -1161,9 +1173,6 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
 
             IQueryable<InvestigatorPersonEntity> query = context.InvestigatorPersons
-                .Include(p => p.StudyInvestigators)
-                .Include(p => p.Affiliations)
-                .Include(p => p.InvestigatorPapers)
                 .AsNoTracking()
                 .Where(p => p.IsHuman);
 
@@ -1177,26 +1186,73 @@ namespace Scrapers.Persistence
                 query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{search}%"));
             }
 
-            IQueryable<InvestigatorPersonSummary> result = query
-                .Select(p => new InvestigatorPersonSummary
+            var allIds = await query.Select(p => p.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+            if (allIds.Count == 0)
+            {
+                return Array.Empty<InvestigatorPersonSummary>();
+            }
+
+            var studyCounts = await context.StudyInvestigators
+                .Where(si => allIds.Contains(si.InvestigatorPersonId))
+                .GroupBy(si => si.InvestigatorPersonId)
+                .Select(g => new { PersonId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.PersonId, x => x.Count, cancellationToken)
+                .ConfigureAwait(false);
+
+            var paperCounts = await context.InvestigatorPapers
+                .Where(ip => allIds.Contains(ip.InvestigatorPersonId))
+                .GroupBy(ip => ip.InvestigatorPersonId)
+                .Select(g => new { PersonId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.PersonId, x => x.Count, cancellationToken)
+                .ConfigureAwait(false);
+
+            var sortedIds = allIds
+                .OrderByDescending(id => studyCounts.GetValueOrDefault(id, 0))
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            if (sortedIds.Count == 0)
+            {
+                return Array.Empty<InvestigatorPersonSummary>();
+            }
+
+            var persons = await context.InvestigatorPersons
+                .AsNoTracking()
+                .Where(p => sortedIds.Contains(p.Id))
+                .Select(p => new
                 {
-                    Uuid = p.Id,
+                    p.Id,
+                    p.FullName,
+                    p.Orcid,
+                    p.NcbiId,
+                    p.Npi,
+                    PrimaryAffiliation = p.Affiliations!
+                        .Where(a => a.IsPrimary)
+                        .Select(a => a.InstitutionName)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var personLookup = persons.ToDictionary(p => p.Id);
+
+            return sortedIds.Select(id =>
+            {
+                var p = personLookup[id];
+                return new InvestigatorPersonSummary
+                {
+                    Uuid = id,
                     Name = p.FullName,
                     Orcid = p.Orcid,
                     NcbiId = p.NcbiId,
                     Npi = p.Npi,
-                    PrimaryAffiliation = p.Affiliations!
-                        .Where(a => a.IsPrimary)
-                        .Select(a => a.InstitutionName)
-                        .FirstOrDefault(),
-                    StudyCount = p.StudyInvestigators!.Count,
-                    PaperCount = p.InvestigatorPapers!.Count
-                })
-                .OrderByDescending(x => x.StudyCount)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize);
-
-            return await result.ToListAsync(cancellationToken).ConfigureAwait(false);
+                    PrimaryAffiliation = p.PrimaryAffiliation,
+                    StudyCount = studyCounts.GetValueOrDefault(id, 0),
+                    PaperCount = paperCounts.GetValueOrDefault(id, 0)
+                };
+            }).ToList();
         }
 
         public async Task<int> CountInvestigatorPersonsFilteredAsync(string? search = null, bool? hasNpi = null, CancellationToken cancellationToken = default)
@@ -1225,6 +1281,8 @@ namespace Scrapers.Persistence
                 .Include(p => p.StudyInvestigators)
                 .Include(p => p.Affiliations)
                 .Include(p => p.InvestigatorPapers)
+                .Include(p => p.MedicareUtilizations)
+                .Include(p => p.Metrics)
                 .AsNoTracking()
                 .Where(p => p.IsHuman)
                 .FirstOrDefaultAsync(p => p.Id == uuid, cancellationToken)

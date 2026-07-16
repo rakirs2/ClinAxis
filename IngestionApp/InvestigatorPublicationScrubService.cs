@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Services.EventQueue;
 
 namespace IngestionApp
 {
@@ -13,6 +14,7 @@ namespace IngestionApp
     {
         private readonly string _connectionString;
         private readonly ILogger<InvestigatorPublicationScrubService> _logger;
+        private readonly IEventQueueService _eventQueueService;
         private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
 
         private static readonly Action<ILogger, Exception?> LogStarted =
@@ -29,10 +31,12 @@ namespace IngestionApp
 
         public InvestigatorPublicationScrubService(
             string connectionString,
-            ILogger<InvestigatorPublicationScrubService> logger)
+            ILogger<InvestigatorPublicationScrubService> logger,
+            IEventQueueService eventQueueService)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -90,6 +94,9 @@ namespace IngestionApp
                 pipelineEvent.Status = "completed";
                 pipelineEvent.CompletedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                // Enqueue metrics enrichment for this investigator
+                await _eventQueueService.EnqueueAsync("investigator.metrics", personId.ToString(), cancellationToken).ConfigureAwait(false);
 
                 LogScrubbed(_logger, personId, null);
             }

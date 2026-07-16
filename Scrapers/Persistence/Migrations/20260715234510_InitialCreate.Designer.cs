@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Scrapers.Persistence;
@@ -11,9 +12,11 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    partial class ClinicalTrialsContextModelSnapshot : ModelSnapshot
+    [Migration("20260715234510_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -90,10 +93,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<DateTime?>("LastSyncTimestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_sync_timestamp");
-
-                    b.Property<int>("RejectedKeywordsTotal")
-                        .HasColumnType("integer")
-                        .HasColumnName("rejected_keywords_total");
 
                     b.Property<string>("SourceName")
                         .IsRequired()
@@ -184,77 +183,6 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("investigator_affiliations", (string)null);
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorMetricEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CitationCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("citation_count");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ExternalAuthorId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("external_author_id");
-
-                    b.Property<int?>("HIndex")
-                        .HasColumnType("integer")
-                        .HasColumnName("h_index");
-
-                    b.Property<int?>("I10Index")
-                        .HasColumnType("integer")
-                        .HasColumnName("i10_index");
-
-                    b.Property<Guid>("InvestigatorPersonId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("investigator_person_id");
-
-                    b.Property<DateTime?>("LookupAttemptedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lookup_attempted_at");
-
-                    b.Property<string>("LookupErrorMessage")
-                        .HasColumnType("text")
-                        .HasColumnName("lookup_error_message");
-
-                    b.Property<string>("LookupResult")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("lookup_result");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("source");
-
-                    b.Property<int?>("TotalPapers")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_papers");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvestigatorPersonId");
-
-                    b.HasIndex("InvestigatorPersonId", "Source")
-                        .IsUnique();
-
-                    b.ToTable("investigator_metrics", (string)null);
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
                 {
                     b.Property<Guid>("InvestigatorPersonId")
@@ -300,15 +228,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<bool>("IsHuman")
                         .HasColumnType("boolean")
                         .HasColumnName("is_human");
-
-                    b.Property<DateTime?>("MedicareLookupAttemptedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("medicare_lookup_attempted_at");
-
-                    b.Property<string>("MedicareLookupResult")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("medicare_lookup_result");
 
                     b.Property<string>("NcbiId")
                         .HasMaxLength(50)
@@ -369,131 +288,6 @@ namespace Scrapers.Persistence.Migrations
                         .HasFilter("orcid IS NOT NULL");
 
                     b.ToTable("investigator_persons", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.MedicareUtilizationEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal?>("AvgRiskScore")
-                        .HasColumnType("decimal(10,4)")
-                        .HasColumnName("avg_risk_score");
-
-                    b.Property<int?>("BeneAge65To74Count")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_age_65_to_74_count");
-
-                    b.Property<int?>("BeneAge75To84Count")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_age_75_to_84_count");
-
-                    b.Property<int?>("BeneAgeGt84Count")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_age_gt84_count");
-
-                    b.Property<int?>("BeneAgeLt65Count")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_age_lt65_count");
-
-                    b.Property<int?>("BeneDualCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_dual_count");
-
-                    b.Property<int?>("BeneFemaleCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_female_count");
-
-                    b.Property<int?>("BeneMaleCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_male_count");
-
-                    b.Property<int?>("BeneNonDualCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("bene_non_dual_count");
-
-                    b.Property<string>("ChronicConditionsJson")
-                        .HasColumnType("text")
-                        .HasColumnName("chronic_conditions_json");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("DataYear")
-                        .HasColumnType("integer")
-                        .HasColumnName("data_year");
-
-                    b.Property<decimal?>("DrugMedicarePayment")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("drug_medicare_payment");
-
-                    b.Property<long?>("DrugServices")
-                        .HasColumnType("bigint")
-                        .HasColumnName("drug_services");
-
-                    b.Property<Guid>("InvestigatorPersonId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("investigator_person_id");
-
-                    b.Property<decimal?>("MedicalMedicarePayment")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("medical_medicare_payment");
-
-                    b.Property<long?>("MedicalServices")
-                        .HasColumnType("bigint")
-                        .HasColumnName("medical_services");
-
-                    b.Property<string>("MedicareParticipationIndicator")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("medicare_participation_indicator");
-
-                    b.Property<string>("ProviderType")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("provider_type");
-
-                    b.Property<int?>("TotalBeneficiaries")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_beneficiaries");
-
-                    b.Property<decimal?>("TotalMedicareAllowedAmount")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("total_medicare_allowed_amount");
-
-                    b.Property<decimal?>("TotalMedicarePaymentAmount")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("total_medicare_payment_amount");
-
-                    b.Property<decimal?>("TotalMedicareStandardizedAmount")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("total_medicare_standardized_amount");
-
-                    b.Property<long?>("TotalServices")
-                        .HasColumnType("bigint")
-                        .HasColumnName("total_services");
-
-                    b.Property<decimal?>("TotalSubmittedCharges")
-                        .HasColumnType("decimal(18,2)")
-                        .HasColumnName("total_submitted_charges");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvestigatorPersonId");
-
-                    b.HasIndex("InvestigatorPersonId", "DataYear")
-                        .IsUnique();
-
-                    b.ToTable("medicare_utilizations", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
@@ -1458,17 +1252,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("InvestigatorPerson");
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorMetricEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
-                        .WithMany("Metrics")
-                        .HasForeignKey("InvestigatorPersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InvestigatorPerson");
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.InvestigatorPaperEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
@@ -1486,17 +1269,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("InvestigatorPerson");
 
                     b.Navigation("PubmedPaper");
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.MedicareUtilizationEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
-                        .WithMany("MedicareUtilizations")
-                        .HasForeignKey("InvestigatorPersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InvestigatorPerson");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
@@ -1642,10 +1414,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("IdentifierCandidates");
 
                     b.Navigation("InvestigatorPapers");
-
-                    b.Navigation("MedicareUtilizations");
-
-                    b.Navigation("Metrics");
 
                     b.Navigation("StudyInvestigators");
                 });

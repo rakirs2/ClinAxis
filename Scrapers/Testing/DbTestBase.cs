@@ -31,8 +31,6 @@ public abstract class DbTestBase
     {
         await Initialize.Value.ConfigureAwait(false);
 
-        // Each test method gets its own database for isolation
-        // (StudyRepository creates its own connections, so txn rollback won't cover it)
         var dbName = "ct_" + Guid.NewGuid().ToString("N").ToUpperInvariant();
         var adminBuilder = new NpgsqlConnectionStringBuilder(_adminConnectionString)
         {

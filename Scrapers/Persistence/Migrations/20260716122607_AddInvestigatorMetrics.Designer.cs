@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Scrapers.Persistence;
@@ -11,9 +12,11 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    partial class ClinicalTrialsContextModelSnapshot : ModelSnapshot
+    [Migration("20260716122607_AddInvestigatorMetrics")]
+    partial class AddInvestigatorMetrics
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -90,10 +93,6 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<DateTime?>("LastSyncTimestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_sync_timestamp");
-
-                    b.Property<int>("RejectedKeywordsTotal")
-                        .HasColumnType("integer")
-                        .HasColumnName("rejected_keywords_total");
 
                     b.Property<string>("SourceName")
                         .IsRequired()
