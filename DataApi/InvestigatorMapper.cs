@@ -97,6 +97,7 @@ internal static class InvestigatorMapper
                 totalBeneficiaries = latest.TotalBeneficiaries,
                 totalServices = latest.TotalServices,
                 totalSubmittedCharges = latest.TotalSubmittedCharges,
+                totalMedicareAllowedAmount = latest.TotalMedicareAllowedAmount,
                 totalMedicarePaymentAmount = latest.TotalMedicarePaymentAmount,
                 totalMedicareStandardizedAmount = latest.TotalMedicareStandardizedAmount,
                 medicareParticipationIndicator = latest.MedicareParticipationIndicator,

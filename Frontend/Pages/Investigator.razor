@@ -184,7 +184,15 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">$@investigator.medicare.totalMedicareAllowedAmount?.ToString("N0")</h5>
+                                            <p class="card-text small">Allowed Amt</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
                                     <div class="card bg-light mb-2">
                                         <div class="card-body text-center">
                                             <h5 class="card-title">$@investigator.medicare.totalMedicarePaymentAmount?.ToString("N0")</h5>
@@ -192,7 +200,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col">
                                     <div class="card bg-light mb-2">
                                         <div class="card-body text-center">
                                             <h5 class="card-title">$@investigator.medicare.totalMedicareStandardizedAmount?.ToString("N0")</h5>
@@ -440,6 +448,7 @@
         public int? totalBeneficiaries { get; set; }
         public long? totalServices { get; set; }
         public decimal? totalSubmittedCharges { get; set; }
+        public decimal? totalMedicareAllowedAmount { get; set; }
         public decimal? totalMedicarePaymentAmount { get; set; }
         public decimal? totalMedicareStandardizedAmount { get; set; }
         public string? medicareParticipationIndicator { get; set; }

@@ -15,17 +15,20 @@ internal sealed class MedicareUtilizationService : BackgroundService
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
+    private readonly int _dataYear;
 
     public MedicareUtilizationService(
         IEventQueueService eventQueueService,
         CmsMedicareClient cmsClient,
         string connectionString,
-        int pollIntervalSeconds = 30)
+        int pollIntervalSeconds = 30,
+        int dataYear = 0)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _cmsClient = cmsClient ?? throw new ArgumentNullException(nameof(cmsClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _pollIntervalSeconds = pollIntervalSeconds;
+        _dataYear = dataYear > 0 ? dataYear : DateTime.UtcNow.Year;
         _serviceInstanceId = $"{System.Environment.MachineName}-medicare-{System.Environment.ProcessId}";
     }
 
@@ -107,7 +110,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
     private async Task ProcessMedicareUtilizationEventAsync(PipelineEventEntity @event, CancellationToken ct)
     {
         if (!Guid.TryParse(@event.Data, out var personId))
-            return;
+            throw new InvalidOperationException($"Invalid event data: '{@event.Data}' is not a valid GUID.");
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
@@ -117,7 +120,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
             .FirstOrDefaultAsync(p => p.Id == personId, ct).ConfigureAwait(false);
 
         if (person == null)
-            return;
+            throw new InvalidOperationException($"InvestigatorPerson not found for id={personId}.");
 
         if (person.MedicareLookupAttemptedAt != null)
             return;
@@ -148,14 +151,14 @@ internal sealed class MedicareUtilizationService : BackgroundService
         else
         {
             person.MedicareLookupResult = "found";
-            StoreUtilizationRecord(context, person.Id, record);
+            StoreUtilizationRecord(context, person.Id, record, _dataYear);
         }
 
         person.MedicareLookupAttemptedAt = DateTime.UtcNow;
         person.UpdatedAt = DateTime.UtcNow;
     }
 
-    private static void StoreUtilizationRecord(ClinicalTrialsContext context, Guid personId, CmsMedicareRecord record)
+    private static void StoreUtilizationRecord(ClinicalTrialsContext context, Guid personId, CmsMedicareRecord record, int dataYear)
     {
         var chronicConditions = new Dictionary<string, decimal?>();
         AddCond(chronicConditions, "ADHD_Conduct", record.BeneCcBhAdhdOthCdPct);
@@ -182,11 +185,10 @@ internal sealed class MedicareUtilizationService : BackgroundService
         AddCond(chronicConditions, "Arthritis", record.BeneCcPhArthritisPct);
         AddCond(chronicConditions, "Stroke_TIA", record.BeneCcPhStrokeTiaPct);
 
-        var currentYear = DateTime.UtcNow.Year;
         var entity = new MedicareUtilizationEntity
         {
             InvestigatorPersonId = personId,
-            DataYear = currentYear,
+            DataYear = dataYear,
             ProviderType = record.ProviderType,
             TotalBeneficiaries = record.TotalBeneficiaries,
             TotalServices = record.TotalServices,

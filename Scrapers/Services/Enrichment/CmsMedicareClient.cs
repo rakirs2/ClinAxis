@@ -6,16 +6,16 @@ namespace Scrapers.Services.Enrichment;
 public sealed class CmsMedicareClient
 {
     private readonly HttpClient _httpClient;
+    private readonly string _datasetUuid;
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    private const string DatasetUuid = "8889d81e-2ee7-448f-8713-f071038289b5";
-
-    public CmsMedicareClient(HttpClient httpClient)
+    public CmsMedicareClient(HttpClient httpClient, string datasetUuid = "8889d81e-2ee7-448f-8713-f071038289b5")
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _datasetUuid = datasetUuid;
     }
 
     public async Task<CmsMedicareRecord?> GetByNpiAsync(string npi, CancellationToken ct = default)
@@ -23,7 +23,7 @@ public sealed class CmsMedicareClient
         if (string.IsNullOrWhiteSpace(npi))
             return null;
 
-        var url = $"{DatasetUuid}/data?filter[Rndrng_NPI][condition][value]={Uri.EscapeDataString(npi.Trim())}&size=5";
+        var url = $"{_datasetUuid}/data?filter[Rndrng_NPI][condition][value]={Uri.EscapeDataString(npi.Trim())}&size=5";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
         using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
@@ -42,7 +42,7 @@ public sealed class CmsMedicareClient
         if (string.IsNullOrWhiteSpace(npi))
             return [];
 
-        var url = $"{DatasetUuid}/data?filter[Rndrng_NPI][condition][value]={Uri.EscapeDataString(npi.Trim())}&size=20";
+        var url = $"{_datasetUuid}/data?filter[Rndrng_NPI][condition][value]={Uri.EscapeDataString(npi.Trim())}&size=20";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
         using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
