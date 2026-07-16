@@ -24,7 +24,8 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
+      POSTGRES_CONNECTION_STRING: >-
+        Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
 
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +45,9 @@ jobs:
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
 
       - name: DB Integration Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory!=HttpLive"
+        run: >-
+          dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
+          --no-build --filter "TestCategory!=HttpLive"
 
       - name: Upload test results
         if: always()
@@ -123,74 +126,130 @@ jobs:
       - name: Save current as rollback target
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo mkdir -p /opt/clinicaltrialdata && for dir in api frontend ingestion; do mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
+            "sudo mkdir -p /opt/clinicaltrialdata && \
+            for dir in api frontend ingestion; do \
+              mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous \
+                2>/dev/null || true; \
+            done"
 
       - name: Copy binaries to Droplet
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion} && \
-             sudo chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata"
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/dataapi"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/frontend"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
-          scp -r -i ~/.ssh/deploy_key "$PWD/publish/ingestion"/* ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
-          scp -i ~/.ssh/deploy_key "$PWD/publish/efbundle" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
-          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-api.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
-          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-frontend.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
-          scp -i ~/.ssh/deploy_key deploy/systemd/clinicaltrialdata-ingestion.service ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
+            sudo chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata"
+          scp -r -i ~/.ssh/deploy_key \
+            "$PWD/publish/dataapi"/* \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
+          scp -r -i ~/.ssh/deploy_key \
+            "$PWD/publish/frontend"/* \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
+          scp -r -i ~/.ssh/deploy_key \
+            "$PWD/publish/ingestion"/* \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
+          scp -i ~/.ssh/deploy_key \
+            "$PWD/publish/efbundle" \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
+          scp -i ~/.ssh/deploy_key \
+            deploy/systemd/clinicaltrialdata-api.service \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
+          scp -i ~/.ssh/deploy_key \
+            deploy/systemd/clinicaltrialdata-frontend.service \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
+          scp -i ~/.ssh/deploy_key \
+            deploy/systemd/clinicaltrialdata-ingestion.service \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
 
       - name: Stop services and update environment
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
+          set -e
+          echo "Stopping services..."
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
+            clinicaltrialdata-ingestion; do
+            sudo systemctl stop "$svc" 2>/dev/null || true
+          done
           sleep 5
+          /usr/bin/fuser -k 5003/tcp 2>/dev/null || true
+          /usr/bin/fuser -k 5001/tcp 2>/dev/null || true
+          echo "Services stopped."
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
           POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
           INGESTION_STUDY_LIMIT=0
           ASPNETCORE_ENVIRONMENT=Production
           EOF
+          echo "Environment file updated."
           EOSSH
 
       - name: Install systemd unit files
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-api.service /etc/systemd/system/clinicaltrialdata-api.service
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-frontend.service /etc/systemd/system/clinicaltrialdata-frontend.service
-          sudo cp /opt/clinicaltrialdata/clinicaltrialdata-ingestion.service /etc/systemd/system/clinicaltrialdata-ingestion.service
+          set -e
+          src=/opt/clinicaltrialdata
+          dst=/etc/systemd/system
+          sudo cp "$src/clinicaltrialdata-api.service" "$dst/"
+          sudo cp "$src/clinicaltrialdata-frontend.service" "$dst/"
+          sudo cp "$src/clinicaltrialdata-ingestion.service" "$dst/"
           sudo systemctl daemon-reload
+          echo "Systemd unit files installed."
           EOSSH
 
-      - name: Apply database migrations
+      - name: Reset schema and apply database migrations
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          echo "Applying pending database migrations..."
-          chmod +x /opt/clinicaltrialdata/efbundle
+          set -e
           cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
+          echo "Dropping and recreating database schema..."
+          psql -d "$cs" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          echo "Schema reset complete."
+          echo "Applying all migrations via efbundle..."
+          chmod +x /opt/clinicaltrialdata/efbundle
           /opt/clinicaltrialdata/efbundle --connection "$cs"
           echo "Migrations applied successfully."
           EOSSH
 
-      - name: Start services
+      - name: Start services (sequential with health checks)
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          sudo systemctl daemon-reload
-          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
-          sleep 10
+          set -e
+          echo "Starting DataApi..."
+          sudo systemctl start clinicaltrialdata-api
+          for i in $(seq 1 30); do
+            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
+            echo "  DataApi health attempt $i/30: $api_code"
+            if [ "$api_code" = "200" ]; then
+              echo "  DataApi healthy. Warming up..."
+              sleep 2
+              break
+            fi
+            sleep 2
+          done
+          if [ "$api_code" != "200" ]; then
+            echo "ERROR: DataApi failed to become healthy after 60 seconds"
+            sudo journalctl -u clinicaltrialdata-api --no-pager -n 50 || true
+            exit 1
+          fi
+          echo "Starting Frontend and IngestionApp..."
+          sudo systemctl start clinicaltrialdata-frontend clinicaltrialdata-ingestion
+          sleep 5
+          echo "All services started."
           EOSSH
 
       - name: Health check
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          set -e
           echo "Checking service health..."
-          # Check systemd service states first
           echo "--- Service status ---"
           for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
             status=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
             echo "  $svc: $status"
           done
           echo "--- Health check ---"
-          for i in {1..20}; do
-            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
-            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/health 2>/dev/null || echo "000")
+          for i in $(seq 1 20); do
+            hc="http://localhost:5003/health"
+            api_code=$(curl -s -o /dev/null -w "%{http_code}" "$hc" 2>/dev/null || echo "000")
+            hc="http://localhost:5001/health"
+            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" "$hc" 2>/dev/null || echo "000")
             echo "Attempt $i/20: DataApi=$api_code Frontend=$frontend_code"
             if [ "$api_code" = "200" ] && [ "$frontend_code" = "200" ]; then
               echo "Health check passed - All services healthy"
@@ -199,27 +258,51 @@ jobs:
             sleep 2
           done
           echo "Health check failed - dumping service logs"
-          echo "--- DataApi journal ---"
-          sudo journalctl -u clinicaltrialdata-api --no-pager -n 20 2>/dev/null || true
-          echo "--- Frontend journal ---"
-          sudo journalctl -u clinicaltrialdata-frontend --no-pager -n 20 2>/dev/null || true
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
+            echo "--- $svc journal ---"
+            sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
+          done
           exit 1
           EOSSH
 
       - name: Cleanup rollback
         if: success()
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "for dir in api frontend ingestion; do rm -rf /opt/clinicaltrialdata/\$dir.previous 2>/dev/null || true; done"
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          set -e
+          for dir in api frontend ingestion; do
+            rm -rf "/opt/clinicaltrialdata/$dir.previous" 2>/dev/null || true
+          done
+          echo "Rollback artifacts cleaned up."
+          EOSSH
 
       - name: Rollback on failure
         if: failure()
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          echo "Rolling back to previous deployment..."
-          sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
-          for dir in api frontend ingestion; do
-            [ -d "/opt/clinicaltrialdata/$dir.previous" ] && mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
+          set -e
+          echo "=== Deploy failed. Collecting diagnostics ==="
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
+            echo "--- $svc journal (last 30 lines) ---"
+            sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
           done
-          sudo systemctl start clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion
+          echo "=== Rolling back to previous deployment ==="
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
+            clinicaltrialdata-ingestion; do
+            sudo systemctl stop "$svc" 2>/dev/null || true
+          done
+          sleep 3
+          for dir in api frontend ingestion; do
+            if [ -d "/opt/clinicaltrialdata/$dir.previous" ]; then
+              rm -rf "/opt/clinicaltrialdata/$dir"
+              mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
+              echo "  Restored $dir from previous"
+            fi
+          done
+          echo "Starting previous versions..."
+          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
+            clinicaltrialdata-ingestion; do
+            sudo systemctl start "$svc"
+          done
+          echo "Rollback complete."
           EOSSH

@@ -27,7 +27,7 @@ public sealed class SnapshotDb : IAsyncDisposable
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
             .UseNpgsql(ConnectionString).Options;
         var ctx = new ClinicalTrialsContext(opts);
-        ctx.Database.EnsureCreatedAsync().GetAwaiter().GetResult();
+        ctx.Database.MigrateAsync().GetAwaiter().GetResult();
         SeedData.SeedAsync(ctx).GetAwaiter().GetResult();
         ctx.Dispose();
     }

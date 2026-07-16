@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260715234510_InitialCreate")]
+    [Migration("20260716201038_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

@@ -30,16 +30,14 @@ namespace Scrapers.Persistence
         public async Task MigrateSchemaAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task ResetDatabaseAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            // Drop and recreate schema fresh. Used on startup of IngestionApp / PipelineRunner
-            // so every redeploy starts with a clean database.
             await context.Database.EnsureDeletedAsync(cancellationToken).ConfigureAwait(false);
-            await context.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
