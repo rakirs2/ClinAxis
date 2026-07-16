@@ -173,6 +173,30 @@ public sealed class EventQueueService : IEventQueueService
             .ConfigureAwait(false);
     }
 
+    public async Task<(List<PipelineEventEntity> Events, int TotalCount)> GetDeadLetterEventsPagedAsync(
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(_connectionString)
+                .Options);
+
+        var query = context.PipelineEvents
+            .Where(e => e.Status == "dead-letter");
+
+        var total = await query.CountAsync(ct).ConfigureAwait(false);
+
+        var events = await query
+            .OrderByDescending(e => e.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return (events, total);
+    }
+
     public async Task<EventQueueStats> GetStatsAsync(CancellationToken ct = default)
     {
         using var context = new ClinicalTrialsContext(
@@ -281,6 +305,32 @@ public sealed class EventQueueService : IEventQueueService
         @event.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<bool> RetryEventAsync(int eventId, CancellationToken ct = default)
+    {
+        try
+        {
+            await RetryDeadLetterEventAsync(eventId, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> IgnoreEventAsync(int eventId, CancellationToken ct = default)
+    {
+        try
+        {
+            await IgnoreDeadLetterEventAsync(eventId, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public async Task ReleaseStuckEventsAsync(TimeSpan claimTimeout, CancellationToken ct = default)
