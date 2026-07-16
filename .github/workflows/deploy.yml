@@ -198,8 +198,15 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
           set -e
           cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
+          host=$(echo "$cs" | grep -o 'Host=[^;]*' | cut -d= -f2)
+          port=$(echo "$cs" | grep -o 'Port=[^;]*' | cut -d= -f2)
+          db=$(echo "$cs" | grep -o 'Database=[^;]*' | cut -d= -f2)
+          user=$(echo "$cs" | grep -o 'Username=[^;]*' | cut -d= -f2)
+          pass=$(echo "$cs" | grep -o 'Password=[^;]*' | cut -d= -f2)
           echo "Dropping and recreating database schema..."
-          psql -d "$cs" -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          export PGPASSWORD="$pass"
+          psql -h "$host" -p "$port" -U "$user" -d "$db" \
+            -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
           echo "Schema reset complete."
           echo "Applying all migrations via efbundle..."
           chmod +x /opt/clinicaltrialdata/efbundle
