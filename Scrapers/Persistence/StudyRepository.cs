@@ -1186,41 +1186,36 @@ namespace Scrapers.Persistence
                 query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{search}%"));
             }
 
-            var allIds = await query.Select(p => p.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+            var pagedIds = await query
+                .OrderBy(p => p.FullName)
+                .Select(p => p.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            if (allIds.Count == 0)
+            if (pagedIds.Count == 0)
             {
                 return Array.Empty<InvestigatorPersonSummary>();
             }
 
             var studyCounts = await context.StudyInvestigators
-                .Where(si => allIds.Contains(si.InvestigatorPersonId))
+                .Where(si => pagedIds.Contains(si.InvestigatorPersonId))
                 .GroupBy(si => si.InvestigatorPersonId)
                 .Select(g => new { PersonId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.PersonId, x => x.Count, cancellationToken)
                 .ConfigureAwait(false);
 
             var paperCounts = await context.InvestigatorPapers
-                .Where(ip => allIds.Contains(ip.InvestigatorPersonId))
+                .Where(ip => pagedIds.Contains(ip.InvestigatorPersonId))
                 .GroupBy(ip => ip.InvestigatorPersonId)
                 .Select(g => new { PersonId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.PersonId, x => x.Count, cancellationToken)
                 .ConfigureAwait(false);
 
-            var sortedIds = allIds
-                .OrderByDescending(id => studyCounts.GetValueOrDefault(id, 0))
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            if (sortedIds.Count == 0)
-            {
-                return Array.Empty<InvestigatorPersonSummary>();
-            }
-
             var persons = await context.InvestigatorPersons
                 .AsNoTracking()
-                .Where(p => sortedIds.Contains(p.Id))
+                .Where(p => pagedIds.Contains(p.Id))
                 .Select(p => new
                 {
                     p.Id,
@@ -1238,7 +1233,7 @@ namespace Scrapers.Persistence
 
             var personLookup = persons.ToDictionary(p => p.Id);
 
-            return sortedIds.Select(id =>
+            return pagedIds.Select(id =>
             {
                 var p = personLookup[id];
                 return new InvestigatorPersonSummary
