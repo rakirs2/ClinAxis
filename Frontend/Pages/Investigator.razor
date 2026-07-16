@@ -158,6 +158,79 @@
             </div>
         }
 
+        @if (investigator.medicare is not null)
+        {
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Medicare Activity (@investigator.medicare.dataYear)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">@investigator.medicare.totalBeneficiaries?.ToString("N0")</h5>
+                                            <p class="card-text small">Beneficiaries</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">@investigator.medicare.totalServices?.ToString("N0")</h5>
+                                            <p class="card-text small">Services</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">$@investigator.medicare.totalMedicareAllowedAmount?.ToString("N0")</h5>
+                                            <p class="card-text small">Allowed Amt</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">$@investigator.medicare.totalMedicarePaymentAmount?.ToString("N0")</h5>
+                                            <p class="card-text small">Total Payments</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="card bg-light mb-2">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">$@investigator.medicare.totalMedicareStandardizedAmount?.ToString("N0")</h5>
+                                            <p class="card-text small">Std. Amount</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (investigator.medicare.chronicConditions is { Count: > 0 })
+                            {
+                                <details class="mt-3">
+                                    <summary class="text-muted small">Chronic Condition Prevalence</summary>
+                                    <div class="row mt-2">
+                                        @foreach (var cond in investigator.medicare.chronicConditions.OrderByDescending(kvp => kvp.Value))
+                                        {
+                                            <div class="col-md-4 col-lg-3 mb-1">
+                                                <small class="text-muted">@cond.Key:</small>
+                                                <span class="badge bg-info">@cond.Value?.ToString("F1")%</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </details>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
@@ -365,6 +438,34 @@
         public List<string>? coInvestigators { get; set; }
         public List<string>? conditionsFocusAreas { get; set; }
         public Statistics? statistics { get; set; }
+        public MedicareData? medicare { get; set; }
+    }
+
+    private class MedicareData
+    {
+        public int dataYear { get; set; }
+        public string? providerType { get; set; }
+        public int? totalBeneficiaries { get; set; }
+        public long? totalServices { get; set; }
+        public decimal? totalSubmittedCharges { get; set; }
+        public decimal? totalMedicareAllowedAmount { get; set; }
+        public decimal? totalMedicarePaymentAmount { get; set; }
+        public decimal? totalMedicareStandardizedAmount { get; set; }
+        public string? medicareParticipationIndicator { get; set; }
+        public int? beneAgeLt65Count { get; set; }
+        public int? beneAge65To74Count { get; set; }
+        public int? beneAge75To84Count { get; set; }
+        public int? beneAgeGt84Count { get; set; }
+        public int? beneFemaleCount { get; set; }
+        public int? beneMaleCount { get; set; }
+        public int? beneDualCount { get; set; }
+        public int? beneNonDualCount { get; set; }
+        public decimal? avgRiskScore { get; set; }
+        public long? medicalServices { get; set; }
+        public long? drugServices { get; set; }
+        public decimal? medicalMedicarePayment { get; set; }
+        public decimal? drugMedicarePayment { get; set; }
+        public Dictionary<string, decimal?>? chronicConditions { get; set; }
     }
 
     private class Statistics

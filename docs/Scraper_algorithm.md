@@ -149,16 +149,123 @@ Filtered-out names are logged to `rejected_entities` table (type: `"investigator
 
 ---
 
-### 6. Unique Identifier Cross-Reference (Stub)
+### 6. Unique Identifier Cross-Reference
 
 **Goal**: Cross-reference ORCID and NCBI IDs for investigators to create a canonical identifier.
 
-**Status**: Not yet implemented. Needs CMS.gov integration (step 7).
+**Status**: NPI is assigned from NPPES NPI Registry during enrichment (see §6.2). ORCID is cross-referenced during publication scrub (§5). Full canonical ID resolution is pending (future PR).
 
 ---
 
-### 7. CMS.gov Mapping (Stub)
+### 6.5 Medicare Utilization Enrichment
 
-**Goal**: Map investigators to CMS Open Payments data.
+**Entry Point**: Enqueued as `"medicare.utilization"` event by `InvestigatorEnrichmentService` after NPI is assigned.
 
-**Status**: Not yet implemented.
+**Source**: CMS Medicare Provider Utilization & Payment Data — Physician & Other Practitioners dataset
+- API: `data.cms.gov/data-api/v1/dataset/{datasetUuid}/data`
+- Dataset UUID: `8889d81e-2ee7-448f-8713-f071038289b5` (configurable via `CMS_MEDICARE_DATASET_UUID`)
+- Auth: None (public data)
+- Join Key: NPI (assigned during Investigator NPI enrichment, step 6.2)
+
+**Pipeline**:
+
+1. `InvestigatorEnrichmentService` enqueues `"medicare.utilization"` event when NPI is assigned to a person
+2. `MedicareUtilizationService` (BackgroundService in IngestionApp) claims events every 30s
+3. For each event:
+   - Look up NPI in CMS Medicare API via `CmsMedicareClient.GetByNpiAsync()`
+   - If found: store `MedicareUtilizationEntity` with 35+ fields (beneficiaries, payments, demographics, chronic conditions)
+   - If not found: set `MedicareLookupResult = "not_found"` on person
+   - If no NPI: set `MedicareLookupResult = "no_npi"`
+4. Processed persons are skipped on subsequent cycles (guarded by `MedicareLookupAttemptedAt`)
+5. Invalid event data (non-GUID, missing person) throws `InvalidOperationException` → event is failed properly (not silently skipped)
+
+**Fallback**: `ProcessManualNpiPersonsAsync` runs when no queue events are pending — catches persons with NPI but no Medicare lookup yet (batch of 10 per cycle, ordered by creation date).
+
+**Data Model**:
+
+```
+MedicareUtilizationEntity (table: medicare_utilizations)
+├── Id (PK, serial)
+├── InvestigatorPersonId (FK → investigator_persons.id)
+├── DataYear (int)                         — configurable via MEDICARE_DATA_YEAR env var
+├── ProviderType (string?)
+├── TotalBeneficiaries (int?)
+├── TotalServices (bigint?)
+├── TotalSubmittedCharges (decimal?)
+├── TotalMedicareAllowedAmount (decimal?)
+├── TotalMedicarePaymentAmount (decimal?)
+├── TotalMedicareStandardizedAmount (decimal?)
+├── MedicareParticipationIndicator (string?)
+├── BeneAgeLt65Count .. BeneMaleCount (int?) — beneficiary demographics (8 fields, age/sex/dual splits)
+├── AvgRiskScore (decimal?)
+├── MedicalServices, DrugServices (bigint?)
+├── MedicalMedicarePayment, DrugMedicarePayment (decimal?)
+├── ChronicConditionsJson (text) — serialized JSON of 22 condition prevalence percentages
+└── CreatedAt, UpdatedAt (DateTime)
+```
+
+**Unique Index**: `(InvestigatorPersonId, DataYear)` — one row per person per year.
+
+**Entities modified**:
+- `MedicareUtilizationEntity` — new entity in `Scrapers/Persistence/Entities/`
+- `InvestigatorPersonEntity.MedicareUtilizations` — navigation collection
+- `InvestigatorPersonEntity.MedicareLookupAttemptedAt` — lookup guard (DateTime?)
+- `InvestigatorPersonEntity.MedicareLookupResult` — result summary ("no_npi", "not_found", "found", "error")
+
+**Client**: `CmsMedicareClient` (`Scrapers/Services/Enrichment/CmsMedicareClient.cs`)
+- HTTP client wrapping the CMS data.gov API
+- Methods: `GetByNpiAsync(npi)` — single record, `GetAllByNpiAsync(npi)` — all records
+- Configurable dataset UUID (constructor parameter, defaults to current dataset)
+- Non-2xx responses return null/empty (not found and API error are indistinguishable by design)
+
+**Configuration** (env vars):
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CMS_MEDICARE_BASE_URL` | `https://data.cms.gov/data-api/v1/dataset/` | API base URL |
+| `CMS_MEDICARE_DATASET_UUID` | `8889d81e-2ee7-448f-8713-f071038289b5` | Dataset identifier (changes per year) |
+| `MEDICARE_DATA_YEAR` | current year (DateTime.UtcNow.Year) | Year to tag records with |
+
+**Test Coverage**:
+- Unit: `CmsMedicareClientTests` — 7 tests covering valid/invalid NPI, HTTP errors, custom dataset UUID, via FakeHttpMessageHandler + captured JSON fixture
+- Integration: `MedicareUtilizationIntegrationTests` — 4 tests via DbTestBase: full field persistence, multi-year records, navigation property access, lookup field updates
+
+**Exposed via DataApi**:
+- `GET /api/investigators/{uuid}` — response includes `medicare` block with latest year's data
+- Front-end `Investigator.razor` — Medicare Activity card showing 5 metric tiles (beneficiaries, services, allowed amount, payments, standardized amount) + collapsible chronic condition prevalence
+
+**References**:
+- `docs/data_loss_remediation.md` — all Medicare fields are persisted (verified)
+- `IngestionApp/MedicareUtilizationService.cs` — background service implementation
+
+---
+
+### 7. CMS.gov Enrichment Ecosystem
+
+**Current & planned data sources from CMS.gov, all joined by NPI.**
+
+#### 7.1 Medicare Utilization (Phase 1 — IMPLEMENTED)
+See §6.5 above. Physician-level Medicare utilization data (beneficiaries, payments, demographics, chronic conditions).
+
+**Implementation**:
+| Component | File |
+|-----------|------|
+| Entity | `Scrapers/Persistence/Entities/MedicareUtilizationEntity.cs` |
+| Client | `Scrapers/Services/Enrichment/CmsMedicareClient.cs` |
+| Service | `IngestionApp/MedicareUtilizationService.cs` |
+| Migration | `Scrapers/Persistence/Migrations/20260715153621_AddMedicareUtilization.cs` |
+
+#### 7.2 NPI/ORCID Enrichment (Phase 2 — PR #86, in review)
+NPPES NPI Registry lookup and ORCID API cross-reference to assign persistent identifiers to investigators. See PR #86.
+
+**Implementation**:
+| Component | File |
+|-----------|------|
+| NPI Client | `Scrapers/Services/Cms/NppesNpiRegistryClient.cs` |
+| ORCID Client | `Scrapers/Services/Cms/OrcidApiClient.cs` |
+| Enrichment Pipeline | `Scrapers/Services/Cms/EnrichmentPipeline.cs` |
+
+#### 7.3 CMS Open Payments (Phase 3 — Planned)
+Research payments, general payments, ownership data from openpaymentsdata.cms.gov. See Issue #125.
+
+#### 7.4 CMS Medicare Provider Listing (Phase 4 — Planned)
+Provider demographic data via CSV import. See Issue #31 and PR #86.
