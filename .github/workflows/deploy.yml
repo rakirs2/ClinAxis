@@ -260,6 +260,12 @@ jobs:
         if: failure()
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
+          echo "--- DataApi journal (last 50) ---"
+          sudo journalctl -u clinicaltrialdata-api --no-pager -n 50 2>/dev/null || true
+          echo "--- Frontend journal (last 50) ---"
+          sudo journalctl -u clinicaltrialdata-frontend --no-pager -n 50 2>/dev/null || true
+          echo "--- Ingestion journal (last 50) ---"
+          sudo journalctl -u clinicaltrialdata-ingestion --no-pager -n 50 2>/dev/null || true
           echo "Rolling back to previous deployment..."
           sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true
           for dir in api frontend ingestion; do
