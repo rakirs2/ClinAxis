@@ -415,7 +415,19 @@ app.MapGet("/api/event-queue/stats", async () =>
 {
     var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
     var stats = await eventQueueService.GetStatsAsync();
-    return Results.Ok(stats);
+    var byEventType = await eventQueueService.GetEventTypeBreakdownAsync();
+    return Results.Ok(new
+    {
+        stats.PendingCount,
+        stats.ProcessingCount,
+        stats.CompletedCount,
+        stats.DeadLetterCount,
+        stats.FailedCount,
+        stats.AverageProcessingTimeMs,
+        stats.FailureRate,
+        stats.EstimatedTimeRemainingMs,
+        byEventType
+    });
 });
 
 app.MapGet("/api/event-queue/dead-letter", async () =>
