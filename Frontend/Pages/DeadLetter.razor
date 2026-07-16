@@ -1,0 +1,200 @@
+@page "/dead-letter"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>Dead Letter Queue</h1>
+
+@if (loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (events is null)
+{
+    <p class="text-muted">Loading...</p>
+}
+else if (events.Count == 0)
+{
+    <p class="text-success">✓ No failed events requiring manual intervention.</p>
+}
+else
+{
+    <p class="text-muted">Showing @events.Count of @total dead-letter events</p>
+
+    <table class="table table-sm table-striped" style="max-width: 100%">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Event Type</th>
+                <th>Payload</th>
+                <th>Created</th>
+                <th>Retries</th>
+                <th>Error</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var evt in events)
+            {
+                <tr class="table-danger">
+                    <td>@evt.id</td>
+                    <td><code>@evt.eventType</code></td>
+                    <td><small>@TruncatePayload(evt.data)</small></td>
+                    <td>@FormatDate(evt.createdAt)</td>
+                    <td>@evt.retryCount</td>
+                    <td><small title="@evt.errorMessage">@TruncateText(evt.errorMessage, 80)</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" @onclick="() => RetryEvent(evt.id)" disabled="@busyEventId.HasValue">Retry</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => IgnoreEvent(evt.id)" disabled="@busyEventId.HasValue">Ignore</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (totalPages > 1)
+    {
+        <nav>
+            <ul class="pagination">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    private List<DeadLetterItem>? events;
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int total;
+    private int totalPages;
+    private bool loading;
+    private string? error;
+    private int? busyEventId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        await LoadPage(page);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        loading = true;
+        error = null;
+        currentPage = page;
+
+        try
+        {
+            var response = await Client.GetFromJsonAsync<DeadLetterListResponse>(
+                $"/api/event-queue/dead-letter?page={page}&pageSize={pageSize}");
+            if (response is not null)
+            {
+                events = response.data;
+                total = response.total;
+                totalPages = response.totalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load dead-letter events: {ex.Message}";
+            events = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task RetryEvent(int eventId)
+    {
+        busyEventId = eventId;
+        try
+        {
+            await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/retry", null);
+            await LoadPage(currentPage);
+        }
+        catch
+        {
+            error = "Failed to retry event.";
+        }
+        finally
+        {
+            busyEventId = null;
+        }
+    }
+
+    private async Task IgnoreEvent(int eventId)
+    {
+        busyEventId = eventId;
+        try
+        {
+            await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/ignore", null);
+            await LoadPage(currentPage);
+        }
+        catch
+        {
+            error = "Failed to ignore event.";
+        }
+        finally
+        {
+            busyEventId = null;
+        }
+    }
+
+    private static string FormatDate(DateTime dt) =>
+        dt.ToString("yyyy-MM-dd HH:mm");
+
+    private static string TruncatePayload(string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return "--";
+        return data.Length > 50 ? data[..50] + "..." : data;
+    }
+
+    private static string TruncateText(string? text, int maxLen)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length > maxLen ? text[..maxLen] + "..." : text;
+    }
+
+    private class DeadLetterItem
+    {
+        public int id { get; set; }
+        public string? eventType { get; set; }
+        public string? data { get; set; }
+        public string? status { get; set; }
+        public string? errorMessage { get; set; }
+        public int retryCount { get; set; }
+        public DateTime createdAt { get; set; }
+        public DateTime? completedAt { get; set; }
+    }
+
+    private class DeadLetterListResponse
+    {
+        public List<DeadLetterItem>? data { get; set; }
+        public int total { get; set; }
+        public int page { get; set; }
+        public int pageSize { get; set; }
+        public int totalPages { get; set; }
+    }
+}

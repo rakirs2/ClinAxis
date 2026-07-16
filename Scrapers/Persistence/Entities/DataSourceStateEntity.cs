@@ -25,4 +25,7 @@ public sealed class DataSourceStateEntity
     
     /// <summary>Last updated timestamp</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Cumulative count of keywords rejected during ingestion for this source</summary>
+    public int RejectedKeywordsTotal { get; set; }
 }
