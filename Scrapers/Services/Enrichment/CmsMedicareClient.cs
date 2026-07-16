@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Scrapers.Services.Enrichment;
 
@@ -96,10 +97,17 @@ public sealed class CmsMedicareClient
 
     private static JsonSerializerOptions CreateJsonOptions()
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        // Add converters for nullable numeric types that may come as strings from CMS API
         options.Converters.Add(new FlexibleNullableIntConverter());
         options.Converters.Add(new FlexibleNullableLongConverter());
         options.Converters.Add(new FlexibleNullableDecimalConverter());
+
         return options;
     }
 
@@ -164,170 +172,128 @@ public sealed class CmsMedicareRecord
     public string? MedicareParticipationIndicator { get; set; }
 
     [JsonPropertyName("Tot_Benes")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? TotalBeneficiaries { get; set; }
 
     [JsonPropertyName("Tot_Srvcs")]
-    [JsonConverter(typeof(FlexibleNullableLongConverter))]
     public long? TotalServices { get; set; }
 
     [JsonPropertyName("Tot_Sbmtd_Chrg")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? TotalSubmittedCharges { get; set; }
 
     [JsonPropertyName("Tot_Mdcr_Alowd_Amt")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? TotalMedicareAllowedAmount { get; set; }
 
     [JsonPropertyName("Tot_Mdcr_Pymt_Amt")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? TotalMedicarePaymentAmount { get; set; }
 
     [JsonPropertyName("Tot_Mdcr_Stdzd_Amt")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? TotalMedicareStandardizedAmount { get; set; }
 
     [JsonPropertyName("Bene_Age_LT_65_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneAgeLt65Count { get; set; }
 
     [JsonPropertyName("Bene_Age_65_74_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneAge65To74Count { get; set; }
 
     [JsonPropertyName("Bene_Age_75_84_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneAge75To84Count { get; set; }
 
     [JsonPropertyName("Bene_Age_GT_84_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneAgeGt84Count { get; set; }
 
     [JsonPropertyName("Bene_Feml_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneFemaleCount { get; set; }
 
     [JsonPropertyName("Bene_Male_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneMaleCount { get; set; }
 
     [JsonPropertyName("Bene_Dual_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneDualCount { get; set; }
 
     [JsonPropertyName("Bene_Ndual_Cnt")]
-    [JsonConverter(typeof(FlexibleNullableIntConverter))]
     public int? BeneNonDualCount { get; set; }
 
     [JsonPropertyName("Bene_Avg_Risk_Scre")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? AvgRiskScore { get; set; }
 
     [JsonPropertyName("Med_Tot_Srvcs")]
-    [JsonConverter(typeof(FlexibleNullableLongConverter))]
     public long? MedicalServices { get; set; }
 
     [JsonPropertyName("Drug_Tot_Srvcs")]
-    [JsonConverter(typeof(FlexibleNullableLongConverter))]
     public long? DrugServices { get; set; }
 
     [JsonPropertyName("Med_Mdcr_Pymt_Amt")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? MedicalMedicarePayment { get; set; }
 
     [JsonPropertyName("Drug_Mdcr_Pymt_Amt")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? DrugMedicarePayment { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_ADHD_OthCD_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhAdhdOthCdPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Alcohol_Drug_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhAlcoholDrugPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Tobacco_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhTobaccoPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Alz_NonAlzdem_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhAlzNonAlzdemPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Anxiety_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhAnxietyPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Bipolar_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhBipolarPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Depress_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhDepressPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_PTSD_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhPtsdPct { get; set; }
 
     [JsonPropertyName("Bene_CC_BH_Schizo_OthPsy_V1_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcBhSchizoOthPsyPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Asthma_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhAsthmaPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Afib_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhAfibPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Cancer6_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhCancerPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_CKD_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhCkdPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_COPD_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhCopdPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Diabetes_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhDiabetesPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_HF_NonIHD_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhHfNonIhdPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Hyperlipidemia_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhHyperlipidemiaPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Hypertension_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhHypertensionPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_IschemicHeart_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhIschemicHeartPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Osteoporosis_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhOsteoporosisPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Parkinson_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhParkinsonPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Arthritis_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhArthritisPct { get; set; }
 
     [JsonPropertyName("Bene_CC_PH_Stroke_TIA_V2_Pct")]
-    [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? BeneCcPhStrokeTiaPct { get; set; }
 }
