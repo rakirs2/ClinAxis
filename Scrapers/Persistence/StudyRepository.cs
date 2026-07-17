@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +54,8 @@ namespace Scrapers.Persistence
             var batchAffiliations = new Dictionary<(Guid PersonId, string Institution), InvestigatorAffiliationEntity>();
             var rejectedNames = new List<string>();
             var rejectedKeywords = new List<string>();
+            var rejectedAffiliations = new List<string>();
+            var rejectedConditions = new List<string>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
             foreach (ClinicalTrialRecord? record in recordList)
             {
@@ -135,52 +138,59 @@ namespace Scrapers.Persistence
 
                         if (!string.IsNullOrWhiteSpace(officialAffiliation))
                         {
-                            var affilKey = (person.Id, officialAffiliation);
-                            if (!batchAffiliations.TryGetValue(affilKey, out var existingAffil))
+                            if (!IsValidInstitutionName(officialAffiliation))
                             {
-                                existingAffil = await context.InvestigatorAffiliations
-                                    .FirstOrDefaultAsync(a =>
-                                        a.InvestigatorPersonId == person.Id &&
-                                        a.InstitutionName == officialAffiliation,
-                                        cancellationToken)
-                                    .ConfigureAwait(false);
-
-                                if (existingAffil == null)
+                                rejectedAffiliations.Add($"{record.NctId}: {officialAffiliation}");
+                            }
+                            else
+                            {
+                                var affilKey = (person.Id, officialAffiliation);
+                                if (!batchAffiliations.TryGetValue(affilKey, out var existingAffil))
                                 {
-                                    existingAffil = new InvestigatorAffiliationEntity
+                                    existingAffil = await context.InvestigatorAffiliations
+                                        .FirstOrDefaultAsync(a =>
+                                            a.InvestigatorPersonId == person.Id &&
+                                            a.InstitutionName == officialAffiliation,
+                                            cancellationToken)
+                                        .ConfigureAwait(false);
+
+                                    if (existingAffil == null)
                                     {
-                                        InvestigatorPersonId = person.Id,
-                                        InstitutionName = officialAffiliation,
-                                        Role = officialRole,
-                                        StartDate = record.StartDate,
-                                        IsPrimary = false
-                                    };
-                                    context.InvestigatorAffiliations.Add(existingAffil);
+                                        existingAffil = new InvestigatorAffiliationEntity
+                                        {
+                                            InvestigatorPersonId = person.Id,
+                                            InstitutionName = officialAffiliation,
+                                            Role = officialRole,
+                                            StartDate = record.StartDate,
+                                            IsPrimary = false
+                                        };
+                                        context.InvestigatorAffiliations.Add(existingAffil);
+                                    }
+
+                                    batchAffiliations[affilKey] = existingAffil;
                                 }
 
-                                batchAffiliations[affilKey] = existingAffil;
-                            }
+                                if (record.StartDate.HasValue &&
+                                    (!existingAffil.StartDate.HasValue ||
+                                     record.StartDate.Value > existingAffil.StartDate.Value))
+                                {
+                                    existingAffil.StartDate = record.StartDate;
+                                    existingAffil.Role ??= officialRole;
+                                }
 
-                            if (record.StartDate.HasValue &&
-                                (!existingAffil.StartDate.HasValue ||
-                                 record.StartDate.Value > existingAffil.StartDate.Value))
-                            {
-                                existingAffil.StartDate = record.StartDate;
-                                existingAffil.Role ??= officialRole;
+                                if (!personAffiliationStats.TryGetValue(person.Id, out var instStats))
+                                {
+                                    instStats = new Dictionary<string, (int Count, DateOnly? LatestDate)>(StringComparer.OrdinalIgnoreCase);
+                                    personAffiliationStats[person.Id] = instStats;
+                                }
+                                var current = instStats!.GetValueOrDefault(officialAffiliation);
+                                instStats[officialAffiliation] = (
+                                    current.Count + 1,
+                                    current.LatestDate.HasValue && record.StartDate.HasValue
+                                        ? (record.StartDate.Value > current.LatestDate.Value ? record.StartDate : current.LatestDate)
+                                        : (record.StartDate ?? current.LatestDate)
+                                );
                             }
-
-                            if (!personAffiliationStats.TryGetValue(person.Id, out var instStats))
-                            {
-                                instStats = new Dictionary<string, (int Count, DateOnly? LatestDate)>(StringComparer.OrdinalIgnoreCase);
-                                personAffiliationStats[person.Id] = instStats;
-                            }
-                            var current = instStats!.GetValueOrDefault(officialAffiliation);
-                            instStats[officialAffiliation] = (
-                                current.Count + 1,
-                                current.LatestDate.HasValue && record.StartDate.HasValue
-                                    ? (record.StartDate.Value > current.LatestDate.Value ? record.StartDate : current.LatestDate)
-                                    : (record.StartDate ?? current.LatestDate)
-                            );
                         }
                     }
 
@@ -260,7 +270,15 @@ namespace Scrapers.Persistence
                         {
                             if (!string.IsNullOrWhiteSpace(cond))
                             {
-                                entity.Conditions!.Add(new StudyConditionEntity { StudyNctId = record.NctId!, Condition = cond.Trim() });
+                                var trimmed = cond.Trim();
+                                if (IsValidCondition(trimmed))
+                                {
+                                    entity.Conditions!.Add(new StudyConditionEntity { StudyNctId = record.NctId!, Condition = trimmed });
+                                }
+                                else
+                                {
+                                    rejectedConditions.Add($"{record.NctId}: {trimmed}");
+                                }
                             }
                         }
                     }
@@ -344,7 +362,31 @@ namespace Scrapers.Persistence
                 });
             }
 
-            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0)
+            foreach (var entry in rejectedAffiliations)
+            {
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
+                {
+                    EntityType = "affiliation",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
+                });
+            }
+
+            foreach (var entry in rejectedConditions)
+            {
+                var parts = entry.Split(": ", 2);
+                context.RejectedEntities.Add(new RejectedEntityEntity
+                {
+                    EntityType = "condition",
+                    Value = parts.Length > 1 ? parts[1] : entry,
+                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    RejectedAt = DateTime.UtcNow
+                });
+            }
+
+            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0 || rejectedConditions.Count > 0)
             {
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -1636,6 +1678,65 @@ namespace Scrapers.Persistence
 
             person.UpdatedAt = DateTime.UtcNow;
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private static readonly HashSet<string> AffiliationBlocklist = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "professor", "director", "chief", "chair", "chairman", "chairperson",
+            "surgeon", "specialist", "consultant", "resident", "fellow",
+            "nurse", "physician", "doctor", "anesthesiologist", "cardiologist",
+            "neurologist", "oncologist", "radiologist", "pathologist", "dermatologist",
+            "gastroenterologist", "endocrinologist", "rheumatologist", "nephrologist",
+            "pulmonologist", "hematologist", "ophthalmologist", "urologist",
+            "psychiatrist", "pediatrician", "researcher", "scientist", "investigator",
+            "professor emeritus", "associate professor", "assistant professor",
+            "clinical professor", "research professor", "adjunct professor",
+            "principle investigator", "principal investigator",
+            "co-investigator", "sub-investigator", "study director",
+            "medical director", "clinical director", "research director",
+            "department head", "section head", "division chief",
+            "pharmacist", "therapist", "psychologist", "epidemiologist",
+            "biostatistician", "coordinator", "manager", "supervisor",
+            "technician", "technologist", "assistant", "associate",
+        };
+
+        private static bool IsValidInstitutionName(string affiliation)
+        {
+            var trimmed = affiliation.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+                return false;
+
+            if (AffiliationBlocklist.Contains(trimmed))
+                return false;
+
+            if (trimmed.Split(' ').Length == 1 && trimmed.Length > 1)
+            {
+                if (trimmed.EndsWith("ist", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.EndsWith("ian", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.EndsWith("logist", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static readonly Regex IcdCodePattern = new(
+            @"\b[A-TV-Z][0-9][0-9AB]\.?[0-9]{0,4}\b|\b[0-9]{3}\.?[0-9]{0,2}\b",
+            RegexOptions.Compiled);
+
+        private static bool IsValidCondition(string condition)
+        {
+            if (condition.Contains('"', StringComparison.Ordinal) ||
+                condition.Contains('\'', StringComparison.Ordinal))
+                return false;
+
+            if (condition.Contains('.', StringComparison.Ordinal))
+                return false;
+
+            if (IcdCodePattern.IsMatch(condition))
+                return false;
+
+            return true;
         }
 
         private ClinicalTrialsContext CreateContext()
