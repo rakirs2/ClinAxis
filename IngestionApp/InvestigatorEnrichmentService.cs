@@ -11,6 +11,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
     private readonly NppesNpiRegistryClient _npiClient;
+    private readonly OrcidApiClient _orcidClient;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
@@ -18,11 +19,13 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
     public InvestigatorEnrichmentService(
         IEventQueueService eventQueueService,
         NppesNpiRegistryClient npiClient,
+        OrcidApiClient orcidClient,
         string connectionString,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _npiClient = npiClient ?? throw new ArgumentNullException(nameof(npiClient));
+        _orcidClient = orcidClient ?? throw new ArgumentNullException(nameof(orcidClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{System.Environment.MachineName}-enrichment-{System.Environment.ProcessId}";
@@ -91,10 +94,25 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         if (person.NpiLookupAttemptedAt != null)
             return;
 
-        // Parse name for API queries
-        var nameParts = person.FullName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        // Parse name for API queries — try multiple formats for better matching
+        var nameParts = person.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var firstName = nameParts.Length > 1 ? nameParts[0] : "";
-        var lastName = nameParts.Length > 1 ? nameParts[1] : nameParts[0];
+        var lastName = nameParts.Length > 1 ? nameParts[^1] : nameParts[0];
+
+        // Generate name variations: "John A Smith" → try "John"+"Smith", then "John"+"A Smith"
+        var nameVariations = new List<(string First, string Last)>
+        {
+            (firstName, lastName)
+        };
+
+        if (nameParts.Length > 2)
+        {
+            nameVariations.Add((nameParts[0], string.Join(" ", nameParts[1..])));
+            if (nameParts.Length == 3 && nameParts[1].Length <= 2)
+            {
+                nameVariations.Add((nameParts[0], nameParts[^1]));
+            }
+        }
 
         // Get affiliation from primary affiliation for disambiguation
         var primaryAffil = await context.InvestigatorAffiliations
@@ -109,19 +127,29 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         {
             try
             {
-                var npiResults = await _npiClient.SearchByNameAsync(firstName, lastName, affilName, affilState, ct).ConfigureAwait(false);
+                IReadOnlyList<NpiRegistryResult> npiResults = [];
+                foreach (var (tryFirst, tryLast) in nameVariations)
+                {
+                    npiResults = await _npiClient.SearchByNameAsync(tryFirst, tryLast, affilName, affilState, ct).ConfigureAwait(false);
+                    if (npiResults.Count > 0)
+                        break;
+                }
 
                 foreach (var result in npiResults)
                 {
+                    var matchedName = $"{result.Basic?.FirstName} {result.Basic?.LastName}".Trim();
+                    var matchedOrg = result.Basic?.OrganizationName;
+                    var matchedState = result.Addresses is { Count: > 0 } ? result.Addresses[0].State : null;
+
                     context.PersonIdentifierCandidates.Add(new PersonIdentifierCandidateEntity
                     {
                         PersonId = personId,
                         IdentifierType = "NPI",
                         IdentifierValue = result.Number ?? "",
                         SourceName = "NPPES",
-                        MatchedFullName = $"{result.Basic?.FirstName} {result.Basic?.LastName}".Trim(),
-                        MatchedAffiliation = result.Basic?.OrganizationName,
-                        MatchedState = result.Addresses is { Count: > 0 } ? result.Addresses[0].State : null,
+                        MatchedFullName = matchedName,
+                        MatchedAffiliation = matchedOrg,
+                        MatchedState = matchedState,
                         SourceStatus = result.Status,
                         SourceDeactivatedAt = result.DeactivationDate,
                         IsAutoApproved = false,
@@ -129,9 +157,38 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                     });
                 }
 
-                if (npiResults.Count == 1 && npiResults[0].Status != "D")
+                IReadOnlyList<NpiRegistryResult> resolved;
+
+                // Try affiliation-based filtering (now populated by CT.gov enrichment)
+                if (npiResults.Count > 1 && !string.IsNullOrWhiteSpace(affilName))
                 {
-                    person.Npi = npiResults[0].Number;
+                    var orgResults = npiResults
+                        .Where(r => r.Basic?.OrganizationName != null &&
+                            r.Basic.OrganizationName.Contains(affilName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    resolved = orgResults.Count == 1 ? orgResults : npiResults;
+                }
+                else
+                {
+                    resolved = npiResults;
+                }
+
+                // Try ORCID cross-reference: if person has ORCID, check NPPES identifiers
+                if (resolved.Count > 1 && !string.IsNullOrWhiteSpace(person.Orcid))
+                {
+                    var orcidResults = resolved
+                        .Where(r => r.Identifiers != null &&
+                            r.Identifiers.Any(id =>
+                                string.Equals(id.IdentifierType, "17", StringComparison.Ordinal) &&
+                                string.Equals(id.Identifier, person.Orcid, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+                    if (orcidResults.Count == 1)
+                        resolved = orcidResults;
+                }
+
+                if (resolved.Count == 1 && resolved[0].Status != "D")
+                {
+                    person.Npi = resolved[0].Number;
                     person.NpiEnrichmentResult = "assigned";
                     var candidate = await context.PersonIdentifierCandidates
                         .Where(c => c.PersonId == personId && c.IdentifierType == "NPI")
