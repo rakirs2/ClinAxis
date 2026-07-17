@@ -446,6 +446,98 @@ public sealed class StudyRepositoryTests : DbTestBase
     }
 
     [TestMethod]
+    public async Task IngestStudy_RejectsBadAffiliations()
+    {
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000904",
+            BriefTitle = "Affiliation Validation Test",
+            OverallStatus = "RECRUITING",
+            Conditions = ["cancer"],
+            OverallOfficials =
+            [
+                new Investigator { Name = "Alice Smith", Affiliation = "Cardiology Center", Role = "PRINCIPAL_INVESTIGATOR" },
+                new Investigator { Name = "Bob Jones", Affiliation = "Anesthesiologist", Role = "SUB_INVESTIGATOR" },
+                new Investigator { Name = "Carol White", Affiliation = "Professor", Role = "STUDY_DIRECTOR" },
+                new Investigator { Name = "Dan Brown", Affiliation = "Surgeon", Role = "PRINCIPAL_INVESTIGATOR" },
+            ]
+        };
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var alice = await Context.InvestigatorPersons.FirstOrDefaultAsync(p => p.FullName == "Alice Smith");
+        Assert.IsNotNull(alice);
+        var aliceAffils = await Context.InvestigatorAffiliations
+            .Where(a => a.InvestigatorPersonId == alice.Id)
+            .ToListAsync();
+        Assert.AreEqual(1, aliceAffils.Count, "Alice's valid affiliation should be stored");
+        Assert.AreEqual("Cardiology Center", aliceAffils[0].InstitutionName);
+
+        var bob = await Context.InvestigatorPersons.FirstOrDefaultAsync(p => p.FullName == "Bob Jones");
+        Assert.IsNotNull(bob);
+        var bobAffils = await Context.InvestigatorAffiliations
+            .Where(a => a.InvestigatorPersonId == bob.Id)
+            .ToListAsync();
+        Assert.AreEqual(0, bobAffils.Count, "Bob's 'Anesthesiologist' (occupation) should be rejected");
+
+        var carol = await Context.InvestigatorPersons.FirstOrDefaultAsync(p => p.FullName == "Carol White");
+        Assert.IsNotNull(carol);
+        var carolAffils = await Context.InvestigatorAffiliations
+            .Where(a => a.InvestigatorPersonId == carol.Id)
+            .ToListAsync();
+        Assert.AreEqual(0, carolAffils.Count, "Carol's 'Professor' (role) should be rejected");
+
+        var rejected = await Context.RejectedEntities
+            .Where(r => r.EntityType == "affiliation" && r.StudyNctId == "NCT00000904")
+            .ToListAsync();
+        Assert.AreEqual(3, rejected.Count, "Three affiliations should be rejected and logged");
+        Assert.IsTrue(rejected.Any(r => r.Value == "Anesthesiologist"));
+        Assert.IsTrue(rejected.Any(r => r.Value == "Professor"));
+        Assert.IsTrue(rejected.Any(r => r.Value == "Surgeon"));
+    }
+
+    [TestMethod]
+    public async Task IngestStudy_RejectsBadConditions()
+    {
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000905",
+            BriefTitle = "Condition Validation Test",
+            OverallStatus = "RECRUITING",
+            Conditions =
+            [
+                "Diabetes Mellitus",
+                "Diabetes \"Type 2\"",
+                "C.O.P.D.",
+                "Cancer (C80)",
+                "Hypertension",
+                "E11.9",
+            ],
+            OverallOfficials = [new Investigator { Name = "Test Researcher", Role = "PRINCIPAL_INVESTIGATOR" }]
+        };
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var stored = await Context.StudyConditions
+            .Where(c => c.StudyNctId == "NCT00000905")
+            .Select(c => c.Condition)
+            .ToListAsync();
+
+        Assert.AreEqual(2, stored.Count, "Only 'Diabetes Mellitus' and 'Hypertension' should be stored");
+        Assert.IsTrue(stored.Contains("Diabetes Mellitus"));
+        Assert.IsTrue(stored.Contains("Hypertension"));
+
+        var rejected = await Context.RejectedEntities
+            .Where(r => r.EntityType == "condition" && r.StudyNctId == "NCT00000905")
+            .ToListAsync();
+        Assert.AreEqual(4, rejected.Count, "Four conditions should be rejected and logged");
+        Assert.IsTrue(rejected.Any(r => r.Value == "Diabetes \"Type 2\""), "Quotes should be rejected");
+        Assert.IsTrue(rejected.Any(r => r.Value == "C.O.P.D."), "Periods should be rejected");
+        Assert.IsTrue(rejected.Any(r => r.Value == "Cancer (C80)"), "ICD code in parenthetical should be rejected");
+        Assert.IsTrue(rejected.Any(r => r.Value == "E11.9"), "ICD-10 code should be rejected");
+    }
+
+    [TestMethod]
     public async Task CountStudiesByInvestigatorPersonIdAsync_ReturnsCorrectTotal()
     {
         var investigatorName = "Dr. Jane Doe";
