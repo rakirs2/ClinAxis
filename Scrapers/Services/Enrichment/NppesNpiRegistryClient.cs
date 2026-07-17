@@ -73,11 +73,21 @@ public sealed class NpiRegistryResult
     public NpiBasic? Basic { get; set; }
     public IReadOnlyList<NpiAddress>? Addresses { get; set; }
     public IReadOnlyList<NpiTaxonomy>? Taxonomies { get; set; }
+    public IReadOnlyList<NpiIdentifier>? Identifiers { get; set; }
     public string? Status { get; set; }
     [JsonPropertyName("deactivation_date")]
     public DateTime? DeactivationDate { get; set; }
     [JsonPropertyName("reactivation_date")]
     public DateTime? ReactivationDate { get; set; }
+}
+
+public sealed class NpiIdentifier
+{
+    public string? Identifier { get; set; }
+    [JsonPropertyName("identifier_type")]
+    public string? IdentifierType { get; set; }
+    public string? State { get; set; }
+    public string? Issuer { get; set; }
 }
 
 public sealed class NpiBasic
