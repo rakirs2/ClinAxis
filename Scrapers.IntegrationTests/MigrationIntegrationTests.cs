@@ -95,4 +95,37 @@ public sealed class MigrationIntegrationTests : DbTestBase
             return false;
         }
     }
+
+    [TestMethod]
+    public async Task Migrate_WithSearchPathPublic_IsIdempotent()
+    {
+        var cs = $"{ConnectionString};Search Path=public;Pooling=false";
+        using var ctx = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(cs).Options);
+
+        await ctx.Database.MigrateAsync();
+        await ctx.Database.MigrateAsync();
+
+        Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies));
+        Assert.IsTrue(await IsTableAccessibleAsync(ctx.CategoryAggregations));
+    }
+
+    [TestMethod]
+    public async Task Migrate_WithSearchPathPublic_CreatesFullSchema()
+    {
+        var cs = $"{ConnectionString};Search Path=public;Pooling=false";
+        using var ctx = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(cs).Options);
+
+        await ctx.Database.EnsureDeletedAsync();
+        await ctx.Database.MigrateAsync();
+
+        var entityTypes = ctx.Model.GetEntityTypes().Select(e => e.GetTableName()).ToHashSet();
+        Assert.IsTrue(entityTypes.Contains("studies"));
+        Assert.IsTrue(entityTypes.Contains("category_aggregations"));
+        Assert.IsTrue(entityTypes.Contains("investigator_persons"));
+        Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies).ConfigureAwait(false));
+    }
 }
