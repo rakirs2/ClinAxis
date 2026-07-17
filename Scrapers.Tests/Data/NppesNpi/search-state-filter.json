@@ -1,0 +1,62 @@
+{
+  "result_count": 2,
+  "results": [
+    {
+      "number": "1234567890",
+      "status": "A",
+      "basic": {
+        "first_name": "John",
+        "last_name": "Smith",
+        "organization_name": "Mayo Clinic"
+      },
+      "addresses": [
+        {
+          "address_purpose": "LOCATION",
+          "address_1": "200 First St SW",
+          "city": "Rochester",
+          "state": "MN",
+          "postal_code": "55905"
+        }
+      ],
+      "identifiers": []
+    },
+    {
+      "number": "9876543210",
+      "status": "A",
+      "basic": {
+        "first_name": "John",
+        "last_name": "Smith",
+        "organization_name": "University of Minnesota"
+      },
+      "addresses": [
+        {
+          "address_purpose": "LOCATION",
+          "address_1": "516 Delaware St SE",
+          "city": "Minneapolis",
+          "state": "MN",
+          "postal_code": "55455"
+        }
+      ],
+      "identifiers": []
+    },
+    {
+      "number": "5555555555",
+      "status": "A",
+      "basic": {
+        "first_name": "John",
+        "last_name": "Smith",
+        "organization_name": "Cleveland Clinic"
+      },
+      "addresses": [
+        {
+          "address_purpose": "LOCATION",
+          "address_1": "9500 Euclid Ave",
+          "city": "Cleveland",
+          "state": "OH",
+          "postal_code": "44195"
+        }
+      ],
+      "identifiers": []
+    }
+  ]
+}

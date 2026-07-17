@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Testing;
+using Scrapers.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace Scrapers.IntegrationTests;
 
@@ -43,5 +45,35 @@ public sealed class DataApiSmokeTests
         Assert.IsTrue(doc.RootElement.TryGetProperty("version", out _));
         Assert.IsTrue(doc.RootElement.TryGetProperty("informationalVersion", out _));
         Assert.IsTrue(doc.RootElement.TryGetProperty("framework", out _));
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task RejectedEntitiesEndpoint_Returns200WithPagination()
+    {
+        using HttpResponseMessage response = await _client.GetAsync("/api/rejected-entities?type=keyword&page=1&pageSize=10");
+        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.AreEqual("application/json", response.Content.Headers.ContentType?.MediaType);
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.IsTrue(doc.RootElement.TryGetProperty("data", out _));
+        Assert.IsTrue(doc.RootElement.TryGetProperty("total", out _));
+        Assert.IsTrue(doc.RootElement.TryGetProperty("page", out _));
+        Assert.IsTrue(doc.RootElement.TryGetProperty("pageSize", out _));
+        Assert.IsTrue(doc.RootElement.TryGetProperty("totalPages", out _));
+        Assert.AreEqual(1, doc.RootElement.GetProperty("page").GetInt32());
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task EnrichmentBreakdownEndpoint_Returns200WithCounts()
+    {
+        using HttpResponseMessage response = await _client.GetAsync("/api/enrichment/breakdown");
+        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.AreEqual("application/json", response.Content.Headers.ContentType?.MediaType);
+
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var dictionary = doc.RootElement;
+        Assert.IsTrue(dictionary.ValueKind == System.Text.Json.JsonValueKind.Object);
     }
 }

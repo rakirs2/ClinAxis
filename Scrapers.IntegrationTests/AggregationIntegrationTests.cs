@@ -90,8 +90,8 @@ public sealed class AggregationIntegrationTests : DbTestBase
         Assert.AreEqual("condition", diabetesRow!.CategoryType);
         Assert.AreEqual(1, diabetesRow.StudyCount);
 
-        CategoryAggregationEntity? insulinRow = catRows.FirstOrDefault(c => c.CategoryName == "insulin-therapy");
-        Assert.IsNotNull(insulinRow, "insulin-therapy should appear in aggregations.");
+        CategoryAggregationEntity? insulinRow = catRows.FirstOrDefault(c => c.CategoryName == "INSULIN-THERAPY");
+        Assert.IsNotNull(insulinRow, "INSULIN-THERAPY should appear in aggregations.");
         Assert.AreEqual("keyword", insulinRow!.CategoryType);
         Assert.AreEqual(1, insulinRow.StudyCount);
 

@@ -186,6 +186,18 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                         resolved = orcidResults;
                 }
 
+                // State-based tiebreaker: if exactly 1 candidate matches the investigator's state → auto-approve
+                if (resolved.Count > 1 && !string.IsNullOrWhiteSpace(affilState))
+                {
+                    var stateResults = resolved
+                        .Where(r => r.Addresses is { Count: > 0 } &&
+                            r.Addresses.Any(a =>
+                                string.Equals(a.State, affilState, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+                    if (stateResults.Count == 1)
+                        resolved = stateResults;
+                }
+
                 if (resolved.Count == 1 && resolved[0].Status != "D")
                 {
                     person.Npi = resolved[0].Number;
@@ -209,6 +221,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
             catch (HttpRequestException ex)
             {
                 System.Diagnostics.Debug.WriteLine($"NPPES lookup failed for {person.FullName}: {ex.Message}");
+                person.NpiEnrichmentResult = "error";
             }
         }
 
