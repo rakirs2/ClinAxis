@@ -210,7 +210,7 @@ jobs:
           echo "Schema reset complete."
           echo "Applying all migrations via efbundle..."
           chmod +x /opt/clinicaltrialdata/efbundle
-          /opt/clinicaltrialdata/efbundle --connection "$cs"
+          /opt/clinicaltrialdata/efbundle --connection "$cs;Search Path=public"
           echo "Migrations applied successfully."
           EOSSH
 
