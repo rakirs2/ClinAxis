@@ -73,11 +73,18 @@ else if (investigators is not null)
                 <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
                     <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
                 </li>
-                @for (int i = 1; i <= totalPages; i++)
+                @foreach (var p in GetPaginationRange(currentPage, totalPages))
                 {
-                    <li class="page-item @(i == currentPage ? "active" : "")">
-                        <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                    </li>
+                    if (p is null)
+                    {
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    }
+                    else
+                    {
+                        <li class="page-item @(p == currentPage ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(p.Value)">@p</button>
+                        </li>
+                    }
                 }
                 <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
                     <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">Next</button>
@@ -169,6 +176,40 @@ else if (investigators is not null)
         public int page { get; set; }
         public int pageSize { get; set; }
         public int totalPages { get; set; }
+    }
+
+    private static List<int?> GetPaginationRange(int current, int total, int maxVisible = 10)
+    {
+        var range = new List<int?>();
+        if (total <= maxVisible)
+        {
+            for (int i = 1; i <= total; i++) range.Add(i);
+            return range;
+        }
+
+        int half = maxVisible / 2;
+        int start = Math.Max(1, current - half);
+        int end = Math.Min(total, start + maxVisible - 1);
+
+        if (end - start + 1 < maxVisible)
+            start = Math.Max(1, end - maxVisible + 1);
+
+        if (start > 1)
+        {
+            range.Add(1);
+            if (start > 2) range.Add(null);
+        }
+
+        for (int i = start; i <= end; i++)
+            range.Add(i);
+
+        if (end < total)
+        {
+            if (end < total - 1) range.Add(null);
+            range.Add(total);
+        }
+
+        return range;
     }
 
     public void Dispose()
