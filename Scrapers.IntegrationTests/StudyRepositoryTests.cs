@@ -637,8 +637,67 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.AreEqual(0, await _repo.CountInvestigatorsByEnrichmentResultAsync("bogus_value"));
     }
 
+    [TestMethod]
+    public async Task UpsertStudiesAsync_PersistsAffiliationsFromCtGov()
+    {
+        ClinicalTrialRecord[] records =
+        [
+            CreateRecord("NCT01000010", "Heart Study", "RECRUITING",
+                [new Investigator { Name = "Alice Smith", Affiliation = "Cardiology Center", Role = "PRINCIPAL_INVESTIGATOR" }],
+                startDate: new DateOnly(2024, 1, 15)),
+            CreateRecord("NCT01000011", "Brain Study", "RECRUITING",
+                [new Investigator { Name = "Alice Smith", Affiliation = "Neurology Institute", Role = "PRINCIPAL_INVESTIGATOR" }],
+                startDate: new DateOnly(2025, 3, 1)),
+            CreateRecord("NCT01000012", "Lung Study", "COMPLETED",
+                [new Investigator { Name = "Alice Smith", Affiliation = "Cardiology Center", Role = "PRINCIPAL_INVESTIGATOR" }],
+                startDate: new DateOnly(2023, 6, 1)),
+            CreateRecord("NCT01000013", "Kidney Study", "ACTIVE",
+                [new Investigator { Name = "Bob Jones", Affiliation = "Renal Associates", Role = "PRINCIPAL_INVESTIGATOR" }],
+                startDate: new DateOnly(2025, 1, 1))
+        ];
+
+        var ingested = await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
+
+        Assert.AreEqual(records.Length, ingested);
+
+        // Alice should have 2 affiliations
+        var alice = await Context.InvestigatorPersons
+            .FirstOrDefaultAsync(p => p.FullName == "Alice Smith");
+        Assert.IsNotNull(alice);
+
+        var aliceAffils = await Context.InvestigatorAffiliations
+            .Where(a => a.InvestigatorPersonId == alice.Id)
+            .ToListAsync();
+        Assert.AreEqual(2, aliceAffils.Count);
+
+        // Cardiology Center: 2 studies, latest 2024-01-15
+        var cardio = aliceAffils.FirstOrDefault(a => a.InstitutionName == "Cardiology Center");
+        Assert.IsNotNull(cardio);
+        Assert.AreEqual(new DateOnly(2024, 1, 15), cardio.StartDate);
+        Assert.IsTrue(cardio.IsPrimary, "Cardiology Center should be primary (count=2 > Neurology's count=1)");
+
+        // Neurology Institute: 1 study, latest 2025-03-01
+        var neuro = aliceAffils.FirstOrDefault(a => a.InstitutionName == "Neurology Institute");
+        Assert.IsNotNull(neuro);
+        Assert.AreEqual(new DateOnly(2025, 3, 1), neuro.StartDate);
+        Assert.IsFalse(neuro.IsPrimary);
+
+        // Bob should have 1 affiliation
+        var bob = await Context.InvestigatorPersons
+            .FirstOrDefaultAsync(p => p.FullName == "Bob Jones");
+        Assert.IsNotNull(bob);
+
+        var bobAffils = await Context.InvestigatorAffiliations
+            .Where(a => a.InvestigatorPersonId == bob.Id)
+            .ToListAsync();
+        Assert.AreEqual(1, bobAffils.Count);
+        Assert.AreEqual("Renal Associates", bobAffils[0].InstitutionName);
+        Assert.IsTrue(bobAffils[0].IsPrimary, "Single affiliation should be primary");
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
-        Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null)
+        Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null,
+        DateOnly? startDate = null)
     {
         return new ClinicalTrialRecord
         {
@@ -646,7 +705,8 @@ public sealed class StudyRepositoryTests : DbTestBase
             BriefTitle = title,
             OverallStatus = status,
             OverallOfficials = investigators?.ToList(),
-            References = references
+            References = references,
+            StartDate = startDate
         };
     }
 }
