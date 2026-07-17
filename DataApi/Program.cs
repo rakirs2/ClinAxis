@@ -292,6 +292,36 @@ app.MapGet("/api/rejected-names", async () =>
     return Results.Ok(names);
 });
 
+app.MapGet("/api/rejected-entities", async (string type, int? page, int? pageSize) =>
+{
+    var repo = new StudyRepository(connectionString);
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 50, 1, 200);
+    var (items, total) = await repo.GetRejectedEntitiesPagedAsync(type, p, ps);
+    return Results.Ok(new
+    {
+        data = items.Select(e => new
+        {
+            e.Id,
+            e.EntityType,
+            e.Value,
+            e.StudyNctId,
+            e.RejectedAt
+        }),
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
+app.MapGet("/api/enrichment/breakdown", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var breakdown = await repo.GetNpiEnrichmentBreakdownAsync();
+    return Results.Ok(breakdown);
+});
+
 app.MapGet("/api/stats", async () =>
 {
     var repo = new StudyRepository(connectionString);
@@ -483,20 +513,6 @@ app.MapGet("/api/data-source-state", async () =>
         s.UpdatedAt,
         s.RejectedKeywordsTotal
     }));
-});
-
-app.MapPost("/api/event-queue/dead-letter/{id}/retry", async (int id) =>
-{
-    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
-    await eventQueueService.RetryDeadLetterEventAsync(id);
-    return Results.Ok(new { message = "Event moved back to pending queue for retry" });
-});
-
-app.MapPost("/api/event-queue/dead-letter/{id}/ignore", async (int id) =>
-{
-    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
-    await eventQueueService.IgnoreDeadLetterEventAsync(id);
-    return Results.Ok(new { message = "Event marked as ignored" });
 });
 
 await app.RunAsync();

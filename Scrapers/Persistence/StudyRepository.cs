@@ -216,12 +216,20 @@ namespace Scrapers.Persistence
                             "patient", "patients", "subjects", "human",
                             "participation", "participatory", "measurement",
                             "multicenter", "multicentric",
+                            "diagnosis", "diagnoses", "therapy", "therapies",
+                            "management", "treatment outcome", "treatment protocol",
+                            "standard therapy", "best practice", "clinical practice",
+                            "pathology", "symptom", "symptoms",
+                            "complication", "complications",
+                            "prognosis", "mortality", "survival",
+                            "effectiveness", "evaluation",
                         };
 
                         var originalKeywords = record.Keywords
                             .Where(k => !string.IsNullOrWhiteSpace(k))
                             .Select(k => k.Trim())
                             .Select(k => k.TrimEnd(',', ';', ':', '.', '!', '?'))
+                            .Select(k => k.ToUpperInvariant())
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .ToList();
 
@@ -230,7 +238,9 @@ namespace Scrapers.Persistence
                             .Where(k => k.Length <= 150)
                             .Where(k => !keywordBlocklist.Contains(k))
                             .Where(k => !k.Contains(';', StringComparison.Ordinal))
+                            .Where(k => !k.Contains('|', StringComparison.Ordinal))
                             .Where(k => k.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 10)
+                            .Where(k => k.Count(c => c == ',') < 3)
                             .Where(k => conditions == null || !conditions.Contains(k))
                             .ToList();
 
@@ -519,6 +529,31 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             return await context.InvestigatorPersons.CountAsync(p => p.NpiLookupAttemptedAt == null && p.IsHuman, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<(List<RejectedEntityEntity> Items, int Total)> GetRejectedEntitiesPagedAsync(
+            string entityType, int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var query = context.RejectedEntities.Where(r => r.EntityType == entityType);
+            var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+            var items = await query
+                .OrderByDescending(r => r.RejectedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            return (items, total);
+        }
+
+        public async Task<Dictionary<string, int>> GetNpiEnrichmentBreakdownAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var counts = await context.InvestigatorPersons
+                .Where(p => p.IsHuman)
+                .GroupBy(p => p.NpiEnrichmentResult ?? "pending")
+                .Select(g => new { Result = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            return counts.ToDictionary(c => c.Result, c => c.Count);
         }
 
         public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)

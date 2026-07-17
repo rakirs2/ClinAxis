@@ -411,7 +411,7 @@ public sealed class StudyRepositoryTests : DbTestBase
             Keywords =
             [
                 "cancer", "cancer",                          // condition duplicate + dup → removed
-                "lung cancer",                                // valid → kept
+                "lung cancer",                                // valid → kept (lowercased)
                 "l",                                          // too short, not known medical term → removed
                 "HIV",                                        // 3 chars but in knownShortMedicalTerms → kept
                 "A very long keyword over one hundred fifty characters that should be rejected by the filter because it is way too long for a keyword",
@@ -421,7 +421,12 @@ public sealed class StudyRepositoryTests : DbTestBase
                 "diabetes; obesity",                          // contains semicolon → removed
                 "clinical trial",                             // keywordBlocklist match → removed
                 "cancer, ",                                   // trailing comma normalized to "cancer" → condition dup → removed
-                "Parkinson's disease",                        // valid → kept
+                "Parkinson's disease",                        // valid → kept (lowercased)
+                "EXERCISE",                                   // case normalization → "exercise" → kept
+                "a|b|c",                                      // contains pipe → removed
+                "stroke, hippotherapy, balance, postural control, gait",  // 4 commas → removed
+                "diagnosis",                                  // keywordBlocklist match → removed
+                "therapy",                                    // keywordBlocklist match → removed
             ],
             OverallOfficials = [new Investigator { Name = "Test Researcher", Role = "PRINCIPAL_INVESTIGATOR" }]
         };
@@ -433,10 +438,11 @@ public sealed class StudyRepositoryTests : DbTestBase
             .Select(k => k.Keyword)
             .ToListAsync();
 
-        Assert.AreEqual(3, keywords.Count, "Only 'lung cancer', 'HIV', and 'Parkinson's disease' should remain");
-        Assert.IsTrue(keywords.Contains("lung cancer"));
+        Assert.AreEqual(4, keywords.Count, "Only 'LUNG CANCER', 'HIV', 'PARKINSON'S DISEASE', and 'EXERCISE' should remain");
+        Assert.IsTrue(keywords.Contains("LUNG CANCER"));
         Assert.IsTrue(keywords.Contains("HIV"));
-        Assert.IsTrue(keywords.Contains("Parkinson's disease"));
+        Assert.IsTrue(keywords.Contains("PARKINSON'S DISEASE"));
+        Assert.IsTrue(keywords.Contains("EXERCISE"));
     }
 
     [TestMethod]
@@ -693,6 +699,75 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.AreEqual(1, bobAffils.Count);
         Assert.AreEqual("Renal Associates", bobAffils[0].InstitutionName);
         Assert.IsTrue(bobAffils[0].IsPrimary, "Single affiliation should be primary");
+    }
+
+    [TestMethod]
+    public async Task GetRejectedEntitiesPagedAsync_ReturnsFilteredByType()
+    {
+        Context.RejectedEntities.AddRange(
+            new RejectedEntityEntity { EntityType = "keyword", Value = "bad-keyword", StudyNctId = "NCT001", RejectedAt = DateTime.UtcNow },
+            new RejectedEntityEntity { EntityType = "keyword", Value = "noisy-term", StudyNctId = "NCT002", RejectedAt = DateTime.UtcNow },
+            new RejectedEntityEntity { EntityType = "investigator_name", Value = "Pharma Inc", StudyNctId = "NCT003", RejectedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var (keywords, keywordTotal) = await _repo.GetRejectedEntitiesPagedAsync("keyword", 1, 10);
+        Assert.AreEqual(2, keywordTotal);
+        Assert.AreEqual(2, keywords.Count);
+        Assert.IsTrue(keywords.All(k => k.EntityType == "keyword"));
+
+        var (names, nameTotal) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 10);
+        Assert.AreEqual(1, nameTotal);
+        Assert.AreEqual(1, names.Count);
+        Assert.AreEqual("Pharma Inc", names[0].Value);
+    }
+
+    [TestMethod]
+    public async Task GetRejectedEntitiesPagedAsync_PaginationWorks()
+    {
+        for (int i = 1; i <= 5; i++)
+        {
+            Context.RejectedEntities.Add(new RejectedEntityEntity
+            {
+                EntityType = "keyword",
+                Value = $"keyword-{i}",
+                StudyNctId = $"NCT{i:D3}",
+                RejectedAt = DateTime.UtcNow.AddDays(-i)
+            });
+        }
+        await Context.SaveChangesAsync();
+
+        var (page1, total) = await _repo.GetRejectedEntitiesPagedAsync("keyword", 1, 2);
+        Assert.AreEqual(5, total);
+        Assert.AreEqual(2, page1.Count);
+
+        var (page3, _) = await _repo.GetRejectedEntitiesPagedAsync("keyword", 3, 2);
+        Assert.AreEqual(1, page3.Count);
+        Assert.AreEqual("keyword-5", page3[0].Value);
+    }
+
+    [TestMethod]
+    public async Task GetNpiEnrichmentBreakdownAsync_ReturnsCorrectCounts()
+    {
+        var persons = new[]
+        {
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "A", IsHuman = true, NpiEnrichmentResult = "assigned", NpiLookupAttemptedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "B", IsHuman = true, NpiEnrichmentResult = "ambiguous", NpiLookupAttemptedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "C", IsHuman = true, NpiEnrichmentResult = "not_found", NpiLookupAttemptedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "D", IsHuman = true, NpiEnrichmentResult = "error", NpiLookupAttemptedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "E", IsHuman = true, NpiEnrichmentResult = null, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "F", IsHuman = false, NpiEnrichmentResult = "assigned", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        };
+        Context.InvestigatorPersons.AddRange(persons);
+        await Context.SaveChangesAsync();
+
+        var breakdown = await _repo.GetNpiEnrichmentBreakdownAsync();
+
+        Assert.AreEqual(1, breakdown["assigned"], "Only human + assigned");
+        Assert.AreEqual(1, breakdown["ambiguous"]);
+        Assert.AreEqual(1, breakdown["not_found"]);
+        Assert.AreEqual(1, breakdown["error"]);
+        Assert.AreEqual(1, breakdown["pending"]);
     }
 
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
