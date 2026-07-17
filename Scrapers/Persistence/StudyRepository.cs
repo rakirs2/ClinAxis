@@ -50,8 +50,10 @@ namespace Scrapers.Persistence
 
             using ClinicalTrialsContext context = CreateContext();
             var batchPersons = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
+            var batchAffiliations = new Dictionary<(Guid PersonId, string Institution), InvestigatorAffiliationEntity>();
             var rejectedNames = new List<string>();
             var rejectedKeywords = new List<string>();
+            var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -67,7 +69,7 @@ namespace Scrapers.Persistence
                 var incomplete = false;
                 var allOfficials = record.OverallOfficials?
                     .Where(i => i != null && !string.IsNullOrWhiteSpace(i.Name))
-                    .Select(i => (Name: i!.Name!, Role: i.Role))
+                    .Select(i => (Name: i!.Name!, Role: i.Role, Affiliation: i.Affiliation))
                     .ToList();
                 var officials = allOfficials?
                     .Where(t => NameFilter.IsHumanName(t.Name, t.Role).IsHuman)
@@ -119,7 +121,7 @@ namespace Scrapers.Persistence
                 if (!incomplete)
                 {
                     entity.StudyInvestigators!.Clear();
-                    foreach (var (officialName, officialRole) in officials!)
+                    foreach (var (officialName, officialRole, officialAffiliation) in officials!)
                     {
                         var person = await FindOrCreatePersonAsync(context, batchPersons, officialName, cancellationToken);
                         person.IsHuman = true;
@@ -130,6 +132,56 @@ namespace Scrapers.Persistence
                             RoleOnStudy = officialRole,
                             IsOverallOfficial = true
                         });
+
+                        if (!string.IsNullOrWhiteSpace(officialAffiliation))
+                        {
+                            var affilKey = (person.Id, officialAffiliation);
+                            if (!batchAffiliations.TryGetValue(affilKey, out var existingAffil))
+                            {
+                                existingAffil = await context.InvestigatorAffiliations
+                                    .FirstOrDefaultAsync(a =>
+                                        a.InvestigatorPersonId == person.Id &&
+                                        a.InstitutionName == officialAffiliation,
+                                        cancellationToken)
+                                    .ConfigureAwait(false);
+
+                                if (existingAffil == null)
+                                {
+                                    existingAffil = new InvestigatorAffiliationEntity
+                                    {
+                                        InvestigatorPersonId = person.Id,
+                                        InstitutionName = officialAffiliation,
+                                        Role = officialRole,
+                                        StartDate = record.StartDate,
+                                        IsPrimary = false
+                                    };
+                                    context.InvestigatorAffiliations.Add(existingAffil);
+                                }
+
+                                batchAffiliations[affilKey] = existingAffil;
+                            }
+
+                            if (record.StartDate.HasValue &&
+                                (!existingAffil.StartDate.HasValue ||
+                                 record.StartDate.Value > existingAffil.StartDate.Value))
+                            {
+                                existingAffil.StartDate = record.StartDate;
+                                existingAffil.Role ??= officialRole;
+                            }
+
+                            if (!personAffiliationStats.TryGetValue(person.Id, out var instStats))
+                            {
+                                instStats = new Dictionary<string, (int Count, DateOnly? LatestDate)>(StringComparer.OrdinalIgnoreCase);
+                                personAffiliationStats[person.Id] = instStats;
+                            }
+                            var current = instStats!.GetValueOrDefault(officialAffiliation);
+                            instStats[officialAffiliation] = (
+                                current.Count + 1,
+                                current.LatestDate.HasValue && record.StartDate.HasValue
+                                    ? (record.StartDate.Value > current.LatestDate.Value ? record.StartDate : current.LatestDate)
+                                    : (record.StartDate ?? current.LatestDate)
+                            );
+                        }
                     }
 
                     entity.Keywords!.Clear();
@@ -297,6 +349,59 @@ namespace Scrapers.Persistence
                     state.RejectedKeywordsTotal += rejectedKeywords.Count;
                     await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 }
+            }
+
+            if (personAffiliationStats.Count > 0)
+            {
+                var personIds = personAffiliationStats.Keys.ToList();
+                var allAffils = await context.InvestigatorAffiliations
+                    .Where(a => personIds.Contains(a.InvestigatorPersonId))
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                var dbStats = allAffils
+                    .GroupBy(a => a.InvestigatorPersonId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.GroupBy(a => a.InstitutionName, StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(
+                                sg => sg.Key,
+                                sg => (Count: sg.Count(), LatestDate: sg.Max(a => a.StartDate)),
+                                StringComparer.OrdinalIgnoreCase));
+
+                foreach (var (personId, batchStats) in personAffiliationStats)
+                {
+                    dbStats.TryGetValue(personId, out var existing);
+                    var mergedStats = new Dictionary<string, (int Count, DateOnly? LatestDate)>(StringComparer.OrdinalIgnoreCase);
+
+                    if (existing != null)
+                    {
+                        foreach (var (inst, stats) in existing)
+                            mergedStats[inst] = stats;
+                    }
+
+                    foreach (var (inst, stats) in batchStats)
+                    {
+                        if (mergedStats.TryGetValue(inst, out var prev))
+                            mergedStats[inst] = (prev.Count + stats.Count,
+                                prev.LatestDate.HasValue && stats.LatestDate.HasValue
+                                    ? (stats.LatestDate.Value > prev.LatestDate.Value ? stats.LatestDate : prev.LatestDate)
+                                    : (stats.LatestDate ?? prev.LatestDate));
+                        else
+                            mergedStats[inst] = stats;
+                    }
+
+                    var bestInstitution = mergedStats
+                        .OrderByDescending(a => a.Value.Count)
+                        .ThenByDescending(a => a.Value.LatestDate)
+                        .First().Key;
+
+                    var personAffils = allAffils.Where(a => a.InvestigatorPersonId == personId).ToList();
+                    foreach (var affil in personAffils)
+                        affil.IsPrimary = string.Equals(affil.InstitutionName, bestInstitution, StringComparison.OrdinalIgnoreCase);
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
 
             return recordList.Count;
