@@ -173,7 +173,7 @@ jobs:
           /usr/bin/fuser -k 5001/tcp 2>/dev/null || true
           echo "Services stopped."
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
-          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
+          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }};Search Path=public
           INGESTION_STUDY_LIMIT=0
           ASPNETCORE_ENVIRONMENT=Production
           EOF
@@ -206,11 +206,12 @@ jobs:
           echo "Dropping and recreating database schema..."
           export PGPASSWORD="$pass"
           psql -h "$host" -p "$port" -U "$user" -d "$db" \
-            -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+            -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" \
+            -c "ALTER DATABASE \"$db\" SET search_path TO public;"
           echo "Schema reset complete."
           echo "Applying all migrations via efbundle..."
           chmod +x /opt/clinicaltrialdata/efbundle
-          /opt/clinicaltrialdata/efbundle --connection "$cs"
+          /opt/clinicaltrialdata/efbundle --connection "$cs;Search Path=public"
           echo "Migrations applied successfully."
           EOSSH
 
