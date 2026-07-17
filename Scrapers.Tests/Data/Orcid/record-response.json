@@ -1,0 +1,30 @@
+{
+  "person": {
+    "name": {
+      "given-names": {
+        "value": "John"
+      },
+      "family-name": {
+        "value": "Smith"
+      }
+    },
+    "external-identifiers": {
+      "external-identifier": [
+        {
+          "external-id-type": "NPI",
+          "external-id-value": "1234567890",
+          "external-id-url": {
+            "value": "https://nppes.cms.hhs.gov/NPI/1234567890"
+          }
+        },
+        {
+          "external-id-type": "ScopusAuthorID",
+          "external-id-value": "987654321",
+          "external-id-url": {
+            "value": "https://www.scopus.com/authid/detail.uri?authorId=987654321"
+          }
+        }
+      ]
+    }
+  }
+}

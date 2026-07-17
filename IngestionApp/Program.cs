@@ -84,11 +84,13 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<ILogger<InvestigatorPublicationScrubService>>(),
             sp.GetRequiredService<IEventQueueService>()));
 
-        // Enrichment services (NPI lookup via NPPES NPI Registry)
+        // Enrichment services (NPI lookup via NPPES NPI Registry, ORCID API for disambiguation)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
+        services.AddSingleton<OrcidApiClient>(_ => new OrcidApiClient(new HttpClient()));
         services.AddHostedService(sp => new InvestigatorEnrichmentService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<NppesNpiRegistryClient>(),
+            sp.GetRequiredService<OrcidApiClient>(),
             cs,
             pollIntervalSeconds: 30));
 
