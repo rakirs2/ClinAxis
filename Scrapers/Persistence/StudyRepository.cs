@@ -1633,6 +1633,7 @@ namespace Scrapers.Persistence
                         PublicationDate = paperDetail.PublicationDate,
                         Abstract = paperDetail.Abstract,
                         IsNonEnglish = paperDetail.IsNonEnglish,
+                        PublicationTypes = paperDetail.PublicationTypes,
                     };
                     context.PubmedPapers.Add(paper);
                 }

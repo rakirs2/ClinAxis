@@ -213,6 +213,10 @@ else
                             <div id="@id" class="accordion-collapse collapse" data-bs-parent="#pubmedAccordion">
                                 <div class="accordion-body">
                                     <small class="text-muted">PMID: @p.pmid | Journal: @p.journal</small>
+                                        @if (!string.IsNullOrEmpty(p.publicationTypes))
+                                        {
+                                            <span class="badge bg-info ms-2">@p.publicationTypes</span>
+                                        }
                                     <hr />
                                     @if (!string.IsNullOrEmpty(p.abstractText))
                                     {
@@ -319,5 +323,6 @@ else
         public string? title { get; set; }
         public string? journal { get; set; }
         public string? abstractText { get; set; }
+        public string? publicationTypes { get; set; }
     }
 }

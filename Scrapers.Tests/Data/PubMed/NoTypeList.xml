@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+      <PMID Version="1">11111111</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <PubDate>
+              <Year>2022</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>Old Journal</Title>
+        </Journal>
+        <ArticleTitle>An Old Article Without Types</ArticleTitle>
+        <Abstract>
+          <AbstractText>Legacy abstract text.</AbstractText>
+        </Abstract>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>

@@ -301,15 +301,16 @@ public sealed class StudyRepositoryTests : DbTestBase
             RoleOnStudy = "PI",
             IsOverallOfficial = true
         });
-        Context.PubmedPapers.Add(new PubmedPaperEntity
-        {
-            Id = paperId,
-            Pmid = "99999999",
-            Title = "Radium Discovery Paper",
-            Journal = "Nature",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+            Context.PubmedPapers.Add(new PubmedPaperEntity
+            {
+                Id = paperId,
+                Pmid = "99999999",
+                Title = "Radium Discovery Paper",
+                Journal = "Nature",
+                PublicationTypes = "Historical Article",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
         Context.StudyReferences.Add(new StudyReferenceEntity
         {
             StudyNctId = "NCT03000001",
