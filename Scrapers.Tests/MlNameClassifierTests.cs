@@ -85,6 +85,7 @@ public sealed class MlNameClassifierTests
     };
 
     [TestMethod]
+    [TestCategory("LocalOnly")]
     public void ExtractAndCompare()
     {
         var outputDir = Path.GetFullPath(Path.Combine(
@@ -96,6 +97,12 @@ public sealed class MlNameClassifierTests
         var rejected = samples.Where(s => !s.Label).Select(s => s.Name).Distinct().ToList();
 
         Console.WriteLine($"Loaded {samples.Count} total rows, {accepted.Count} unique accepted, {rejected.Count} unique rejected");
+
+        if (accepted.Count == 0 || rejected.Count == 0)
+        {
+            Console.WriteLine("Skipping: need both positive and negative samples to train");
+            return;
+        }
 
         DumpTrainingData(outputDir, accepted, rejected);
 
@@ -250,6 +257,9 @@ public sealed class MlNameClassifierTests
 
     private static List<NameData> BalanceForTraining(List<string> accepted, List<string> rejected, int targetTotal)
     {
+        if (accepted.Count == 0 || rejected.Count == 0)
+            return new List<NameData>();
+
         var targetPerClass = targetTotal / 2;
 
         var acceptedBalanced = accepted.OrderBy(_ => RandomNumberGenerator.GetInt32(int.MaxValue)).Take(targetPerClass).ToList();

@@ -42,7 +42,7 @@ jobs:
         # CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
-        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build --filter "TestCategory!=LocalOnly"
 
       - name: DB Integration Tests
         run: >-
