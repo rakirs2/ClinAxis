@@ -1,7 +1,8 @@
 @page "/word-cloud"
 @using System.Net.Http.Json
+@using Frontend.Components
 @inject IHttpClientFactory HttpClientFactory
-@inject NavigationManager Navigation
+
 
 <h1>Advanced Study Search</h1>
 
@@ -15,10 +16,7 @@
 </ul>
 
 <div class="mb-3">
-    <div class="btn-group" role="group">
-        <a href="/word-cloud" class="@conditionsClass">Conditions</a>
-        <a href="/word-cloud?type=keywords" class="@keywordsClass">Keywords</a>
-    </div>
+    <WordCloudTypeSelector DataType="@dataType" DataTypeChanged="@OnTypeChanged" />
     <span class="ms-3 text-muted">
         Showing top @(words?.Count ?? 0) @dataType
     </span>
@@ -67,9 +65,6 @@ else
     private bool loading;
     private string? error;
 
-    private string conditionsClass => dataType == "conditions" ? "btn btn-outline-primary active" : "btn btn-outline-primary";
-    private string keywordsClass => dataType == "keywords" ? "btn btn-outline-primary active" : "btn btn-outline-primary";
-
     private static readonly string[] cloudColors =
     [
         "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#EF6C00",
@@ -80,11 +75,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
-        if (uri.Query.Contains("type=keywords"))
-        {
-            dataType = "keywords";
-        }
+        await LoadData();
+    }
+
+    private async Task OnTypeChanged(string type)
+    {
+        if (dataType == type) return;
+        dataType = type;
         await LoadData();
     }
 
