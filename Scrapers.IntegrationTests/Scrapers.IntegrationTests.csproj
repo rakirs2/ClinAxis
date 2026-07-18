@@ -21,4 +21,7 @@
     <ProjectReference Include="..\Frontend\Frontend.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Scrapers\Services\name-classifier.zip" Link="name-classifier.zip" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

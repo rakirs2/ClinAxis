@@ -85,9 +85,15 @@ public sealed class NameFilterTests
     }
 
     [TestMethod]
+    public void IsHumanName_SevenWordsNowAccepted_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("A B C D E F G", null).IsHuman);
+    }
+
+    [TestMethod]
     public void IsHumanName_TooManyWords_ReturnsFalse()
     {
-        Assert.IsFalse(NameFilter.IsHumanName("A B C D E F G", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("A B C D E F G H I J K", null).IsHuman);
     }
 
     [TestMethod]
@@ -183,9 +189,9 @@ public sealed class NameFilterTests
     }
 
     [TestMethod]
-    public void IsHumanName_StudyDriector_ReturnsFalse()
+    public void IsHumanName_StudyDriector_NowAccepted_ReturnsTrue()
     {
-        Assert.IsFalse(NameFilter.IsHumanName("Study Driector", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Study Driector", null).IsHuman);
     }
 
     [TestMethod]
@@ -247,5 +253,74 @@ public sealed class NameFilterTests
     public void IsHumanName_NameContainingSponsor_ReturnsFalse()
     {
         Assert.IsFalse(NameFilter.IsHumanName("Sebastiano Biondo, Sponsor", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_AmpersandAcademicSuffixes_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("MD & PHD", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("PhD & MBA", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_AmpersandCompany_StillReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Johnson & Johnson", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("Research & Development", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_PiRoleOverridesOrgKeywords_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("John Smith, University of California", "PRINCIPAL_INVESTIGATOR").IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Jane Doe, Department of Cardiology", "SUB_INVESTIGATOR").IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Bob Jones, Medical Center", "INVESTIGATOR").IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_MedicalDirectorWithoutRole_StillReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Medical Director", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("Clinical Director", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_RemovedOrgKeywordsNowAccepted_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("Patient Care Coordinator", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Research Study Office", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Research Study Center", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_OrgKeywordsStillPresent_StillReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("University Hospital", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("Clinical Research Institute", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("Medical Director FDA", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_PhonePrefix_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("+61-8-70887900 Wabnitz", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("+98-9125850829 Tabrizi", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("+1-800-555-0199 Support", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_DigitPrefix_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("01 Studienregister MasterAdmins", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("0146252315 Louis-Jean Couderc,MD", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("999 CentralContact", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_RegularNamesWithPhoneOrDigit_StillAccepted()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("John Smith MD", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Dr. Jane Doe", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Charles 2nd Duke of York", null).IsHuman);
     }
 }

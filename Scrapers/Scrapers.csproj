@@ -19,12 +19,17 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.3.0" />
     <PackageReference Include="MSTest.TestFramework" Version="3.7.3" />
+    <PackageReference Include="Microsoft.ML" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Scrapers.Tests" />
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
     <InternalsVisibleTo Include="Scrapers.Validation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Services\name-classifier.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.7.3" />
     <PackageReference Include="MSTest.TestFramework" Version="3.7.3" />
+    <PackageReference Include="Microsoft.ML" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,4 +25,7 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Scrapers\Services\name-classifier.zip" Link="name-classifier.zip" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

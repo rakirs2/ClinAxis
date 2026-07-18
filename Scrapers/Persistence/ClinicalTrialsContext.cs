@@ -33,6 +33,7 @@ namespace Scrapers.Persistence
         public DbSet<PersonIdentifierCandidateEntity> PersonIdentifierCandidates => Set<PersonIdentifierCandidateEntity>();
         public DbSet<MedicareUtilizationEntity> MedicareUtilizations => Set<MedicareUtilizationEntity>();
         public DbSet<InvestigatorMetricEntity> InvestigatorMetrics => Set<InvestigatorMetricEntity>();
+        public DbSet<NameClassificationLogEntity> NameClassificationLogs => Set<NameClassificationLogEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -604,6 +605,26 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.Source }).IsUnique();
+            });
+
+            modelBuilder.Entity<NameClassificationLogEntity>(entity =>
+            {
+                entity.ToTable("name_classification_log");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.NameFilterDecision).HasColumnName("name_filter_decision").HasMaxLength(10);
+                entity.Property(e => e.NameFilterReason).HasColumnName("name_filter_reason").HasMaxLength(50);
+                entity.Property(e => e.MlDecision).HasColumnName("ml_decision").HasMaxLength(10);
+                entity.Property(e => e.MlConfidence).HasColumnName("ml_confidence");
+                entity.Property(e => e.UserClassification).HasColumnName("user_classification").HasMaxLength(10);
+                entity.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+
+                entity.HasIndex(e => e.NameFilterDecision);
+                entity.HasIndex(e => e.MlDecision);
+                entity.HasIndex(e => e.ReviewedAt);
             });
         }
     }

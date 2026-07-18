@@ -188,7 +188,7 @@ public class ClinicalTrialsGov
 
     private string BuildRequestUri(string? pageToken)
     {
-        var query = $"?format=json&pageSize={_pageSize}";
+        var query = $"?format=json&pageSize={_pageSize}&sort=LastUpdatePostDate:desc";
         if (!string.IsNullOrWhiteSpace(pageToken))
         {
             query += $"&pageToken={Uri.EscapeDataString(pageToken)}";

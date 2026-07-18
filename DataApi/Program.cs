@@ -515,6 +515,166 @@ app.MapGet("/api/data-source-state", async () =>
     }));
 });
 
+app.MapGet("/api/name-classification/ab-test", async (int? page, int? pageSize, bool? disagreementOnly) =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+
+    var query = ctx.NameClassificationLogs.AsQueryable();
+    if (disagreementOnly == true)
+        query = query.Where(l => l.NameFilterDecision != l.MlDecision);
+
+    var total = await query.CountAsync();
+    var p = Math.Max(1, page ?? 1);
+    var ps = Math.Clamp(pageSize ?? 50, 1, 200);
+    var items = await query
+        .OrderByDescending(l => l.CreatedAt)
+        .Skip((p - 1) * ps)
+        .Take(ps)
+        .Select(l => new
+        {
+            l.Id,
+            l.Name,
+            l.StudyNctId,
+            l.NameFilterDecision,
+            l.NameFilterReason,
+            l.MlDecision,
+            l.MlConfidence,
+            l.UserClassification,
+            l.ReviewedAt,
+            l.CreatedAt
+        })
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        data = items,
+        total,
+        page = p,
+        pageSize = ps,
+        totalPages = (int)Math.Ceiling((double)total / ps)
+    });
+});
+
+app.MapGet("/api/name-classification/stats", async () =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+
+    var total = await ctx.NameClassificationLogs.CountAsync();
+    var reviewed = await ctx.NameClassificationLogs.CountAsync(l => l.ReviewedAt != null);
+    var disagreements = await ctx.NameClassificationLogs.CountAsync(l => l.NameFilterDecision != l.MlDecision);
+    var nfAccept = await ctx.NameClassificationLogs.CountAsync(l => l.NameFilterDecision == "ACCEPT");
+    var mlAccept = await ctx.NameClassificationLogs.CountAsync(l => l.MlDecision == "ACCEPT");
+
+    return Results.Ok(new
+    {
+        total,
+        reviewed,
+        disagreements,
+        nameFilterAccepts = nfAccept,
+        mlAccepts = mlAccept,
+        agreementRate = total > 0 ? (double)(total - disagreements) / total : 1.0
+    });
+});
+
+app.MapGet("/api/name-classification/export", async (HttpResponse response, bool? disagreementOnly) =>
+{
+    response.ContentType = "text/csv";
+    response.Headers["Content-Disposition"] = "attachment; filename=\"name-classification-export.csv\"";
+
+    await response.WriteAsync("name,study_nct_id,name_filter_decision,name_filter_reason,ml_decision,ml_confidence,user_classification,reviewed_at,created_at\n");
+
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+
+    var query = ctx.NameClassificationLogs.AsQueryable();
+    if (disagreementOnly == true)
+        query = query.Where(l => l.NameFilterDecision != l.MlDecision);
+
+    await foreach (var row in query.OrderByDescending(l => l.CreatedAt).AsAsyncEnumerable())
+    {
+        await response.WriteAsync(
+            $"{EscapeCsv(row.Name)}," +
+            $"{EscapeCsv(row.StudyNctId)}," +
+            $"{row.NameFilterDecision}," +
+            $"{EscapeCsv(row.NameFilterReason)}," +
+            $"{row.MlDecision}," +
+            $"{row.MlConfidence:F4}," +
+            $"{row.UserClassification ?? ""}," +
+            $"{row.ReviewedAt?.ToString("O") ?? ""}," +
+            $"{row.CreatedAt:O}\n");
+    }
+});
+
+app.MapPost("/api/name-classification/{id:int}/review", async (int id, ReviewRequest request) =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+
+    var entry = await ctx.NameClassificationLogs.FindAsync(id);
+    if (entry == null)
+        return Results.NotFound(new { error = "Entry not found" });
+
+    entry.UserClassification = request.Classification;
+    entry.ReviewedAt = DateTime.UtcNow;
+    await ctx.SaveChangesAsync();
+
+    return Results.Ok(new { entry.Id, entry.UserClassification, entry.ReviewedAt });
+});
+
+app.MapPost("/api/name-classification/retrain", async () =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .UseNpgsql(connectionString).Options);
+
+    var reviewed = await ctx.NameClassificationLogs
+        .Where(l => l.UserClassification != null)
+        .Select(l => new { l.Name, l.UserClassification })
+        .ToListAsync();
+
+    if (reviewed.Count < 10)
+        return Results.BadRequest(new { error = $"Need at least 10 reviewed samples, have {reviewed.Count}" });
+
+    var positives = reviewed.Where(r => r.UserClassification == "HUMAN").Select(r => r.Name).Distinct().ToList();
+    var negatives = reviewed.Where(r => r.UserClassification == "NON_HUMAN").Select(r => r.Name).Distinct().ToList();
+
+    if (positives.Count < 5 || negatives.Count < 5)
+        return Results.BadRequest(new { error = $"Need at least 5 each class, have {positives.Count} HUMAN, {negatives.Count} NON_HUMAN" });
+
+    var samples = new List<Scrapers.Services.NameInput>();
+    samples.AddRange(positives.Select(n => new Scrapers.Services.NameInput { Name = n, Label = true }));
+    samples.AddRange(negatives.Select(n => new Scrapers.Services.NameInput { Name = n, Label = false }));
+
+    var modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "name-classifier.zip");
+    var svc = Scrapers.Services.NameClassifierService.Train(samples, modelPath);
+    var correct = 0;
+    foreach (var s in samples)
+    {
+        var pred = svc.Predict(s.Name);
+        if (pred.IsHuman == s.Label) correct++;
+    }
+
+    return Results.Ok(new
+    {
+        modelPath,
+        trainedOn = samples.Count,
+        positives = positives.Count,
+        negatives = negatives.Count,
+        accuracy = (double)correct / samples.Count
+    });
+});
+
+static string EscapeCsv(string? value)
+{
+    if (string.IsNullOrEmpty(value)) return "";
+    if (value.Contains(',', StringComparison.Ordinal)
+        || value.Contains('"', StringComparison.Ordinal)
+        || value.Contains('\n', StringComparison.Ordinal))
+        return $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    return value;
+}
+
 await app.RunAsync();
 
 /// <summary>
@@ -527,6 +687,8 @@ static IReadOnlyList<string>? ParseCsvParam(string? param)
 
     return param.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
+
+record ReviewRequest(string Classification);
 
 namespace DataApi
 {

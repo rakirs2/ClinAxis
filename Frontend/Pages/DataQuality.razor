@@ -19,6 +19,9 @@
     <li class="nav-item">
         <a class="nav-link @(activeTab == 3 ? "active" : "")" href="/data-quality/3">NPI Enrichment</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link @(activeTab == 4 ? "active" : "")" href="/data-quality/4">Name A/B</a>
+    </li>
 </ul>
 
 @if (activeTab == 0)
@@ -310,6 +313,182 @@ else if (activeTab == 3)
         </div>
     }
 }
+else if (activeTab == 4)
+{
+    @if (clLoading)
+    {
+        <div class="d-flex justify-content-center mt-4">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+    }
+    else if (clError is not null)
+    {
+        <div class="alert alert-danger">@clError</div>
+    }
+    else if (clStats is null)
+    {
+        <p class="text-muted">Loading...</p>
+    }
+    else
+    {
+        <div class="row mb-3">
+            <div class="col-md-2 mb-2">
+                <div class="card text-bg-primary">
+                    <div class="card-body text-center">
+                        <h5 class="card-title display-6">@clStats.total</h5>
+                        <p class="card-text">Total Logged</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 mb-2">
+                <div class="card text-bg-warning">
+                    <div class="card-body text-center">
+                        <h5 class="card-title display-6">@clStats.disagreements</h5>
+                        <p class="card-text">Disagreements</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 mb-2">
+                <div class="card text-bg-info">
+                    <div class="card-body text-center">
+                        <h5 class="card-title display-6">@clStats.reviewed</h5>
+                        <p class="card-text">Reviewed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 mb-2">
+                <div class="card text-bg-secondary">
+                    <div class="card-body text-center">
+                        <h5 class="card-title display-6">@(clStats.total - clStats.reviewed)</h5>
+                        <p class="card-text">Remaining</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 mb-2">
+                <div class="card text-bg-success">
+                    <div class="card-body text-center">
+                        <h5 class="card-title display-6">@(clStats.agreementRate.ToString("P1"))</h5>
+                        <p class="card-text">Agreement Rate</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3 d-flex align-items-center gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="disagreementOnly" checked="@clDisagreementOnly" @onchange="ToggleDisagreementFilter">
+                <label class="form-check-label" for="disagreementOnly">Disagreements only</label>
+            </div>
+            <a href="/api/name-classification/export@(clDisagreementOnly ? "?disagreementOnly=true" : "")" class="btn btn-sm btn-outline-secondary" target="_blank">Download CSV</a>
+        </div>
+
+        @if (clItems is not null && clItems.Count > 0)
+        {
+            <table class="table table-sm table-striped" style="max-width: 100%">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>NameFilter</th>
+                        <th>ML</th>
+                        <th>ML Conf</th>
+                        <th>Review</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in clItems)
+                    {
+                        <tr>
+                            <td><code>@item.name</code></td>
+                            <td>
+                                @if (item.nameFilterDecision == "ACCEPT")
+                                {
+                                    <span class="badge bg-success">ACCEPT</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">REJECT</span>
+                                }
+                                @if (item.nameFilterReason is not null)
+                                {
+                                    <small class="text-muted">@item.nameFilterReason</small>
+                                }
+                            </td>
+                            <td>
+                                @if (item.mlDecision == "ACCEPT")
+                                {
+                                    <span class="badge bg-success">ACCEPT</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">REJECT</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px; width: 100px;">
+                                    <div class="progress-bar @(item.mlConfidence >= 0.9 ? "bg-success" : item.mlConfidence >= 0.7 ? "bg-warning" : "bg-danger")"
+                                         style="width: @(item.mlConfidence * 100)%;">
+                                        @(item.mlConfidence.ToString("P1"))
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @if (item.userClassification is not null)
+                                {
+                                    if (item.userClassification == "HUMAN")
+                                    {
+                                        <span class="badge bg-success">HUMAN</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">NON-HUMAN</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-success" @onclick="() => ReviewItem(item.id, 'HUMAN')" disabled="@clReviewBusy">H</button>
+                                        <button class="btn btn-outline-secondary" @onclick="() => ReviewItem(item.id, 'NON_HUMAN')" disabled="@clReviewBusy">NH</button>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="text-muted">No entries found.</p>
+        }
+
+        @if (clTotalPages > 1)
+        {
+            <nav>
+                <ul class="pagination">
+                    <li class="page-item @(clCurrentPage <= 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => LoadClPage(clCurrentPage - 1)">Previous</button>
+                    </li>
+                    @foreach (var p in GetPaginationRange(clCurrentPage, clTotalPages))
+                    {
+                        @if (p is null)
+                        {
+                            <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                        }
+                        else
+                        {
+                            <li class="page-item @(p == clCurrentPage ? "active" : "")">
+                                <button class="page-link" @onclick="() => LoadClPage(p.Value)">@p</button>
+                            </li>
+                        }
+                    }
+                    <li class="page-item @(clCurrentPage >= clTotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => LoadClPage(clCurrentPage + 1)">Next</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+}
 
 @code {
     [Parameter]
@@ -327,6 +506,11 @@ else if (activeTab == 3)
             await LoadNmPage(1);
         else if (activeTab == 3)
             await LoadEnrichmentBreakdown();
+        else if (activeTab == 4)
+        {
+            await LoadClStats();
+            await LoadClPage(1);
+        }
     }
 
     // ============== Dead Letter Tab ==============
@@ -507,6 +691,83 @@ else if (activeTab == 3)
         }
     }
 
+    // ============== Name Classification A/B Tab ==============
+
+    private ClassListResponse? clStats;
+    private List<ClassificationItem>? clItems;
+    private int clCurrentPage = 1;
+    private int clTotalPages;
+    private bool clLoading;
+    private bool clDisagreementOnly;
+    private string? clError;
+    private bool clReviewBusy;
+
+    private async Task LoadClStats()
+    {
+        try
+        {
+            clStats = await Client.GetFromJsonAsync<ClassListResponse>("/api/name-classification/stats");
+        }
+        catch (Exception ex)
+        {
+            clError = $"Failed to load stats: {ex.Message}";
+        }
+    }
+
+    private async Task LoadClPage(int page)
+    {
+        clLoading = true;
+        clError = null;
+        clCurrentPage = page;
+        try
+        {
+            var disParam = clDisagreementOnly ? "&disagreementOnly=true" : "";
+            var response = await Client.GetFromJsonAsync<ClassListResponse>(
+                $"/api/name-classification/ab-test?page={page}&pageSize=50{disParam}");
+            if (response is not null)
+            {
+                clItems = response.data;
+                clCurrentPage = response.page;
+                clTotalPages = response.totalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            clError = $"Failed to load: {ex.Message}";
+            clItems = null;
+        }
+        finally
+        {
+            clLoading = false;
+        }
+    }
+
+    private async Task ToggleDisagreementFilter(ChangeEventArgs e)
+    {
+        clDisagreementOnly = (bool)(e.Value ?? false);
+        await LoadClPage(1);
+    }
+
+    private async Task ReviewItem(int id, string classification)
+    {
+        clReviewBusy = true;
+        try
+        {
+            await Client.PostAsJsonAsync($"/api/name-classification/{id}/review",
+                new ReviewRequest { classification = classification });
+            await LoadClPage(clCurrentPage);
+            await LoadClStats();
+        }
+        catch
+        {
+            clError = "Failed to submit review.";
+        }
+        finally
+        {
+            clReviewBusy = false;
+        }
+    }
+
     // ============== Shared ==============
 
     private static List<int?> GetPaginationRange(int current, int total, int maxVisible = 10)
@@ -597,5 +858,39 @@ else if (activeTab == 3)
         public int page { get; set; }
         public int pageSize { get; set; }
         public int totalPages { get; set; }
+    }
+
+    private class ClassificationItem
+    {
+        public int id { get; set; }
+        public string name { get; set; } = "";
+        public string? studyNctId { get; set; }
+        public string nameFilterDecision { get; set; } = "";
+        public string? nameFilterReason { get; set; }
+        public string mlDecision { get; set; } = "";
+        public double mlConfidence { get; set; }
+        public string? userClassification { get; set; }
+        public DateTime? reviewedAt { get; set; }
+        public DateTime createdAt { get; set; }
+    }
+
+    private class ClassListResponse
+    {
+        public List<ClassificationItem>? data { get; set; }
+        public int total { get; set; }
+        public int page { get; set; }
+        public int pageSize { get; set; }
+        public int totalPages { get; set; }
+        public int totalLogged { get; set; }
+        public int reviewed { get; set; }
+        public int disagreements { get; set; }
+        public int nameFilterAccepts { get; set; }
+        public int mlAccepts { get; set; }
+        public double agreementRate { get; set; }
+    }
+
+    private class ReviewRequest
+    {
+        public string classification { get; set; } = "";
     }
 }

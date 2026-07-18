@@ -41,6 +41,15 @@ namespace Scrapers.Persistence
             await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        private static readonly Lazy<NameClassifierService> _nameClassifier = new(() =>
+        {
+            var svc = new NameClassifierService();
+            svc.LoadModel();
+            return svc;
+        });
+
+        public static NameClassifierService NameClassifier => _nameClassifier.Value;
+
         public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
         {
             var recordList = records?.ToList();
@@ -57,6 +66,7 @@ namespace Scrapers.Persistence
             var rejectedAffiliations = new List<string>();
             var rejectedConditions = new List<string>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
+            var nameClassificationLogs = new List<NameClassificationLogEntity>();
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -77,6 +87,27 @@ namespace Scrapers.Persistence
                 var officials = allOfficials?
                     .Where(t => NameFilter.IsHumanName(t.Name, t.Role).IsHuman)
                     .ToList();
+
+                if (allOfficials != null)
+                {
+                    foreach (var official in allOfficials)
+                    {
+                        var nfResult = NameFilter.IsHumanName(official.Name, official.Role);
+                        var mlResult = NameClassifier.ModelAvailable
+                            ? NameClassifier.Predict(official.Name, official.Role)
+                            : null;
+                        nameClassificationLogs.Add(new NameClassificationLogEntity
+                        {
+                            Name = official.Name,
+                            StudyNctId = record.NctId,
+                            NameFilterDecision = nfResult.IsHuman ? "ACCEPT" : "REJECT",
+                            NameFilterReason = nfResult.RejectionReason,
+                            MlDecision = mlResult?.IsHuman == true ? "ACCEPT" : mlResult?.IsHuman == false ? "REJECT" : "UNAVAILABLE",
+                            MlConfidence = mlResult?.Confidence ?? 0,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
 
                 if (allOfficials != null && officials != null)
                 {
@@ -388,6 +419,12 @@ namespace Scrapers.Persistence
 
             if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0 || rejectedConditions.Count > 0)
             {
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (nameClassificationLogs.Count > 0)
+            {
+                context.NameClassificationLogs.AddRange(nameClassificationLogs);
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
 

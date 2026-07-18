@@ -52,10 +52,10 @@ namespace Scrapers.Utilities
             "LIMITED LIABILITY", "SOCIETE", "GESELLSCHAFT", "GMBH",
             "AKTIENGESELLSCHAFT", "AG", "NV", "PTY", "PTY LTD",
             "AND ASSOCIATES", "AND COMPANY", "& CO", "& ASSOCIATES",
-            "DIRECTOR", "MEDICAL", "STUDY", "CLINICAL",
-            "REGISTRY", "MONITOR", "COORDINATOR",
-            "MANAGEMENT", "RESPONSIBLE", "CALL CENTER",
-            "CENTER", "CORPORATE", "CARE", "TBD",
+            "DIRECTOR", "MEDICAL", "CLINICAL",
+            "REGISTRY", "MONITOR",
+            "CALL CENTER",
+            "CORPORATE", "TBD",
             "SPONSOR",
         };
 
@@ -94,7 +94,7 @@ namespace Scrapers.Utilities
                 return new NameFilterResult(false, "TooLong");
             }
 
-            if (words.Length > 6)
+            if (words.Length > 10)
             {
                 return new NameFilterResult(false, "TooManyWords");
             }
@@ -112,6 +112,16 @@ namespace Scrapers.Utilities
                 return new NameFilterResult(false, $"RolePrefix:{matchedPrefix}");
             }
 
+            if (words[0].StartsWith('+') && words[0].Any(c => c is >= '0' and <= '9'))
+            {
+                return new NameFilterResult(false, "PhonePrefix");
+            }
+
+            if (IsNumeric(words[0]))
+            {
+                return new NameFilterResult(false, "DigitPrefix");
+            }
+
             var lastWord = words[^1].TrimEnd(',', '.').ToUpperInvariant();
             if (lastWord is "INC" or "INC." or "LTD" or "LTD." or "LLC" or "CORP"
                 or "CORP." or "CORPORATION" or "GMBH" or "AG" or "NV" or "PLC"
@@ -122,14 +132,15 @@ namespace Scrapers.Utilities
 
             if (trimmed.Contains(" & ", StringComparison.OrdinalIgnoreCase))
             {
+                var parts = trimmed.Split(" & ", StringSplitOptions.TrimEntries);
+                var suffixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "MD", "M.D", "PHD", "PH.D", "MBA", "DO", "DDS", "FRCPC", "FAAN", "L.AC", "LAC" };
+                if (parts.Length > 1 && parts.All(p => suffixes.Contains(p.TrimEnd(',').TrimEnd('.').Trim())))
+                {
+                    goto AfterAmpersand;
+                }
                 return new NameFilterResult(false, "Ampersand");
             }
-
-            var matchedOrgKw = OrgKeywords.FirstOrDefault(kw => ContainsWord(upperName, kw));
-            if (matchedOrgKw != null)
-            {
-                return new NameFilterResult(false, $"OrgKeywords:{matchedOrgKw}");
-            }
+        AfterAmpersand:
 
             if (PharmaBlocklist.Contains(words[0].TrimEnd(',', '.')))
             {
@@ -139,6 +150,12 @@ namespace Scrapers.Utilities
             if (role != null && KnownPiRoles.Contains(role.Trim()))
             {
                 return new NameFilterResult(true, null);
+            }
+
+            var matchedOrgKw = OrgKeywords.FirstOrDefault(kw => ContainsWord(upperName, kw));
+            if (matchedOrgKw != null)
+            {
+                return new NameFilterResult(false, $"OrgKeywords:{matchedOrgKw}");
             }
 
             if (words.Length == 1 && trimmed.Length > 20)
@@ -158,6 +175,15 @@ namespace Scrapers.Utilities
 
             var upperWord = word.ToUpperInvariant();
             return text.Contains(upperWord, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsNumeric(string s)
+        {
+            foreach (var c in s)
+            {
+                if (c is < '0' or > '9') return false;
+            }
+            return s.Length > 0;
         }
 
         private static bool IsNonLatinName(string[] words)
