@@ -1,0 +1,27 @@
+<div class="btn-group">
+    <button class="btn btn-outline-primary @activeConditions" @onclick="ShowConditions">Conditions</button>
+    <button class="btn btn-outline-primary @activeKeywords" @onclick="ShowKeywords">Keywords</button>
+</div>
+
+@code {
+    [Parameter]
+    public string DataType { get; set; } = "conditions";
+
+    [Parameter]
+    public EventCallback<string> DataTypeChanged { get; set; }
+
+    string activeConditions => DataType == "conditions" ? "active" : "";
+    string activeKeywords => DataType == "keywords" ? "active" : "";
+
+    async Task ShowConditions()
+    {
+        if (DataType == "conditions") return;
+        await DataTypeChanged.InvokeAsync("conditions");
+    }
+
+    async Task ShowKeywords()
+    {
+        if (DataType == "keywords") return;
+        await DataTypeChanged.InvokeAsync("keywords");
+    }
+}

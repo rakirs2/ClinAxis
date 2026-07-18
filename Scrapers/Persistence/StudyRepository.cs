@@ -1739,9 +1739,113 @@ namespace Scrapers.Persistence
             return true;
         }
 
+        public async Task<IReadOnlyList<TableRowCount>> GetTableRowCountsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var studiesCount = await context.Studies.CountAsync(cancellationToken).ConfigureAwait(false);
+            var locationsCount = await context.StudyLocations.CountAsync(cancellationToken).ConfigureAwait(false);
+            var keywordsCount = await context.StudyKeywords.CountAsync(cancellationToken).ConfigureAwait(false);
+            var conditionsCount = await context.StudyConditions.CountAsync(cancellationToken).ConfigureAwait(false);
+            var phasesCount = await context.StudyPhases.CountAsync(cancellationToken).ConfigureAwait(false);
+            var personsCount = await context.InvestigatorPersons.CountAsync(cancellationToken).ConfigureAwait(false);
+            var affiliationsCount = await context.InvestigatorAffiliations.CountAsync(cancellationToken).ConfigureAwait(false);
+            var studyInvestigatorsCount = await context.StudyInvestigators.CountAsync(cancellationToken).ConfigureAwait(false);
+            var pubmedPapersCount = await context.PubmedPapers.CountAsync(cancellationToken).ConfigureAwait(false);
+            var studyPapersCount = await context.StudyPapers.CountAsync(cancellationToken).ConfigureAwait(false);
+            var studyReferencesCount = await context.StudyReferences.CountAsync(cancellationToken).ConfigureAwait(false);
+            var studyOutcomesCount = await context.StudyOutcomes.CountAsync(cancellationToken).ConfigureAwait(false);
+            var studyArmGroupsCount = await context.StudyArmGroups.CountAsync(cancellationToken).ConfigureAwait(false);
+            var pipelineRunsCount = await context.PipelineRuns.CountAsync(cancellationToken).ConfigureAwait(false);
+            var scrapeEventsCount = await context.ScrapeEvents.CountAsync(cancellationToken).ConfigureAwait(false);
+            var pipelineEventsCount = await context.PipelineEvents.CountAsync(cancellationToken).ConfigureAwait(false);
+            var piAggregationsCount = await context.PiAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
+            var categoryAggregationsCount = await context.CategoryAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
+            var dataSourceStatesCount = await context.DataSourceStates.CountAsync(cancellationToken).ConfigureAwait(false);
+            var rejectedEntitiesCount = await context.RejectedEntities.CountAsync(cancellationToken).ConfigureAwait(false);
+            var rejectedNamesCount = await context.RejectedInvestigatorNames.CountAsync(cancellationToken).ConfigureAwait(false);
+            var personCandidatesCount = await context.PersonIdentifierCandidates.CountAsync(cancellationToken).ConfigureAwait(false);
+            var medicareUtilizationsCount = await context.MedicareUtilizations.CountAsync(cancellationToken).ConfigureAwait(false);
+            var investigatorMetricsCount = await context.InvestigatorMetrics.CountAsync(cancellationToken).ConfigureAwait(false);
+            var sourceFetchHistoriesCount = await context.SourceFetchHistories.CountAsync(cancellationToken).ConfigureAwait(false);
+            var scraperPivotsCount = await context.ScraperPivots.CountAsync(cancellationToken).ConfigureAwait(false);
+
+            return new List<TableRowCount>
+            {
+                new() { Name = "studies", RowCount = studiesCount },
+                new() { Name = "study_locations", RowCount = locationsCount },
+                new() { Name = "study_keywords", RowCount = keywordsCount },
+                new() { Name = "study_conditions", RowCount = conditionsCount },
+                new() { Name = "study_phases", RowCount = phasesCount },
+                new() { Name = "investigator_persons", RowCount = personsCount },
+                new() { Name = "investigator_affiliations", RowCount = affiliationsCount },
+                new() { Name = "study_investigators", RowCount = studyInvestigatorsCount },
+                new() { Name = "pubmed_papers", RowCount = pubmedPapersCount },
+                new() { Name = "study_papers", RowCount = studyPapersCount },
+                new() { Name = "study_references", RowCount = studyReferencesCount },
+                new() { Name = "study_outcomes", RowCount = studyOutcomesCount },
+                new() { Name = "study_arm_groups", RowCount = studyArmGroupsCount },
+                new() { Name = "pipeline_runs", RowCount = pipelineRunsCount },
+                new() { Name = "scrape_events", RowCount = scrapeEventsCount },
+                new() { Name = "pipeline_events", RowCount = pipelineEventsCount },
+                new() { Name = "pi_aggregations", RowCount = piAggregationsCount },
+                new() { Name = "category_aggregations", RowCount = categoryAggregationsCount },
+                new() { Name = "data_source_states", RowCount = dataSourceStatesCount },
+                new() { Name = "rejected_entities", RowCount = rejectedEntitiesCount },
+                new() { Name = "rejected_investigator_names", RowCount = rejectedNamesCount },
+                new() { Name = "person_identifier_candidates", RowCount = personCandidatesCount },
+                new() { Name = "medicare_utilizations", RowCount = medicareUtilizationsCount },
+                new() { Name = "investigator_metrics", RowCount = investigatorMetricsCount },
+                new() { Name = "source_fetch_histories", RowCount = sourceFetchHistoriesCount },
+                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount }
+            };
+        }
+
+        public async Task<IReadOnlyList<WordFrequency>> GetConditionFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var items = await context.StudyConditions
+                .GroupBy(c => c.Condition)
+                .Select(g => new { Text = g.Key, Weight = g.Count() })
+                .OrderByDescending(w => w.Weight)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
+        }
+
+        public async Task<IReadOnlyList<WordFrequency>> GetKeywordFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var items = await context.StudyKeywords
+                .GroupBy(k => k.Keyword)
+                .Select(g => new { Text = g.Key, Weight = g.Count() })
+                .OrderByDescending(w => w.Weight)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
+        }
+
         private ClinicalTrialsContext CreateContext()
         {
             return new(_options);
+        }
+    }
+
+    public class TableRowCount
+    {
+        public string Name { get; set; } = string.Empty;
+        public long RowCount { get; set; }
+    }
+
+    public class WordFrequency
+    {
+        public string Text { get; }
+        public int Weight { get; }
+
+        public WordFrequency(string text, int weight)
+        {
+            Text = text;
+            Weight = weight;
         }
     }
 

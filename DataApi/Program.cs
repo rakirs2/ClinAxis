@@ -360,6 +360,33 @@ app.MapGet("/api/export/keywords", async (HttpResponse response) =>
     }
 });
 
+app.MapGet("/api/database/size", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var tables = await repo.GetTableRowCountsAsync();
+    var totalRows = tables.Sum(t => t.RowCount);
+    return Results.Ok(new
+    {
+        totalRowCount = totalRows,
+        estimatedSizeGb = Math.Round(totalRows / 1048576.0, 2),
+        tables
+    });
+});
+
+app.MapGet("/api/word-cloud/conditions", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var words = await repo.GetConditionFrequenciesAsync();
+    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
+});
+
+app.MapGet("/api/word-cloud/keywords", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var words = await repo.GetKeywordFrequenciesAsync();
+    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
+});
+
 app.MapGet("/api/telemetry", async () =>
 {
     var repo = new StudyRepository(connectionString);
@@ -371,9 +398,6 @@ app.MapGet("/api/telemetry", async () =>
 
     List<PipelineRunEntity> recentRuns = await repo.GetPipelineRunsAsync(1, 5);
     IReadOnlyList<ScrapeEventEntity> recentEvents = await repo.GetRecentScrapeEventsAsync(20);
-
-    var piCount = await repo.CountPiAggregationsAsync();
-    IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
 
     // Enrichment coverage stats (NPI)
     var totalInvestigatorsForCoverage = investigators > 0 ? investigators : 1;
@@ -414,11 +438,6 @@ app.MapGet("/api/telemetry", async () =>
             message = e.Message,
             httpStatusCode = e.HttpStatusCode
         }),
-        aggregations = new
-        {
-            piAggregationCount = piCount,
-            categoryAggregationCount = categoryByType.Sum(c => c.Count)
-        }
     });
 });
 
