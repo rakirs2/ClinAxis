@@ -27,11 +27,19 @@ else if (data is null)
 else
 {
     <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card text-bg-primary">
-                <div class="card-body text-center">
+        <div class="col-md-6 d-flex flex-column">
+            <div class="card text-bg-primary h-100" style="min-height: 130px">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
                     <h5 class="card-title">Total Database Rows</h5>
-                    <p class="display-6">@data.totalRowCount.ToString("N0")</p>
+                    <p class="display-6 mb-0">@data.totalRowCount.ToString("N0")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 d-flex flex-column">
+            <div class="card text-bg-success h-100" style="min-height: 130px">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
+                    <h5 class="card-title">Estimated Total Size</h5>
+                    <p class="display-6 mb-0">@data.estimatedSizeGb GB</p>
                 </div>
             </div>
         </div>
@@ -100,6 +108,7 @@ else
     private class DatabaseSizeResponse
     {
         public long totalRowCount { get; set; }
+        public double estimatedSizeGb { get; set; }
         public List<TableRowItem>? tables { get; set; }
     }
 

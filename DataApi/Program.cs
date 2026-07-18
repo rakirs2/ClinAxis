@@ -364,9 +364,11 @@ app.MapGet("/api/database/size", async () =>
 {
     var repo = new StudyRepository(connectionString);
     var tables = await repo.GetTableRowCountsAsync();
+    var totalRows = tables.Sum(t => t.RowCount);
     return Results.Ok(new
     {
-        totalRowCount = tables.Sum(t => t.RowCount),
+        totalRowCount = totalRows,
+        estimatedSizeGb = Math.Round(totalRows / 1048576.0, 2),
         tables
     });
 });
