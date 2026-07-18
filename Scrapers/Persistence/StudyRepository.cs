@@ -1801,7 +1801,7 @@ namespace Scrapers.Persistence
             };
         }
 
-        public async Task<IReadOnlyList<WordFrequency>> GetConditionFrequenciesAsync(int limit = 200, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<WordFrequency>> GetConditionFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             var items = await context.StudyConditions
@@ -1813,7 +1813,7 @@ namespace Scrapers.Persistence
             return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
         }
 
-        public async Task<IReadOnlyList<WordFrequency>> GetKeywordFrequenciesAsync(int limit = 200, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<WordFrequency>> GetKeywordFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             var items = await context.StudyKeywords

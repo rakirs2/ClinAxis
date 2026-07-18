@@ -1,6 +1,7 @@
 @page "/word-cloud"
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
 
 <h1>Advanced Study Search</h1>
 
@@ -15,8 +16,8 @@
 
 <div class="mb-3">
     <div class="btn-group" role="group">
-        <button class="btn btn-outline-primary @(dataType == "conditions" ? "active" : "")" @onclick="ShowConditions">Conditions</button>
-        <button class="btn btn-outline-primary @(dataType == "keywords" ? "active" : "")" @onclick="ShowKeywords">Keywords</button>
+        <a href="/word-cloud" class="@conditionsClass">Conditions</a>
+        <a href="/word-cloud?type=keywords" class="@keywordsClass">Keywords</a>
     </div>
     <span class="ms-3 text-muted">
         Showing top @(words?.Count ?? 0) @dataType
@@ -66,6 +67,9 @@ else
     private bool loading;
     private string? error;
 
+    private string conditionsClass => dataType == "conditions" ? "btn btn-outline-primary active" : "btn btn-outline-primary";
+    private string keywordsClass => dataType == "keywords" ? "btn btn-outline-primary active" : "btn btn-outline-primary";
+
     private static readonly string[] cloudColors =
     [
         "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#EF6C00",
@@ -76,16 +80,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
-    }
-
-    private Task ShowConditions() => SwitchType("conditions");
-    private Task ShowKeywords() => SwitchType("keywords");
-
-    private async Task SwitchType(string type)
-    {
-        if (type == dataType) return;
-        dataType = type;
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (uri.Query.Contains("type=keywords"))
+        {
+            dataType = "keywords";
+        }
         await LoadData();
     }
 
