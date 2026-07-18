@@ -15,8 +15,8 @@
 
 <div class="mb-3">
     <div class="btn-group" role="group">
-        <button class="btn btn-outline-primary @(dataType == "conditions" ? "active" : "")" @onclick="() => SwitchType("conditions")">Conditions</button>
-        <button class="btn btn-outline-primary @(dataType == "keywords" ? "active" : "")" @onclick="() => SwitchType("keywords")">Keywords</button>
+        <button class="btn btn-outline-primary @(dataType == "conditions" ? "active" : "")" @onclick="ShowConditions">Conditions</button>
+        <button class="btn btn-outline-primary @(dataType == "keywords" ? "active" : "")" @onclick="ShowKeywords">Keywords</button>
     </div>
     <span class="ms-3 text-muted">
         Showing top @(words?.Count ?? 0) @dataType
@@ -78,6 +78,9 @@ else
     {
         await LoadData();
     }
+
+    private Task ShowConditions() => SwitchType("conditions");
+    private Task ShowKeywords() => SwitchType("keywords");
 
     private async Task SwitchType(string type)
     {
