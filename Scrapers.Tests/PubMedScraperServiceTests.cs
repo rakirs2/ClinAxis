@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System.IO;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
 using Scrapers.Testing;
@@ -12,6 +13,56 @@ namespace Scrapers.Tests
     [TestClass]
     public class PubMedScraperServiceTests : DbTestBase
     {
+        private static string LoadFixture(string name)
+        {
+            return File.ReadAllText($"Data/PubMed/{name}");
+        }
+
+        [TestMethod]
+        public void ParsePubmedXml_ParsesMultiplePublicationTypes()
+        {
+            var xml = LoadFixture("MultipleTypes.xml");
+            var result = PubMedScraperService.ParsePubmedXml(xml);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual("Journal Article, Clinical Trial, Randomized Controlled Trial", result.PublicationTypes);
+        }
+
+        [TestMethod]
+        public void ParsePubmedXml_ParsesSinglePublicationType()
+        {
+            var xml = LoadFixture("SingleType.xml");
+            var result = PubMedScraperService.ParsePubmedXml(xml);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual("Journal Article, Review", result.PublicationTypes);
+        }
+
+        [TestMethod]
+        public void ParsePubmedXml_ReturnsNullWhenNoPublicationTypeList()
+        {
+            var xml = LoadFixture("NoTypeList.xml");
+            var result = PubMedScraperService.ParsePubmedXml(xml);
+
+            Assert.IsNotNull(result);
+            Assert.IsNull(result.PublicationTypes);
+        }
+
+        [TestMethod]
+        public void ParsePubmedXml_ParsesOtherFieldsCorrectly()
+        {
+            var xml = LoadFixture("MultipleTypes.xml");
+            var result = PubMedScraperService.ParsePubmedXml(xml);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual("Clinical Trial of Drug X for Condition Y", result.Title);
+            Assert.AreEqual("Test Journal", result.Journal);
+            Assert.AreEqual(new DateTime(2024, 1, 15, 0, 0, 0, DateTimeKind.Utc), result.PublicationDate);
+            Assert.IsFalse(result.IsNonEnglish);
+            Assert.IsNull(result.Doi);
+            Assert.IsNotNull(result.Abstract);
+        }
+
         [TestMethod]
         public async Task IngestPubMedPapersAsync_DoesNotInsertDuplicatePmids()
         {
@@ -27,6 +78,7 @@ namespace Scrapers.Tests
             {
                 Pmid = "12345678",
                 Title = "Existing Paper Title",
+                PublicationTypes = "Journal Article",
             };
             Context.PubmedPapers.Add(existingPaper);
             await Context.SaveChangesAsync();

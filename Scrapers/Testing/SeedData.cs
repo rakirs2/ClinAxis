@@ -335,6 +335,7 @@ internal static class SeedData
         PublicationDate = new DateTime(2023, 6, 15, 0, 0, 0, DateTimeKind.Utc),
         Abstract = "This is a sample abstract for testing.",
         IsNonEnglish = false,
+        PublicationTypes = "Journal Article",
     };
 
     internal static readonly PubmedPaperEntity Paper2 = new()
@@ -347,6 +348,7 @@ internal static class SeedData
         PublicationDate = new DateTime(2024, 1, 20, 0, 0, 0, DateTimeKind.Utc),
         Abstract = "Another sample abstract for integration testing.",
         IsNonEnglish = false,
+        PublicationTypes = "Clinical Trial",
     };
 
     internal static readonly StudyPaperEntity StudyPaper1 = new()

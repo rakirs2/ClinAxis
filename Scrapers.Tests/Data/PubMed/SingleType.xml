@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+      <PMID Version="1">87654321</PMID>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Print">9876-5432</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>5</Volume>
+            <Issue>2</Issue>
+            <PubDate>
+              <Year>2023</Year>
+              <Month>Mar</Month>
+              <Day>10</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Review Journal</Title>
+        </Journal>
+        <ArticleTitle>A Review of Existing Literature</ArticleTitle>
+        <Abstract>
+          <AbstractText>This review summarizes current knowledge.</AbstractText>
+        </Abstract>
+        <AuthorList>
+          <Author>
+            <LastName>Doe</LastName>
+            <ForeName>Jane</ForeName>
+          </Author>
+        </AuthorList>
+        <PublicationTypeList>
+          <PublicationType>Journal Article</PublicationType>
+          <PublicationType>Review</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>

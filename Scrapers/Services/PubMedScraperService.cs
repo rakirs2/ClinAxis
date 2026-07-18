@@ -89,6 +89,7 @@ namespace Scrapers.Services
                                     PublicationDate = paperDetail?.PublicationDate,
                                     Abstract = paperDetail?.Abstract,
                                     IsNonEnglish = paperDetail?.IsNonEnglish ?? false,
+                                    PublicationTypes = paperDetail?.PublicationTypes,
                                 };
 
                                 context.PubmedPapers.Add(pubmedPaper);
@@ -128,7 +129,7 @@ namespace Scrapers.Services
             return ParsePubmedXml(xml);
         }
 
-        private static PaperDetail? ParsePubmedXml(string xml)
+        internal static PaperDetail? ParsePubmedXml(string xml)
         {
             var doc = new System.Xml.XmlDocument();
             doc.LoadXml(xml);
@@ -188,6 +189,22 @@ namespace Scrapers.Services
                 }
             }
 
+            string? publicationTypes = null;
+            XmlNodeList? pubTypeList = doc.SelectNodes("//PubmedArticle//Article//PublicationTypeList/PublicationType");
+            if (pubTypeList is { Count: > 0 })
+            {
+                var types = new List<string>(pubTypeList.Count);
+                foreach (XmlNode pt in pubTypeList)
+                {
+                    var val = pt.InnerText.Trim();
+                    if (val.Length > 0)
+                    {
+                        types.Add(val);
+                    }
+                }
+                publicationTypes = string.Join(", ", types);
+            }
+
             var authors = new List<AuthorInfo>();
             XmlNode? authorList = article.SelectSingleNode("AuthorList");
             if (authorList != null)
@@ -225,6 +242,7 @@ namespace Scrapers.Services
                 Doi = doi,
                 Abstract = abstractText,
                 IsNonEnglish = isNonEnglish,
+                PublicationTypes = publicationTypes,
                 Authors = authors.Count > 0 ? authors : null
             };
         }
@@ -237,6 +255,7 @@ namespace Scrapers.Services
             public string? Doi { get; set; }
             public string? Abstract { get; set; }
             public bool IsNonEnglish { get; set; }
+            public string? PublicationTypes { get; set; }
             public List<AuthorInfo>? Authors { get; set; }
         }
 
