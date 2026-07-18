@@ -35,22 +35,22 @@ else if (error is not null)
 }
 else if (words is { Count: > 0 })
 {
-    var minWeight = words.Min(w => w.Weight);
-    var maxWeight = words.Max(w => w.Weight);
+    var minWeight = words.Min(w => w.weight);
+    var maxWeight = words.Max(w => w.weight);
     var range = maxWeight - minWeight > 0 ? maxWeight - minWeight : 1;
 
     <div class="word-cloud" style="line-height: 2.4; text-align: justify; padding: 20px; border: 1px solid #eee; border-radius: 8px; background: #fafafa;">
         @foreach (var word in words)
         {
-            var ratio = (double)(word.Weight - minWeight) / range;
+            var ratio = (double)(word.weight - minWeight) / range;
             var fontSize = 0.9 + ratio * 2.6;
             var colorIndex = (int)(ratio * (cloudColors.Length - 1));
             var color = cloudColors[Math.Clamp(colorIndex, 0, cloudColors.Length - 1)];
             var opacity = 0.6 + ratio * 0.4;
 
             <span style="font-size: @fontSize.ToString("F2")em; color: @color; opacity: @opacity.ToString("F2"); display: inline-block; margin: 0 6px; cursor: default;"
-                  title="@word.Text — @word.Weight studies">
-                @word.Text
+                  title="@word.text — @word.weight studies">
+                @word.text
             </span>
         }
     </div>
@@ -110,7 +110,7 @@ else
 
     private class WordItem
     {
-        public string Text { get; set; } = string.Empty;
-        public int Weight { get; set; }
+        public string text { get; set; } = string.Empty;
+        public int weight { get; set; }
     }
 }

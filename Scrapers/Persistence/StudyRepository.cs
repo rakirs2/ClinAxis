@@ -1804,23 +1804,25 @@ namespace Scrapers.Persistence
         public async Task<IReadOnlyList<WordFrequency>> GetConditionFrequenciesAsync(int limit = 200, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.StudyConditions
+            var items = await context.StudyConditions
                 .GroupBy(c => c.Condition)
-                .Select(g => new WordFrequency(g.Key, g.Count()))
+                .Select(g => new { Text = g.Key, Weight = g.Count() })
                 .OrderByDescending(w => w.Weight)
                 .Take(limit)
                 .ToListAsync(cancellationToken);
+            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
         }
 
         public async Task<IReadOnlyList<WordFrequency>> GetKeywordFrequenciesAsync(int limit = 200, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.StudyKeywords
+            var items = await context.StudyKeywords
                 .GroupBy(k => k.Keyword)
-                .Select(g => new WordFrequency(g.Key, g.Count()))
+                .Select(g => new { Text = g.Key, Weight = g.Count() })
                 .OrderByDescending(w => w.Weight)
                 .Take(limit)
                 .ToListAsync(cancellationToken);
+            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
         }
 
         private ClinicalTrialsContext CreateContext()
