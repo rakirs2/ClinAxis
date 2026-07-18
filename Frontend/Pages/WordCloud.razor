@@ -1,0 +1,116 @@
+@page "/word-cloud"
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<h1>Advanced Study Search</h1>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link" href="/">Search</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active" href="/word-cloud">Word Cloud</a>
+    </li>
+</ul>
+
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <button class="btn btn-outline-primary @(dataType == "conditions" ? "active" : "")" @onclick="() => SwitchType("conditions")">Conditions</button>
+        <button class="btn btn-outline-primary @(dataType == "keywords" ? "active" : "")" @onclick="() => SwitchType("keywords")">Keywords</button>
+    </div>
+    <span class="ms-3 text-muted">
+        Showing top @(words?.Count ?? 0) @dataType
+    </span>
+</div>
+
+@if (loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (words is { Count: > 0 })
+{
+    var minWeight = words.Min(w => w.Weight);
+    var maxWeight = words.Max(w => w.Weight);
+    var range = maxWeight - minWeight > 0 ? maxWeight - minWeight : 1;
+
+    <div class="word-cloud" style="line-height: 2.4; text-align: justify; padding: 20px; border: 1px solid #eee; border-radius: 8px; background: #fafafa;">
+        @foreach (var word in words)
+        {
+            var ratio = (double)(word.Weight - minWeight) / range;
+            var fontSize = 0.9 + ratio * 2.6;
+            var colorIndex = (int)(ratio * (cloudColors.Length - 1));
+            var color = cloudColors[Math.Clamp(colorIndex, 0, cloudColors.Length - 1)];
+            var opacity = 0.6 + ratio * 0.4;
+
+            <span style="font-size: @fontSize.ToString("F2")em; color: @color; opacity: @opacity.ToString("F2"); display: inline-block; margin: 0 6px; cursor: default;"
+                  title="@word.Text — @word.Weight studies">
+                @word.Text
+            </span>
+        }
+    </div>
+}
+else
+{
+    <p class="text-muted">No @dataType data available.</p>
+}
+
+@code {
+    private List<WordItem>? words;
+    private string dataType = "conditions";
+    private bool loading;
+    private string? error;
+
+    private static readonly string[] cloudColors =
+    [
+        "#1565C0", "#2E7D32", "#6A1B9A", "#C62828", "#EF6C00",
+        "#00838F", "#4E342E", "#558B2F", "#283593", "#AD1457",
+        "#00695C", "#E65100", "#37474F", "#4527A0", "#C51162",
+        "#3E2723", "#1B5E20", "#0D47A1", "#4A148C", "#B71C1C"
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task SwitchType(string type)
+    {
+        if (type == dataType) return;
+        dataType = type;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            var response = await client.GetFromJsonAsync<List<WordItem>>($"/api/word-cloud/{dataType}");
+            words = response ?? new();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load word cloud data: {ex.Message}";
+            words = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private class WordItem
+    {
+        public string Text { get; set; } = string.Empty;
+        public int Weight { get; set; }
+    }
+}

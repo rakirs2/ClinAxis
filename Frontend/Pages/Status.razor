@@ -2,8 +2,18 @@
 @using System.Net.Http.Json
 @implements IDisposable
 @inject HttpClient Client
+@inject NavigationManager Navigation
 
 <h1>System Status</h1>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link active" href="/status">System Status</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/status/database">Database Size</a>
+    </li>
+</ul>
 
 <div class="mb-3">
     <small class="text-muted">
@@ -29,15 +39,6 @@ else
                     <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
                     <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
                     <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="col-md-6">
-            <h3 class="mt-4">Aggregations</h3>
-            <table class="table table-sm" style="max-width: 400px">
-                <tbody>
-                    <tr><th>PI Aggregations</th><td>@(telemetry.aggregations?.piAggregationCount ?? 0)</td></tr>
-                    <tr><th>Category Aggregations</th><td>@(telemetry.aggregations?.categoryAggregationCount ?? 0)</td></tr>
                 </tbody>
             </table>
         </div>
@@ -252,43 +253,6 @@ else
         </table>
     }
 
-    <h3 class="mt-4">Dead Letter Queue @if (deadLetterCount > 0) { <span class="badge bg-danger">@deadLetterCount</span> }</h3>
-    @if (deadLetterEvents is null || deadLetterEvents.Count == 0)
-    {
-        <p class="text-success">✓ No failed events requiring manual intervention.</p>
-    }
-    else
-    {
-        <table class="table table-sm table-striped" style="max-width: 100%">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Event Type</th>
-                    <th>Created</th>
-                    <th>Retries</th>
-                    <th>Error</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var evt in deadLetterEvents)
-                {
-                    <tr class="table-danger">
-                        <td>@evt.id</td>
-                        <td>@evt.eventType</td>
-                        <td>@FormatDate(evt.createdAt)</td>
-                        <td>@evt.retryCount</td>
-                        <td><small>@evt.errorMessage</small></td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" @onclick="() => RetryDeadLetter(evt.id)">Retry</button>
-                            <button class="btn btn-sm btn-secondary" @onclick="() => IgnoreDeadLetter(evt.id)">Ignore</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-
     <h3 class="mt-4">Scrape Events (last 20)</h3>
     @if (telemetry.recentEvents is null || telemetry.recentEvents.Count == 0)
     {
@@ -330,9 +294,7 @@ else
     private TelemetryResponse? telemetry;
     private List<DataSourceStateItem>? dataSourceStates;
     private QueueStatsItem? queueStats;
-    private List<DeadLetterEventItem>? deadLetterEvents;
     private List<RejectedNameItem>? rejectedNames;
-    private int deadLetterCount = 0;
     private string lastUpdated = "";
     private Timer? _timer;
 
@@ -356,30 +318,13 @@ else
             telemetry = await Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry");
             dataSourceStates = await Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state");
             queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
-            var dlResponse = await Client.GetFromJsonAsync<DeadLetterListResponse>("/api/event-queue/dead-letter");
-            deadLetterEvents = dlResponse?.data;
             rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
-            deadLetterCount = deadLetterEvents?.Count ?? 0;
             lastUpdated = DateTime.Now.ToString("HH:mm:ss");
         }
         catch
         {
             // Keep showing last successful data
         }
-    }
-
-    private async Task RetryDeadLetter(int eventId)
-    {
-        await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/retry", null);
-        await LoadAllData();
-        StateHasChanged();
-    }
-
-    private async Task IgnoreDeadLetter(int eventId)
-    {
-        await Client.PostAsync($"/api/event-queue/dead-letter/{eventId}/ignore", null);
-        await LoadAllData();
-        StateHasChanged();
     }
 
     private static string FormatDate(DateTime? dt) =>
@@ -439,7 +384,6 @@ else
         public EnrichmentStats? enrichment { get; set; }
         public List<PipelineRunItem>? pipelineRuns { get; set; }
         public List<ScrapeEventItem>? recentEvents { get; set; }
-        public AggStats? aggregations { get; set; }
     }
 
     private class EnrichmentStats
@@ -483,12 +427,6 @@ else
         public string? message { get; set; }
     }
 
-    private class AggStats
-    {
-        public int piAggregationCount { get; set; }
-        public int categoryAggregationCount { get; set; }
-    }
-
     private class DataSourceStateItem
     {
         public string? sourceName { get; set; }
@@ -521,27 +459,6 @@ else
         public int failed { get; set; }
         public int deadLetter { get; set; }
         public double averageProcessingTimeMs { get; set; }
-    }
-
-    private class DeadLetterEventItem
-    {
-        public int id { get; set; }
-        public string? eventType { get; set; }
-        public string? data { get; set; }
-        public string? status { get; set; }
-        public string? errorMessage { get; set; }
-        public int retryCount { get; set; }
-        public DateTime createdAt { get; set; }
-        public DateTime? completedAt { get; set; }
-    }
-
-    private class DeadLetterListResponse
-    {
-        public List<DeadLetterEventItem>? data { get; set; }
-        public int total { get; set; }
-        public int page { get; set; }
-        public int pageSize { get; set; }
-        public int totalPages { get; set; }
     }
 
     private class RejectedNameItem
