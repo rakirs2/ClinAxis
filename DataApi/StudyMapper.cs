@@ -94,7 +94,8 @@ internal static class StudyMapper
                 journal = sp.PubmedPaper?.Journal,
                 publicationDate = sp.PubmedPaper?.PublicationDate,
                 abstractText = sp.PubmedPaper?.Abstract,
-                isNonEnglish = sp.PubmedPaper?.IsNonEnglish ?? false
+                isNonEnglish = sp.PubmedPaper?.IsNonEnglish ?? false,
+                publicationTypes = sp.PubmedPaper?.PublicationTypes
             }).ToList()
         };
     }

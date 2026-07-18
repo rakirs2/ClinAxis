@@ -100,6 +100,7 @@ namespace Scrapers.IntegrationTests.Utilities
                 PublicationDate = new DateTime(2020, 2, 1),
                 Abstract = "Sample abstract",
                 IsNonEnglish = false,
+                PublicationTypes = "Journal Article",
             };
             ctx.PubmedPapers.Add(pubmedPaper);
             ctx.StudyPapers.Add(new StudyPaperEntity

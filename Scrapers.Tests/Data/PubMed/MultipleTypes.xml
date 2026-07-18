@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+      <PMID Version="1">38270950</PMID>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Print">1234-5678</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>10</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2024</Year>
+              <Month>Jan</Month>
+              <Day>15</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Test Journal</Title>
+        </Journal>
+        <ArticleTitle>Clinical Trial of Drug X for Condition Y</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>100-110</MedlinePgn>
+        </Pagination>
+        <Abstract>
+          <AbstractText>This was a randomized controlled trial testing Drug X.</AbstractText>
+        </Abstract>
+        <AuthorList>
+          <Author>
+            <LastName>Smith</LastName>
+            <ForeName>John</ForeName>
+          </Author>
+        </AuthorList>
+        <PublicationTypeList>
+          <PublicationType>Journal Article</PublicationType>
+          <PublicationType>Clinical Trial</PublicationType>
+          <PublicationType>Randomized Controlled Trial</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>

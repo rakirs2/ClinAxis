@@ -47,6 +47,7 @@ namespace Scrapers.IntegrationTests
             {
                 Pmid = "12345678",
                 Title = "Existing Paper",
+                PublicationTypes = "Journal Article",
             };
             Context.PubmedPapers.Add(existingPaper);
             await Context.SaveChangesAsync();

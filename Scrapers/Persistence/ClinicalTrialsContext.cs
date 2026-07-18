@@ -84,6 +84,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.PublicationDate).HasColumnName("publication_date");
                 entity.Property(e => e.Abstract).HasColumnName("abstract");
                 entity.Property(e => e.IsNonEnglish).HasColumnName("is_non_english");
+                entity.Property(e => e.PublicationTypes).HasColumnName("publication_types").HasMaxLength(500);
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 
