@@ -11,7 +11,7 @@ using Scrapers.Persistence.Entities;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5003");
 
-var connectionString = ConnectionStringProvider.Default;
+var connectionString = ConnectionStringProvider.WithPoolLimits(ConnectionStringProvider.Default);
 
 // Retry database connection during startup to handle transient DB delays
 var startupRepo = new StudyRepository(connectionString);

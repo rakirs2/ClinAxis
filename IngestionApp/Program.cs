@@ -19,12 +19,13 @@ if (args.Contains("--version") || args.Contains("-v"))
     return 0;
 }
 
-var cs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-if (string.IsNullOrWhiteSpace(cs))
+var rawCs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
+if (string.IsNullOrWhiteSpace(rawCs))
 {
     await Console.Error.WriteLineAsync("POSTGRES_CONNECTION_STRING not set.").ConfigureAwait(false);
     return 1;
 }
+var cs = ConnectionStringProvider.WithPoolLimits(rawCs, maxPoolSize: 10);
 
 // Optionally reset database (set INGESTION_RESET_DB=true for fresh state on dev redeploy)
 if (Environment.GetEnvironmentVariable("INGESTION_RESET_DB") == "true")
