@@ -71,7 +71,7 @@ sudo -u ct-deploy touch /opt/clinicaltrialdata/ingestion/.deploy-test && rm /opt
 echo "Creating environment file..."
 mkdir -p /etc
 cat > /etc/clinicaltrialdata.env <<EOF
-POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres
+POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;Maximum Pool Size=25;Connection Idle Lifetime=300;Connection Pruning Interval=60
 EOF
 chmod 600 /etc/clinicaltrialdata.env
 chown root:root /etc/clinicaltrialdata.env

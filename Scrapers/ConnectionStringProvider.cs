@@ -1,4 +1,6 @@
-﻿namespace Scrapers;
+﻿using Npgsql;
+
+namespace Scrapers;
 
 public static class ConnectionStringProvider
 {
@@ -8,4 +10,15 @@ public static class ConnectionStringProvider
 
     public static string DefaultNoPooling =>
         $"{Default};Pooling=false";
+
+    public static string WithPoolLimits(string connectionString, int maxPoolSize = 25)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            MaxPoolSize = maxPoolSize,
+            ConnectionIdleLifetime = 300,
+            ConnectionPruningInterval = 60
+        };
+        return builder.ConnectionString;
+    }
 }
