@@ -1,0 +1,125 @@
+@page "/status/completion"
+@using System.Net.Http.Json
+@inject HttpClient Client
+@inject NavigationManager Navigation
+
+<h1>System Status</h1>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link" href="/status">System Status</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/status/database">Database Size</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active" href="/status/completion">Completion</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/status/duration-trend">Duration Trend</a>
+    </li>
+</ul>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (breakdown is null)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else
+{
+    var total = breakdown.Values.Sum();
+    var completed = breakdown.GetValueOrDefault("COMPLETED", 0);
+    var completionRate = total > 0 ? (double)completed / total * 100 : 0;
+
+    <div class="row mb-4">
+        <div class="col-md-4 d-flex flex-column">
+            <div class="card text-bg-primary h-100" style="min-height: 130px">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
+                    <h5 class="card-title">Total Studies</h5>
+                    <p class="display-6 mb-0">@total.ToString("N0")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 d-flex flex-column">
+            <div class="card text-bg-success h-100" style="min-height: 130px">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
+                    <h5 class="card-title">Completed</h5>
+                    <p class="display-6 mb-0">@completed.ToString("N0")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 d-flex flex-column">
+            <div class="card text-bg-info h-100" style="min-height: 130px">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
+                    <h5 class="card-title">Completion Rate</h5>
+                    <p class="display-6 mb-0">@completionRate.ToString("F1")%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3 class="mt-4">Status Distribution</h3>
+    @if (breakdown.Count > 0)
+    {
+        var maxCount = breakdown.Values.Max();
+        <table class="table table-sm table-striped" style="max-width: 600px">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Count</th>
+                    <th>Percentage</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var kvp in breakdown.OrderByDescending(kv => kv.Value))
+                {
+                    var barWidth = (double)kvp.Value / maxCount * 100;
+                    var isCompleted = kvp.Key == "COMPLETED";
+                    <tr class="@(isCompleted ? "table-success" : "")">
+                        <td><strong>@kvp.Key</strong></td>
+                        <td>@kvp.Value.ToString("N0")</td>
+                        <td>@((double)kvp.Value / total * 100).ToString("F1")%</td>
+                        <td style="width: 40%">
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar @(isCompleted ? "bg-success" : "bg-secondary")"
+                                     role="progressbar"
+                                     style="width: @barWidth.ToString("F1")%"
+                                     aria-valuenow="@kvp.Value"
+                                     aria-valuemin="0"
+                                     aria-valuemax="@maxCount">
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p class="text-muted">No studies found.</p>
+    }
+}
+
+@code {
+    private Dictionary<string, int>? breakdown;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            breakdown = await Client.GetFromJsonAsync<Dictionary<string, int>>("/api/stats/status-breakdown");
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load completion stats: {ex.Message}";
+        }
+    }
+}
