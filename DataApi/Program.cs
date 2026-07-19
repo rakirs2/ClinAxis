@@ -430,6 +430,13 @@ app.MapGet("/api/word-cloud/keywords", async () =>
     return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
 });
 
+app.MapGet("/api/stats/status-breakdown", async () =>
+{
+    var repo = new StudyRepository(connectionString);
+    var breakdown = await repo.GetStatusBreakdownAsync();
+    return Results.Ok(breakdown);
+});
+
 app.MapGet("/api/telemetry", async () =>
 {
     var repo = new StudyRepository(connectionString);

@@ -973,6 +973,61 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.AreEqual(1, breakdown["pending"]);
     }
 
+    [TestMethod]
+    public async Task GetStatusBreakdownAsync_ReturnsCountsByStatus()
+    {
+        Context.Studies.AddRange(
+            new StudyEntity { NctId = "NCT500001", BriefTitle = "S1", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT500002", BriefTitle = "S2", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT500003", BriefTitle = "S3", OverallStatus = "RECRUITING", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT500004", BriefTitle = "S4", OverallStatus = "TERMINATED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT500005", BriefTitle = "S5", OverallStatus = "ACTIVE", CreatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var breakdown = await _repo.GetStatusBreakdownAsync();
+
+        Assert.AreEqual(5, breakdown.Values.Sum());
+        Assert.AreEqual(2, breakdown["COMPLETED"]);
+        Assert.AreEqual(1, breakdown["RECRUITING"]);
+        Assert.AreEqual(1, breakdown["TERMINATED"]);
+        Assert.AreEqual(1, breakdown["ACTIVE"]);
+    }
+
+    [TestMethod]
+    public async Task GetStatusBreakdownAsync_HandlesNullStatus()
+    {
+        Context.Studies.Add(new StudyEntity { NctId = "NCT600001", BriefTitle = "Null Status", OverallStatus = null, CreatedAt = DateTime.UtcNow });
+        await Context.SaveChangesAsync();
+
+        var breakdown = await _repo.GetStatusBreakdownAsync();
+
+        Assert.AreEqual(1, breakdown["UNKNOWN"]);
+    }
+
+    [TestMethod]
+    public async Task GetStatusBreakdownAsync_EmptyDb_ReturnsEmpty()
+    {
+        var breakdown = await _repo.GetStatusBreakdownAsync();
+        Assert.AreEqual(0, breakdown.Count);
+    }
+
+    [TestMethod]
+    public async Task StatusBreakdownEndpoint_MatchesDbState()
+    {
+        Context.Studies.AddRange(
+            new StudyEntity { NctId = "NCT700001", BriefTitle = "Done", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT700002", BriefTitle = "Active", OverallStatus = "RECRUITING", CreatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var breakdown = await _repo.GetStatusBreakdownAsync();
+
+        Assert.AreEqual(1, breakdown["COMPLETED"]);
+        Assert.AreEqual(1, breakdown["RECRUITING"]);
+        Assert.AreEqual(2, breakdown.Values.Sum());
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null,
         DateOnly? startDate = null)
