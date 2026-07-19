@@ -840,6 +840,116 @@ public sealed class StudyRepositoryTests : DbTestBase
     }
 
     [TestMethod]
+    public async Task CountKeywordsAsync_ReturnsDistinctKeywordStrings()
+    {
+        Context.Studies.AddRange(
+            new StudyEntity { NctId = "NCT100001", BriefTitle = "Study A", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT100002", BriefTitle = "Study B", OverallStatus = "RECRUITING", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT100003", BriefTitle = "Study C", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        Context.StudyKeywords.AddRange(
+            new StudyKeywordEntity { StudyNctId = "NCT100001", Keyword = "HIV" },
+            new StudyKeywordEntity { StudyNctId = "NCT100002", Keyword = "HIV" },
+            new StudyKeywordEntity { StudyNctId = "NCT100003", Keyword = "HIV" },
+            new StudyKeywordEntity { StudyNctId = "NCT100001", Keyword = "CANCER" },
+            new StudyKeywordEntity { StudyNctId = "NCT100002", Keyword = "DIABETES" }
+        );
+        await Context.SaveChangesAsync();
+
+        var count = await _repo.CountKeywordsAsync();
+
+        Assert.AreEqual(3, count, "Should count 3 distinct keywords (HIV, CANCER, DIABETES), not 5 rows");
+    }
+
+    [TestMethod]
+    public async Task CountKeywordsAsync_NoKeywords_ReturnsZero()
+    {
+        var count = await _repo.CountKeywordsAsync();
+        Assert.AreEqual(0, count);
+    }
+
+    [TestMethod]
+    public async Task CountPubmedPapersAsync_ReturnsUniquePaperCount()
+    {
+        var paperAId = Guid.NewGuid();
+        var paperBId = Guid.NewGuid();
+        Context.PubmedPapers.AddRange(
+            new PubmedPaperEntity { Id = paperAId, Pmid = "10000001", Title = "Paper A", Journal = "Journal A", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new PubmedPaperEntity { Id = paperBId, Pmid = "10000002", Title = "Paper B", Journal = "Journal B", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var count = await _repo.CountPubmedPapersAsync();
+        Assert.AreEqual(2, count, "Should count 2 unique paper records");
+    }
+
+    [TestMethod]
+    public async Task CountPubmedPapersAsync_PaperLinkedToMultipleStudies_StillCountsOnce()
+    {
+        var paperId = Guid.NewGuid();
+        Context.PubmedPapers.Add(new PubmedPaperEntity { Id = paperId, Pmid = "20000001", Title = "Single Paper", Journal = "Journal", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        Context.Studies.AddRange(
+            new StudyEntity { NctId = "NCT200001", BriefTitle = "Study X", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT200002", BriefTitle = "Study Y", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow }
+        );
+        Context.StudyPapers.AddRange(
+            new StudyPaperEntity { StudyNctId = "NCT200001", PubmedPaperId = paperId },
+            new StudyPaperEntity { StudyNctId = "NCT200002", PubmedPaperId = paperId }
+        );
+        await Context.SaveChangesAsync();
+
+        var count = await _repo.CountPubmedPapersAsync();
+        Assert.AreEqual(1, count, "One paper linked to two studies should still count as 1");
+    }
+
+    [TestMethod]
+    public async Task CountInvestigatorsAsync_CountsOnlyHumans()
+    {
+        Context.InvestigatorPersons.AddRange(
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "Dr. Human", IsHuman = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "Pfizer", IsHuman = false, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "Dr. Another", IsHuman = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var count = await _repo.CountInvestigatorsAsync();
+        Assert.AreEqual(2, count, "Should count only human investigators, excluding non-human entities");
+    }
+
+    [TestMethod]
+    public async Task CountStudiesAsync_ReturnsTotalStudyCount()
+    {
+        Context.Studies.AddRange(
+            new StudyEntity { NctId = "NCT300001", BriefTitle = "Study 1", OverallStatus = "COMPLETED", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT300002", BriefTitle = "Study 2", OverallStatus = "RECRUITING", CreatedAt = DateTime.UtcNow },
+            new StudyEntity { NctId = "NCT300003", BriefTitle = "Study 3", OverallStatus = "TERMINATED", CreatedAt = DateTime.UtcNow }
+        );
+        await Context.SaveChangesAsync();
+
+        var count = await _repo.CountStudiesAsync();
+        Assert.AreEqual(3, count);
+    }
+
+    [TestMethod]
+    public async Task StatsEndpoint_AllCountsMatchDbState()
+    {
+        var paperId = Guid.NewGuid();
+        Context.PubmedPapers.Add(new PubmedPaperEntity { Id = paperId, Pmid = "30000001", Title = "Linked Paper", Journal = "Journal", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        Context.Studies.Add(new StudyEntity { NctId = "NCT400001", BriefTitle = "Main Study", OverallStatus = "ACTIVE", CreatedAt = DateTime.UtcNow });
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "Dr. Person", IsHuman = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        Context.StudyPapers.Add(new StudyPaperEntity { StudyNctId = "NCT400001", PubmedPaperId = paperId });
+        Context.StudyKeywords.Add(new StudyKeywordEntity { StudyNctId = "NCT400001", Keyword = "ONCOLOGY" });
+        await Context.SaveChangesAsync();
+
+        Assert.AreEqual(1, await _repo.CountStudiesAsync());
+        Assert.AreEqual(1, await _repo.CountInvestigatorsAsync());
+        Assert.AreEqual(1, await _repo.CountPubmedPapersAsync());
+        Assert.AreEqual(1, await _repo.CountKeywordsAsync());
+    }
+
+    [TestMethod]
     public async Task GetNpiEnrichmentBreakdownAsync_ReturnsCorrectCounts()
     {
         var persons = new[]
