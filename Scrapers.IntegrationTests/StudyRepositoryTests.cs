@@ -973,6 +973,48 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.AreEqual(1, breakdown["pending"]);
     }
 
+    [TestMethod]
+    public async Task FailEventAsync_StoresFullErrorMessage()
+    {
+        var service = new Scrapers.Services.EventQueue.EventQueueService(ConnectionString);
+        await service.EnqueueAsync("test.type", "{\"key\":\"value\"}");
+        var evt = await service.ClaimNextPendingEventAsync("test-runner", ["test.type"]);
+
+        var fullError = "System.InvalidOperationException: Test error\n" +
+            "   at SomeClass.SomeMethod() in /path/file.cs:line 42\n" +
+            "   at SomeClass.AnotherMethod() in /path/other.cs:line 99";
+        await service.FailEventAsync(evt!.Id, fullError);
+        await service.FailEventAsync(evt.Id, fullError);
+        await service.FailEventAsync(evt.Id, fullError);
+
+        var failed = await service.GetDeadLetterEventsAsync(10);
+        var stored = failed.First();
+        Assert.IsTrue(stored.ErrorMessage!.Contains("System.InvalidOperationException", StringComparison.Ordinal));
+        Assert.IsTrue(stored.ErrorMessage.Contains("SomeClass.SomeMethod()", StringComparison.Ordinal));
+        Assert.IsTrue(stored.ErrorMessage.Contains("/path/file.cs:line 42", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task FailEventAsync_ErrorMessageExceedsDefaultMaxLength_StoredCompletely()
+    {
+        var service = new Scrapers.Services.EventQueue.EventQueueService(ConnectionString);
+        await service.EnqueueAsync("test.large", "{}");
+        var evt = await service.ClaimNextPendingEventAsync("test-runner", ["test.large"]);
+
+        var longError = string.Join("\n", Enumerable.Range(0, 100).Select(i =>
+            $"Frame #{i}: at SomeClass.Method{i}() in /path/file.cs:line {i * 10}"));
+        await service.FailEventAsync(evt!.Id, longError);
+        await service.FailEventAsync(evt.Id, longError);
+        await service.FailEventAsync(evt.Id, longError);
+
+        var failed = await service.GetDeadLetterEventsAsync(10);
+        var stored = failed.First();
+        Assert.IsTrue(stored.ErrorMessage!.StartsWith("Frame #0:", StringComparison.Ordinal));
+        Assert.IsTrue(stored.ErrorMessage.Contains("Frame #50:", StringComparison.Ordinal));
+        Assert.IsTrue(stored.ErrorMessage.EndsWith("line 990", StringComparison.Ordinal));
+        Assert.AreEqual(longError.Length, stored.ErrorMessage.Length);
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null,
         DateOnly? startDate = null)
