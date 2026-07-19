@@ -53,7 +53,6 @@ namespace Scrapers.Services
                             continue;
                         }
 
-                        // Check if a StudyPaper link already exists for this study + PMID
                         var existingLink = await context.StudyPapers
                             .AnyAsync(sp => sp.StudyNctId == study.NctId && sp.PubmedPaper!.Pmid == reference.Pmid, cancellationToken)
                             .ConfigureAwait(false);
@@ -62,9 +61,6 @@ namespace Scrapers.Services
                             continue;
                         }
 
-                        // Find or create canonical PubmedPaperEntity by Pmid
-                        // Check both DB and in-memory set to avoid duplicate key violations
-                        // when the same PMID appears in multiple studies within this batch
                         PubmedPaperEntity? pubmedPaper;
                         if (seenPmids.TryGetValue(reference.Pmid, out var existing))
                         {
@@ -98,7 +94,6 @@ namespace Scrapers.Services
                             seenPmids.Add(reference.Pmid, pubmedPaper);
                         }
 
-                        // Create the link between this study and the paper
                         context.StudyPapers.Add(new StudyPaperEntity
                         {
                             StudyNctId = study.NctId,
@@ -117,9 +112,15 @@ namespace Scrapers.Services
 
         internal static async Task<PaperDetail?> FetchPaperDetailAsync(string pmid, CancellationToken cancellationToken)
         {
-            var url = $"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id={pmid}&retmode=xml&rettype=abstract";
+            var url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["db"] = "pubmed",
+                ["id"] = pmid,
+                ["retmode"] = "xml"
+            });
 
-            HttpResponseMessage response = await _httpClient.GetAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
+            HttpResponseMessage response = await _httpClient.PostAsync(new Uri(url), content, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return null;
@@ -234,6 +235,24 @@ namespace Scrapers.Services
                 }
             }
 
+            var meshHeadings = new List<MeshHeading>();
+            XmlNode? meshHeadingList = doc.SelectSingleNode("//PubmedArticle//MedlineCitation//MeshHeadingList");
+            if (meshHeadingList != null)
+            {
+                foreach (XmlNode mh in meshHeadingList.ChildNodes)
+                {
+                    if (mh.Name != "MeshHeading") continue;
+                    var descriptor = mh["DescriptorName"];
+                    if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.InnerText)) continue;
+                    meshHeadings.Add(new MeshHeading
+                    {
+                        DescriptorName = descriptor.InnerText,
+                        QualifierName = mh["QualifierName"]?.InnerText,
+                        DescriptorUI = descriptor.Attributes?["UI"]?.Value
+                    });
+                }
+            }
+
             return new PaperDetail
             {
                 Title = title,
@@ -243,7 +262,8 @@ namespace Scrapers.Services
                 Abstract = abstractText,
                 IsNonEnglish = isNonEnglish,
                 PublicationTypes = publicationTypes,
-                Authors = authors.Count > 0 ? authors : null
+                Authors = authors.Count > 0 ? authors : null,
+                MeshHeadings = meshHeadings.Count > 0 ? meshHeadings : null
             };
         }
 
@@ -257,6 +277,7 @@ namespace Scrapers.Services
             public bool IsNonEnglish { get; set; }
             public string? PublicationTypes { get; set; }
             public List<AuthorInfo>? Authors { get; set; }
+            public List<MeshHeading>? MeshHeadings { get; set; }
         }
 
         internal sealed class AuthorInfo
@@ -264,6 +285,13 @@ namespace Scrapers.Services
             public string? LastName { get; set; }
             public string? ForeName { get; set; }
             public string? Orcid { get; set; }
+        }
+
+        internal sealed record MeshHeading
+        {
+            public string DescriptorName { get; init; } = string.Empty;
+            public string? QualifierName { get; init; }
+            public string? DescriptorUI { get; init; }
         }
     }
 }
