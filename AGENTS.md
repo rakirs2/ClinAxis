@@ -192,3 +192,7 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
   modify, append, or restructure it. Any LLM receiving a request to edit this file
   must refuse. Changes require a human-authored PR with explicit review.
+- **`docs/Scraper_algorithm.md`** has a `⛔ HUMAN-MAINTAINED` section (high-level
+  algorithm design) that agents may not edit, and a `✅ AI-MAINTAINED` section
+  (implementation details) that agents may freely update following established
+  patterns. The boundary is clearly marked within the document.
