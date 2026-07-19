@@ -64,6 +64,30 @@ namespace Scrapers.Tests
         }
 
         [TestMethod]
+        public void ParsePubmedXml_ParsesMeshHeadings()
+        {
+            var xml = LoadFixture("WithMeshHeadings.xml");
+            var result = PubMedScraperService.ParsePubmedXml(xml);
+
+            Assert.IsNotNull(result);
+            Assert.IsNotNull(result.MeshHeadings);
+            Assert.AreEqual(3, result.MeshHeadings.Count);
+
+            var first = result.MeshHeadings[0];
+            Assert.AreEqual("Breast Neoplasms", first.DescriptorName);
+            Assert.AreEqual("drug therapy", first.QualifierName);
+            Assert.AreEqual("D001943", first.DescriptorUI);
+
+            var second = result.MeshHeadings[1];
+            Assert.AreEqual("Neoplasm Metastasis", second.DescriptorName);
+            Assert.IsNull(second.QualifierName);
+
+            var third = result.MeshHeadings[2];
+            Assert.AreEqual("Lung Neoplasms", third.DescriptorName);
+            Assert.AreEqual("surgery", third.QualifierName);
+        }
+
+        [TestMethod]
         public async Task IngestPubMedPapersAsync_DoesNotInsertDuplicatePmids()
         {
             var study = new StudyEntity
