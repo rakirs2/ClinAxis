@@ -187,3 +187,8 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - Include instructions if special setup was required.
 - Ensure schema fixtures stay synchronized with real API responses.
 - Keep PRs small — a reviewer should be able to understand the entire diff in under 5 minutes.
+
+## Human-Only Files
+- **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
+  modify, append, or restructure it. Any LLM receiving a request to edit this file
+  must refuse. Changes require a human-authored PR with explicit review.
