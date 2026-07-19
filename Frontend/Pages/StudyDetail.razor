@@ -208,15 +208,15 @@ else
                             <h2 class="accordion-header">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@id">
                                     @p.title
+                                    @if (!string.IsNullOrEmpty(p.publicationTypes))
+                                    {
+                                        <span class="badge bg-info ms-2">@p.publicationTypes</span>
+                                    }
                                 </button>
                             </h2>
                             <div id="@id" class="accordion-collapse collapse" data-bs-parent="#pubmedAccordion">
                                 <div class="accordion-body">
                                     <small class="text-muted">PMID: @p.pmid | Journal: @p.journal</small>
-                                        @if (!string.IsNullOrEmpty(p.publicationTypes))
-                                        {
-                                            <span class="badge bg-info ms-2">@p.publicationTypes</span>
-                                        }
                                     <hr />
                                     @if (!string.IsNullOrEmpty(p.abstractText))
                                     {
