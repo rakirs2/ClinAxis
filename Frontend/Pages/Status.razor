@@ -13,6 +13,9 @@
     <li class="nav-item">
         <a class="nav-link" href="/status/database">Database Size</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/status/duration-trend">Duration Trend</a>
+    </li>
 </ul>
 
 <div class="mb-3">
@@ -247,7 +250,7 @@ else
     @if (queueStats?.byEventType is { Count: > 0 })
     {
         <h3 class="mt-4">Event Type Breakdown</h3>
-        <table class="table table-sm table-striped" style="max-width: 100%">
+        <table class="table table-sm table-striped" style="max-width: 800px">
             <thead>
                 <tr>
                     <th>Event Type</th>
@@ -496,12 +499,12 @@ else
     }
 
     private class ScraperProgressItem
-{
-    public int totalAvailable { get; set; }
-    public int totalInDb { get; set; }
-    public double percentScraped { get; set; }
-    public DateTime lastChecked { get; set; }
-}
+    {
+        public int totalAvailable { get; set; }
+        public int totalInDb { get; set; }
+        public double percentScraped { get; set; }
+        public DateTime lastChecked { get; set; }
+    }
 
     private class RejectedNameItem
     {

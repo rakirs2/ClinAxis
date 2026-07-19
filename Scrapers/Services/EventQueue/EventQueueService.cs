@@ -265,7 +265,7 @@ public sealed class EventQueueService : IEventQueueService
                 .UseNpgsql(_connectionString)
                 .Options);
 
-        var raw = await context.PipelineEvents
+        var groups = await context.PipelineEvents
             .GroupBy(e => e.EventType)
             .Select(g => new
             {
@@ -282,16 +282,96 @@ public sealed class EventQueueService : IEventQueueService
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        return raw.Select(r => new EventTypeBreakdown
+        var allDurations = await context.PipelineEvents
+            .Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue)
+            .Select(e => new { e.EventType, Ms = (e.CompletedAt!.Value - e.ClaimedAt!.Value).TotalMilliseconds })
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var durationsByType = allDurations
+            .GroupBy(d => d.EventType)
+            .ToDictionary(g => g.Key, g => g.Select(d => d.Ms).ToList());
+
+        return groups.Select(r =>
         {
-            EventType = r.EventType,
-            Pending = r.Pending,
-            Processing = r.Processing,
-            Completed = r.Completed,
-            Failed = r.Failed,
-            DeadLetter = r.DeadLetter,
-            AverageProcessingTimeMs = r.AvgProcessingMs
+            List<double>? durations = null;
+            durationsByType.TryGetValue(r.EventType, out durations);
+
+            return new EventTypeBreakdown
+            {
+                EventType = r.EventType,
+                Pending = r.Pending,
+                Processing = r.Processing,
+                Completed = r.Completed,
+                Failed = r.Failed,
+                DeadLetter = r.DeadLetter,
+                AverageProcessingTimeMs = r.AvgProcessingMs,
+                Percentiles = durations is { Count: > 0 } ? DurationPercentileCalculator.ComputePercentiles(durations) : null
+            };
         }).ToList();
+    }
+
+    public async Task<List<DurationHistoryPoint>> GetDurationHistoryAsync(
+        string? eventType = null, string period = "24h", int bucketMinutes = 60, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .UseNpgsql(_connectionString)
+                .Options);
+
+        var since = period switch
+        {
+            "1h" => DateTime.UtcNow.AddHours(-1),
+            "6h" => DateTime.UtcNow.AddHours(-6),
+            "24h" => DateTime.UtcNow.AddHours(-24),
+            "7d" => DateTime.UtcNow.AddDays(-7),
+            _ => DateTime.UtcNow.AddHours(-24)
+        };
+
+        var query = context.PipelineEvents
+            .Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue
+                        && e.CompletedAt >= since);
+
+        if (!string.IsNullOrEmpty(eventType))
+            query = query.Where(e => e.EventType == eventType);
+
+        var durations = await query
+            .Select(e => new
+            {
+                e.EventType,
+                e.CompletedAt,
+                Ms = (e.CompletedAt!.Value - e.ClaimedAt!.Value).TotalMilliseconds
+            })
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var bucketed = durations
+            .GroupBy(d =>
+            {
+                var totalMinutes = (int)(d.CompletedAt!.Value.ToUniversalTime() - DateTime.UnixEpoch).TotalMinutes;
+                var bucketStart = (totalMinutes / bucketMinutes) * bucketMinutes;
+                return DateTime.UnixEpoch.AddMinutes(bucketStart);
+            })
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var msValues = g.Select(d => d.Ms).ToList();
+                var sorted = msValues.OrderBy(m => m).ToList();
+                    return new DurationHistoryPoint
+                {
+                    Bucket = g.Key,
+                    Count = sorted.Count,
+                    AverageMs = sorted.Average(),
+                    P50Ms = DurationPercentileCalculator.Percentile(sorted, 50),
+                    P95Ms = DurationPercentileCalculator.Percentile(sorted, 95),
+                    P99Ms = DurationPercentileCalculator.Percentile(sorted, 99)
+                };
+            })
+            .ToList();
+
+        return bucketed;
     }
 
     public async Task RetryDeadLetterEventAsync(int eventId, CancellationToken ct = default)

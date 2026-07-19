@@ -518,8 +518,42 @@ app.MapGet("/api/event-queue/stats", async () =>
         stats.AverageProcessingTimeMs,
         stats.FailureRate,
         stats.EstimatedTimeRemainingMs,
-        byEventType
+        byEventType = byEventType.Select(et => new
+        {
+            et.EventType,
+            et.Pending,
+            et.Processing,
+            et.Completed,
+            et.Failed,
+            et.DeadLetter,
+            et.AverageProcessingTimeMs,
+            percentiles = et.Percentiles != null ? new
+            {
+                et.Percentiles.Count,
+                et.Percentiles.MinMs,
+                et.Percentiles.P50Ms,
+                et.Percentiles.P95Ms,
+                et.Percentiles.P99Ms,
+                et.Percentiles.MaxMs
+            } : null
+        })
     });
+});
+
+app.MapGet("/api/event-queue/duration-history", async (string? eventType, string? period, int? bucketMinutes) =>
+{
+    var eventQueueService = new Scrapers.Services.EventQueue.EventQueueService(connectionString);
+    var history = await eventQueueService.GetDurationHistoryAsync(
+        eventType, period ?? "24h", bucketMinutes ?? 60);
+    return Results.Ok(history.Select(h => new
+    {
+        h.Bucket,
+        h.Count,
+        h.AverageMs,
+        h.P50Ms,
+        h.P95Ms,
+        h.P99Ms
+    }));
 });
 
 app.MapGet("/api/event-queue/dead-letter", async (int? page, int? pageSize) =>
