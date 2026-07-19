@@ -32,6 +32,38 @@ else
 {
     <div class="row">
         <div class="col-md-6">
+            <h3 class="mt-4">Scraper Progress</h3>
+            @if (scraperProgress is null)
+            {
+                <p class="text-muted">Loading...</p>
+            }
+            else
+            {
+                var pct = scraperProgress.percentScraped;
+                var barClass = pct >= 90 ? "bg-success" : pct >= 50 ? "bg-warning" : "bg-danger";
+                var statusColor = pct >= 90 ? "success" : pct >= 50 ? "warning" : "danger";
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>@scraperProgress.totalInDb / @scraperProgress.totalAvailable studies</span>
+                        <strong class="text-@statusColor">@pct.ToString("F1")%</strong>
+                    </div>
+                    <div class="progress" style="height: 24px;">
+                        <div class="progress-bar @barClass"
+                             role="progressbar"
+                             style="width: @(pct > 100 ? 100 : pct)%"
+                             aria-valuenow="@pct"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            @pct.ToString("F1")%
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Last checked: @scraperProgress.lastChecked.ToString("HH:mm")
+                    </small>
+                </div>
+            }
+        </div>
+        <div class="col-md-6">
             <h3 class="mt-4">Database</h3>
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
@@ -295,6 +327,7 @@ else
     private List<DataSourceStateItem>? dataSourceStates;
     private QueueStatsItem? queueStats;
     private List<RejectedNameItem>? rejectedNames;
+    private ScraperProgressItem? scraperProgress;
     private string lastUpdated = "";
     private Timer? _timer;
 
@@ -319,6 +352,7 @@ else
             dataSourceStates = await Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state");
             queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
             rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
+            scraperProgress = await Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress");
             lastUpdated = DateTime.Now.ToString("HH:mm:ss");
         }
         catch
@@ -460,6 +494,14 @@ else
         public int deadLetter { get; set; }
         public double averageProcessingTimeMs { get; set; }
     }
+
+    private class ScraperProgressItem
+{
+    public int totalAvailable { get; set; }
+    public int totalInDb { get; set; }
+    public double percentScraped { get; set; }
+    public DateTime lastChecked { get; set; }
+}
 
     private class RejectedNameItem
     {

@@ -1,4 +1,6 @@
+using System.Net.Http.Json;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using DataApi;
@@ -358,6 +360,47 @@ app.MapGet("/api/export/keywords", async (HttpResponse response) =>
         var escaped = k.Keyword.Replace("\"", "\"\"", StringComparison.Ordinal);
         await response.WriteAsync($"\"{escaped}\",{k.StudyCount}\n");
     }
+});
+
+app.MapGet("/api/scraper-progress", async (IMemoryCache cache) =>
+{
+    var cacheKey = "scraper_progress";
+    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
+        return Results.Ok(cached);
+
+    int totalAvailable = 0;
+    try
+    {
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var uri = new Uri("https://clinicaltrials.gov/api/v2/studies?format=json&pageSize=1&countTotal=true");
+        var json = await httpClient.GetStringAsync(uri);
+        using var doc = JsonDocument.Parse(json);
+        totalAvailable = doc.RootElement.GetProperty("totalCount").GetInt32();
+    }
+    catch (HttpRequestException)
+    {
+    }
+    catch (TaskCanceledException)
+    {
+    }
+    catch (JsonException)
+    {
+    }
+
+    var repo = new StudyRepository(connectionString);
+    var totalInDb = await repo.CountStudiesAsync();
+
+    var result = new
+    {
+        totalAvailable,
+        totalInDb,
+        percentScraped = totalAvailable > 0 ? Math.Round((double)totalInDb / totalAvailable * 100, 1) : 0.0,
+        lastChecked = DateTime.UtcNow
+    };
+
+    var ttl = totalAvailable > 0 ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+    cache.Set(cacheKey, result, ttl);
+    return Results.Ok(result);
 });
 
 app.MapGet("/api/database/size", async () =>
