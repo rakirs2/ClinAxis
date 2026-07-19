@@ -61,7 +61,7 @@ internal sealed class EventProcessingService : BackgroundService
                 {
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
-                        $"{ex.GetType().Name}: {ex.Message}",
+                        ex.ToString(),
                         stoppingToken).ConfigureAwait(false);
                 }
             }
