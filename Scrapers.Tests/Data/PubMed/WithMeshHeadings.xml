@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="Publisher" Owner="NLM">
+      <PMID Version="1">28934455</PMID>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Print">0000-0000</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>1</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2023</Year>
+              <Month>Jan</Month>
+              <Day>1</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Test Journal</Title>
+        </Journal>
+        <ArticleTitle>Test Article</ArticleTitle>
+        <Abstract>
+          <AbstractText>Test abstract.</AbstractText>
+        </Abstract>
+      </Article>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D001943" MajorTopicYN="Y">Breast Neoplasms</DescriptorName>
+          <QualifierName UI="Q000188" MajorTopicYN="N">drug therapy</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D009369" MajorTopicYN="N">Neoplasm Metastasis</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008175" MajorTopicYN="N">Lung Neoplasms</DescriptorName>
+          <QualifierName UI="Q000628" MajorTopicYN="Y">surgery</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>
