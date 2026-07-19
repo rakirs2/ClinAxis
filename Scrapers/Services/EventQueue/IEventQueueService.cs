@@ -63,4 +63,14 @@ public interface IEventQueueService
     /// Allows other services to re-claim and retry.
     /// </summary>
     Task ReleaseStuckEventsAsync(TimeSpan claimTimeout, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get event type breakdown with duration percentiles.
+    /// </summary>
+    Task<List<EventTypeBreakdown>> GetEventTypeBreakdownAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Get time-bucketed duration history for trend display.
+    /// </summary>
+    Task<List<DurationHistoryPoint>> GetDurationHistoryAsync(string? eventType = null, string period = "24h", int bucketMinutes = 60, CancellationToken ct = default);
 }
