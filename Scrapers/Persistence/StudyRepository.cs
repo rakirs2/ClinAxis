@@ -555,6 +555,16 @@ namespace Scrapers.Persistence
             return await context.StudyKeywords.Select(k => k.Keyword).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        public async Task<Dictionary<string, int>> GetStatusBreakdownAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies
+                .GroupBy(s => s.OverallStatus ?? "UNKNOWN")
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Status, x => x.Count, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         public async Task<int> CountInvestigatorsWithNpiAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
