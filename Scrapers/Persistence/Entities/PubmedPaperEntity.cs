@@ -16,6 +16,7 @@ namespace Scrapers.Persistence.Entities
         public string? Abstract { get; set; }
         public bool IsNonEnglish { get; set; }
         public string? PublicationTypes { get; set; }
+        public string Source { get; set; } = "PubMed/EUtils";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
