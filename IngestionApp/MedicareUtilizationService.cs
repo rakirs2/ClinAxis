@@ -154,6 +154,12 @@ internal sealed class MedicareUtilizationService : BackgroundService
             StoreUtilizationRecord(context, person.Id, record, _dataYear);
         }
 
+        var services = await _cmsClient.GetServicesByNpiAsync(person.Npi, ct).ConfigureAwait(false);
+        if (services.Count > 0)
+        {
+            StoreProcedureRecords(context, person.Id, services, _dataYear);
+        }
+
         person.MedicareLookupAttemptedAt = DateTime.UtcNow;
         person.UpdatedAt = DateTime.UtcNow;
     }
@@ -216,6 +222,30 @@ internal sealed class MedicareUtilizationService : BackgroundService
         };
 
         context.MedicareUtilizations.Add(entity);
+    }
+
+    private static void StoreProcedureRecords(ClinicalTrialsContext context, Guid personId, IReadOnlyList<CmsMedicareServiceRecord> records, int dataYear)
+    {
+        foreach (var sr in records)
+        {
+            var entity = new MedicareProcedureEntity
+            {
+                InvestigatorPersonId = personId,
+                DataYear = dataYear,
+                HcpcsCode = sr.HcpcsCode ?? string.Empty,
+                HcpcsDescription = sr.HcpcsDescription,
+                PlaceOfService = sr.PlaceOfService,
+                BeneficiaryCount = sr.BeneficiaryCount,
+                ServiceCount = sr.ServiceCount,
+                SubmittedChargeAmount = sr.SubmittedChargeAmount,
+                MedicareAllowedAmount = sr.MedicareAllowedAmount,
+                MedicarePaymentAmount = sr.MedicarePaymentAmount,
+                ProviderType = sr.ProviderType,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.MedicareProcedures.Add(entity);
+        }
     }
 
     private static void AddCond(Dictionary<string, decimal?> dict, string key, decimal? value)
