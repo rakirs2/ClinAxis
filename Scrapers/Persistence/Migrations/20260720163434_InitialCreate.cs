@@ -50,6 +50,24 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "entity_aliases",
+                columns: table => new
+                {
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    entity_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    canonical_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    source_entity_id = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    first_seen_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    last_seen_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_entity_aliases", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "investigator_persons",
                 columns: table => new
                 {
@@ -63,6 +81,7 @@ namespace Scrapers.Persistence.Migrations
                     npi_enrichment_result = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     medicare_lookup_attempted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     medicare_lookup_result = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     is_human = table.Column<bool>(type: "boolean", nullable: false),
                     verified_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     verification_source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
@@ -148,6 +167,8 @@ namespace Scrapers.Persistence.Migrations
                     publication_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     @abstract = table.Column<string>(name: "abstract", type: "text", nullable: true),
                     is_non_english = table.Column<bool>(type: "boolean", nullable: false),
+                    publication_types = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -254,6 +275,7 @@ namespace Scrapers.Persistence.Migrations
                     start_date = table.Column<DateOnly>(type: "date", nullable: true),
                     completion_date = table.Column<DateOnly>(type: "date", nullable: true),
                     study_first_post_date = table.Column<DateOnly>(type: "date", nullable: true),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     is_incomplete = table.Column<bool>(type: "boolean", nullable: false)
                 },
@@ -667,6 +689,17 @@ namespace Scrapers.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_entity_aliases_entity_type_canonical_id",
+                table: "entity_aliases",
+                columns: new[] { "entity_type", "canonical_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_entity_aliases_entity_type_source_source_entity_id",
+                table: "entity_aliases",
+                columns: new[] { "entity_type", "source", "source_entity_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_investigator_affiliations_institution_name",
                 table: "investigator_affiliations",
                 column: "institution_name");
@@ -912,6 +945,9 @@ namespace Scrapers.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "data_source_state");
+
+            migrationBuilder.DropTable(
+                name: "entity_aliases");
 
             migrationBuilder.DropTable(
                 name: "investigator_affiliations");
