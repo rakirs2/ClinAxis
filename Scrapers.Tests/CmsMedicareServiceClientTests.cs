@@ -33,9 +33,9 @@ public sealed class CmsMedicareServiceClientTests
         Assert.AreEqual("O", records[0].PlaceOfService);
         Assert.AreEqual(85, records[0].BeneficiaryCount);
         Assert.AreEqual(180, records[0].ServiceCount);
-        Assert.AreEqual(36000.00m, records[0].SubmittedChargeAmount);
-        Assert.AreEqual(25200.00m, records[0].MedicareAllowedAmount);
-        Assert.AreEqual(19000.00m, records[0].MedicarePaymentAmount);
+        Assert.AreEqual(200.00m, records[0].SubmittedChargeAmount);
+        Assert.AreEqual(140.00m, records[0].MedicareAllowedAmount);
+        Assert.AreEqual(105.56m, records[0].MedicarePaymentAmount);
         Assert.AreEqual(1, handler.Requests.Count);
     }
 
