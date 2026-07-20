@@ -671,6 +671,7 @@ namespace Scrapers.Persistence
             context.StudyInvestigators.RemoveRange(context.StudyInvestigators);
             context.InvestigatorAffiliations.RemoveRange(context.InvestigatorAffiliations);
             context.InvestigatorPersons.RemoveRange(context.InvestigatorPersons);
+            context.EntityAliases.RemoveRange(context.EntityAliases);
             context.Studies.RemoveRange(context.Studies);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -1810,6 +1811,7 @@ namespace Scrapers.Persistence
             var investigatorMetricsCount = await context.InvestigatorMetrics.CountAsync(cancellationToken).ConfigureAwait(false);
             var sourceFetchHistoriesCount = await context.SourceFetchHistories.CountAsync(cancellationToken).ConfigureAwait(false);
             var scraperPivotsCount = await context.ScraperPivots.CountAsync(cancellationToken).ConfigureAwait(false);
+            var entityAliasesCount = await context.EntityAliases.CountAsync(cancellationToken).ConfigureAwait(false);
 
             return new List<TableRowCount>
             {
@@ -1838,7 +1840,8 @@ namespace Scrapers.Persistence
                 new() { Name = "medicare_utilizations", RowCount = medicareUtilizationsCount },
                 new() { Name = "investigator_metrics", RowCount = investigatorMetricsCount },
                 new() { Name = "source_fetch_histories", RowCount = sourceFetchHistoriesCount },
-                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount }
+                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount },
+                new() { Name = "entity_aliases", RowCount = entityAliasesCount }
             };
         }
 
