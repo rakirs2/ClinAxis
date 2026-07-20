@@ -1,0 +1,38 @@
+name: Dependabot auto-merge
+on:
+  pull_request_target:
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Fetch Dependabot metadata
+        if: ${{ github.event_name == 'pull_request_target' }}
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Enable auto-merge for current PR
+        if: ${{ github.event_name == 'pull_request_target' }}
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for all open Dependabot PRs
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          prs=$(gh pr list --author "dependabot[bot]" --state open --json number --jq '.[].number')
+          for num in $prs; do
+            echo "Enabling auto-merge on PR #$num..."
+            gh pr merge --auto --merge "$num"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
