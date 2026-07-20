@@ -154,6 +154,12 @@ internal sealed class MedicareUtilizationService : BackgroundService
             StoreUtilizationRecord(context, person.Id, record, _dataYear);
         }
 
+        var services = await _cmsClient.GetServicesByNpiAsync(person.Npi, ct).ConfigureAwait(false);
+        if (services.Count > 0)
+        {
+            StoreProcedureRecords(context, person.Id, services, _dataYear);
+        }
+
         person.MedicareLookupAttemptedAt = DateTime.UtcNow;
         person.UpdatedAt = DateTime.UtcNow;
     }
@@ -216,6 +222,33 @@ internal sealed class MedicareUtilizationService : BackgroundService
         };
 
         context.MedicareUtilizations.Add(entity);
+    }
+
+    private static void StoreProcedureRecords(ClinicalTrialsContext context, Guid personId, IReadOnlyList<CmsMedicareServiceRecord> records, int dataYear)
+    {
+        var grouped = records
+            .GroupBy(sr => new { sr.HcpcsCode, sr.PlaceOfService })
+            .Select(g => new MedicareProcedureEntity
+            {
+                InvestigatorPersonId = personId,
+                DataYear = dataYear,
+                HcpcsCode = g.Key.HcpcsCode ?? string.Empty,
+                HcpcsDescription = g.First().HcpcsDescription,
+                PlaceOfService = g.Key.PlaceOfService,
+                BeneficiaryCount = g.Sum(r => r.BeneficiaryCount ?? 0),
+                ServiceCount = g.Sum(r => r.ServiceCount ?? 0),
+                SubmittedChargeAmount = g.Average(r => r.SubmittedChargeAmount),
+                MedicareAllowedAmount = g.Average(r => r.MedicareAllowedAmount),
+                MedicarePaymentAmount = g.Average(r => r.MedicarePaymentAmount),
+                ProviderType = g.First().ProviderType,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+        foreach (var entity in grouped)
+        {
+            context.MedicareProcedures.Add(entity);
+        }
     }
 
     private static void AddCond(Dictionary<string, decimal?> dict, string key, decimal? value)

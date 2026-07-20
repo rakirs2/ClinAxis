@@ -34,6 +34,7 @@ namespace Scrapers.Persistence
         public DbSet<MedicareUtilizationEntity> MedicareUtilizations => Set<MedicareUtilizationEntity>();
         public DbSet<InvestigatorMetricEntity> InvestigatorMetrics => Set<InvestigatorMetricEntity>();
         public DbSet<EntityAliasEntity> EntityAliases => Set<EntityAliasEntity>();
+        public DbSet<MedicareProcedureEntity> MedicareProcedures => Set<MedicareProcedureEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -234,6 +235,11 @@ namespace Scrapers.Persistence
                 entity.HasMany(e => e.MedicareUtilizations)
                     .WithOne(m => m.InvestigatorPerson)
                     .HasForeignKey(m => m.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(e => e.Procedures)
+                    .WithOne(p => p.InvestigatorPerson)
+                    .HasForeignKey(p => p.InvestigatorPersonId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -609,6 +615,34 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.Source }).IsUnique();
+            });
+
+            modelBuilder.Entity<MedicareProcedureEntity>(entity =>
+            {
+                entity.ToTable("medicare_procedures");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.DataYear).HasColumnName("data_year");
+                entity.Property(e => e.HcpcsCode).HasColumnName("hcpcs_code").HasMaxLength(20);
+                entity.Property(e => e.HcpcsDescription).HasColumnName("hcpcs_description");
+                entity.Property(e => e.PlaceOfService).HasColumnName("place_of_service").HasMaxLength(10);
+                entity.Property(e => e.BeneficiaryCount).HasColumnName("beneficiary_count");
+                entity.Property(e => e.ServiceCount).HasColumnName("service_count");
+                entity.Property(e => e.SubmittedChargeAmount).HasColumnName("submitted_charge_amount").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.MedicareAllowedAmount).HasColumnName("medicare_allowed_amount").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.MedicarePaymentAmount).HasColumnName("medicare_payment_amount").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.ProviderType).HasColumnName("provider_type").HasMaxLength(200);
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.Procedures)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.InvestigatorPersonId);
+                entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear, e.HcpcsCode, e.PlaceOfService }).IsUnique();
             });
 
             modelBuilder.Entity<EntityAliasEntity>(entity =>
