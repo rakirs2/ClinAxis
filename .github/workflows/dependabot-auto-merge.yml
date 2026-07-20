@@ -29,10 +29,14 @@ jobs:
       - name: Enable auto-merge for all open Dependabot PRs
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          prs=$(gh pr list --author "dependabot[bot]" --state open --json number --jq '.[].number')
+          prs=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --author "dependabot[bot]" \
+            --state open \
+            --json number --jq '.[].number')
           for num in $prs; do
             echo "Enabling auto-merge on PR #$num..."
-            gh pr merge --auto --merge "$num"
+            gh pr merge --repo "$GITHUB_REPOSITORY" --auto --merge "$num"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
