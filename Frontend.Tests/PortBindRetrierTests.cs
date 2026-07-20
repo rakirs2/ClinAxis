@@ -11,12 +11,18 @@ public sealed class PortBindRetrierTests
     public void RetriesOnAddressAlreadyInUseUntilMaxRetriesExceeded()
     {
         var callCount = 0;
-        Assert.ThrowsException<SocketException>(() =>
+        try
+        {
             PortBindRetrier.Run(() =>
             {
                 callCount++;
                 throw new SocketException((int)SocketError.AddressAlreadyInUse);
-            }, maxRetries: 3, initialDelay: TimeSpan.FromMilliseconds(1)));
+            }, maxRetries: 3, initialDelay: TimeSpan.FromMilliseconds(1));
+            Assert.Fail("Expected SocketException");
+        }
+        catch (SocketException)
+        {
+        }
 
         Assert.AreEqual(3, callCount);
     }
@@ -25,12 +31,18 @@ public sealed class PortBindRetrierTests
     public void DoesNotRetryOnNonAddressInUseException()
     {
         var callCount = 0;
-        Assert.ThrowsException<InvalidOperationException>(() =>
+        try
+        {
             PortBindRetrier.Run(() =>
             {
                 callCount++;
                 throw new InvalidOperationException("unexpected error");
-            }, maxRetries: 3, initialDelay: TimeSpan.FromMilliseconds(1)));
+            }, maxRetries: 3, initialDelay: TimeSpan.FromMilliseconds(1));
+            Assert.Fail("Expected InvalidOperationException");
+        }
+        catch (InvalidOperationException)
+        {
+        }
 
         Assert.AreEqual(1, callCount);
     }
