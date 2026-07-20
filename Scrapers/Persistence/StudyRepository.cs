@@ -105,6 +105,7 @@ namespace Scrapers.Persistence
                     entity = new StudyEntity
                     {
                         NctId = record.NctId!,
+                        Source = "ClinicalTrials.gov/v2",
                         CreatedAt = DateTime.UtcNow,
                         StudyInvestigators = new List<StudyInvestigatorEntity>(),
                         Keywords = new List<StudyKeywordEntity>(),
@@ -117,6 +118,15 @@ namespace Scrapers.Persistence
                         StudyPapers = new List<StudyPaperEntity>()
                     };
                     context.Studies.Add(entity);
+                    context.EntityAliases.Add(new EntityAliasEntity
+                    {
+                        EntityType = "Study",
+                        CanonicalId = entity.NctId,
+                        Source = entity.Source,
+                        SourceEntityId = entity.NctId,
+                        FirstSeenAt = DateTime.UtcNow,
+                        LastSeenAt = DateTime.UtcNow
+                    });
                 }
 
                 MapRecordToEntity(record, entity, incomplete);
@@ -661,6 +671,7 @@ namespace Scrapers.Persistence
             context.StudyInvestigators.RemoveRange(context.StudyInvestigators);
             context.InvestigatorAffiliations.RemoveRange(context.InvestigatorAffiliations);
             context.InvestigatorPersons.RemoveRange(context.InvestigatorPersons);
+            context.EntityAliases.RemoveRange(context.EntityAliases);
             context.Studies.RemoveRange(context.Studies);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -1532,10 +1543,20 @@ namespace Scrapers.Persistence
                 Id = Guid.NewGuid(),
                 FullName = fullName,
                 Prefix = prefix,
+                Source = "ClinicalTrials.gov",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             context.InvestigatorPersons.Add(person);
+            context.EntityAliases.Add(new EntityAliasEntity
+            {
+                EntityType = "InvestigatorPerson",
+                CanonicalId = person.Id.ToString(),
+                Source = person.Source,
+                SourceEntityId = person.Id.ToString(),
+                FirstSeenAt = DateTime.UtcNow,
+                LastSeenAt = DateTime.UtcNow
+            });
             var now = DateTime.UtcNow;
             context.PipelineEvents.Add(new PipelineEventEntity
             {
@@ -1644,8 +1665,26 @@ namespace Scrapers.Persistence
                         Abstract = paperDetail.Abstract,
                         IsNonEnglish = paperDetail.IsNonEnglish,
                         PublicationTypes = paperDetail.PublicationTypes,
+                        Source = "PubMed/EUtils"
                     };
                     context.PubmedPapers.Add(paper);
+                    var aliasExists = await context.EntityAliases
+                        .AnyAsync(a => a.EntityType == "PubmedPaper"
+                            && a.Source == "PubMed/EUtils"
+                            && a.SourceEntityId == pmid, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!aliasExists)
+                    {
+                        context.EntityAliases.Add(new EntityAliasEntity
+                        {
+                            EntityType = "PubmedPaper",
+                            CanonicalId = paper.Id.ToString(),
+                            Source = paper.Source,
+                            SourceEntityId = paper.Pmid,
+                            FirstSeenAt = DateTime.UtcNow,
+                            LastSeenAt = DateTime.UtcNow
+                        });
+                    }
                 }
 
                 var existingLink = await context.InvestigatorPapers
@@ -1780,6 +1819,7 @@ namespace Scrapers.Persistence
             var investigatorMetricsCount = await context.InvestigatorMetrics.CountAsync(cancellationToken).ConfigureAwait(false);
             var sourceFetchHistoriesCount = await context.SourceFetchHistories.CountAsync(cancellationToken).ConfigureAwait(false);
             var scraperPivotsCount = await context.ScraperPivots.CountAsync(cancellationToken).ConfigureAwait(false);
+            var entityAliasesCount = await context.EntityAliases.CountAsync(cancellationToken).ConfigureAwait(false);
 
             return new List<TableRowCount>
             {
@@ -1808,7 +1848,8 @@ namespace Scrapers.Persistence
                 new() { Name = "medicare_utilizations", RowCount = medicareUtilizationsCount },
                 new() { Name = "investigator_metrics", RowCount = investigatorMetricsCount },
                 new() { Name = "source_fetch_histories", RowCount = sourceFetchHistoriesCount },
-                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount }
+                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount },
+                new() { Name = "entity_aliases", RowCount = entityAliasesCount }
             };
         }
 

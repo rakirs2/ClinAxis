@@ -33,6 +33,7 @@ namespace Scrapers.Persistence
         public DbSet<PersonIdentifierCandidateEntity> PersonIdentifierCandidates => Set<PersonIdentifierCandidateEntity>();
         public DbSet<MedicareUtilizationEntity> MedicareUtilizations => Set<MedicareUtilizationEntity>();
         public DbSet<InvestigatorMetricEntity> InvestigatorMetrics => Set<InvestigatorMetricEntity>();
+        public DbSet<EntityAliasEntity> EntityAliases => Set<EntityAliasEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -68,6 +69,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.StartDate).HasColumnName("start_date");
                 entity.Property(e => e.CompletionDate).HasColumnName("completion_date");
                 entity.Property(e => e.StudyFirstPostDate).HasColumnName("study_first_post_date");
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
             });
@@ -77,6 +79,7 @@ namespace Scrapers.Persistence
                 entity.ToTable("pubmed_papers");
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.Pmid).HasColumnName("pmid").HasMaxLength(20);
                 entity.Property(e => e.Doi).HasColumnName("doi");
                 entity.Property(e => e.Title).HasColumnName("title");
@@ -216,6 +219,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.NpiEnrichmentResult).HasColumnName("npi_enrichment_result").HasMaxLength(20);
                 entity.Property(e => e.MedicareLookupAttemptedAt).HasColumnName("medicare_lookup_attempted_at");
                 entity.Property(e => e.MedicareLookupResult).HasColumnName("medicare_lookup_result").HasMaxLength(20);
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.IsHuman).HasColumnName("is_human");
                 entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
                 entity.Property(e => e.VerificationSource).HasColumnName("verification_source").HasMaxLength(50);
@@ -605,6 +609,22 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.Source }).IsUnique();
+            });
+
+            modelBuilder.Entity<EntityAliasEntity>(entity =>
+            {
+                entity.ToTable("entity_aliases");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50);
+                entity.Property(e => e.CanonicalId).HasColumnName("canonical_id").HasMaxLength(255);
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
+                entity.Property(e => e.SourceEntityId).HasColumnName("source_entity_id").HasMaxLength(255);
+                entity.Property(e => e.FirstSeenAt).HasColumnName("first_seen_at");
+                entity.Property(e => e.LastSeenAt).HasColumnName("last_seen_at");
+
+                entity.HasIndex(e => new { e.EntityType, e.Source, e.SourceEntityId }).IsUnique();
+                entity.HasIndex(e => new { e.EntityType, e.CanonicalId });
             });
         }
     }

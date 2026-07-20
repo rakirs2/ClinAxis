@@ -15,6 +15,7 @@ namespace Scrapers.Persistence.Entities
         public string? NpiEnrichmentResult { get; set; }
         public DateTime? MedicareLookupAttemptedAt { get; set; }
         public string? MedicareLookupResult { get; set; }
+        public string Source { get; set; } = "ClinicalTrials.gov";
         public bool IsHuman { get; set; } = true;
         public DateTime? VerifiedAt { get; set; }
         public string? VerificationSource { get; set; }

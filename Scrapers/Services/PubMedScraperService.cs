@@ -89,6 +89,23 @@ namespace Scrapers.Services
                                 };
 
                                 context.PubmedPapers.Add(pubmedPaper);
+                                var aliasExists = await context.EntityAliases
+                                    .AnyAsync(a => a.EntityType == "PubmedPaper"
+                                        && a.Source == "PubMed/EUtils"
+                                        && a.SourceEntityId == reference.Pmid, cancellationToken)
+                                    .ConfigureAwait(false);
+                                if (!aliasExists)
+                                {
+                                    context.EntityAliases.Add(new EntityAliasEntity
+                                    {
+                                        EntityType = "PubmedPaper",
+                                        CanonicalId = pubmedPaper.Id.ToString(),
+                                        Source = "PubMed/EUtils",
+                                        SourceEntityId = pubmedPaper.Pmid,
+                                        FirstSeenAt = DateTime.UtcNow,
+                                        LastSeenAt = DateTime.UtcNow
+                                    });
+                                }
                             }
 
                             seenPmids.Add(reference.Pmid, pubmedPaper);
