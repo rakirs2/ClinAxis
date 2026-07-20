@@ -29,6 +29,7 @@ namespace Scrapers.Persistence.Entities
         public DateOnly? StartDate { get; set; }
         public DateOnly? CompletionDate { get; set; }
         public DateOnly? StudyFirstPostDate { get; set; }
+        public string Source { get; set; } = "ClinicalTrials.gov/v2";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsIncomplete { get; set; }
 

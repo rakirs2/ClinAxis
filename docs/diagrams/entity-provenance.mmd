@@ -1,0 +1,57 @@
+graph TB
+    subgraph External_APIs["External APIs"]
+        CT["ClinicalTrials.gov API"]
+        PM["PubMed/EUtils API"]
+    end
+
+    subgraph Services["Scraper Services"]
+        CTS["ClinicalTrialsScrapeService"]
+        PMS["PubMedScraperService<br/>IngestPubMedPapersAsync"]
+        IPS["InvestigatorPublicationScrubService<br/>ScrubInvestigatorPapersAsync"]
+        IES["InvestigatorEnrichmentService"]
+    end
+
+    subgraph Repository["StudyRepository"]
+        UPS["UpdateStudiesWithClinicalTrialsAsync"]
+        FOP["FindOrCreatePersonAsync"]
+        SRC["ScrubInvestigatorPapersAsync"]
+        GT["GetTableRowCountsAsync"]
+        CLR["ClearAsync"]
+    end
+
+    subgraph Entities["Database Entities"]
+        SE["StudyEntity<br/>+source: ClinicalTrials.gov/v2"]
+        PE["PubmedPaperEntity<br/>+source: PubMed/EUtils"]
+        IE["InvestigatorPersonEntity<br/>+source: ClinicalTrials.gov"]
+        AE["EntityAliasEntity<br/>(entity_type, canonical_id,<br/>source, source_entity_id)"]
+    end
+
+    subgraph Telemetry["Telemetry / Monitoring"]
+        PEV["PipelineEventEntity<br/>(investigator.enrichment, etc.)"]
+        PR["PipelineRunEntity<br/>TotalStudies, TotalInvestigators, etc."]
+        TRC["GetTableRowCountsAsync<br/>entity_aliases count"]
+    end
+
+    CT -->|studies + investigators| CTS
+    CTS -->|StudyEntity<br/>InvestigatorPersonEntity| UPS
+    UPS -->|creates + alias| SE
+    UPS -->|creates + alias| AE
+
+    PM -->|papers by PMID| PMS
+    PMS -->|PubmedPaperEntity + alias| PE
+    PMS -->|creates alias| AE
+
+    IPS -->|PubmedPaperEntity + alias| PE
+    IPS -->|creates alias| AE
+
+    FOP -->|creates + alias| IE
+    FOP -->|enqueues enrichment| PEV
+
+    GT -->|counts| AE
+    CLR -->|clears| AE
+
+    SE -->|count| TRC
+    PE -->|count| TRC
+    IE -->|count| TRC
+
+    style AE fill:#f9f,stroke:#333,stroke-width:3px
