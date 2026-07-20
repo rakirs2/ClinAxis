@@ -244,6 +244,40 @@
                                     </div>
                                 </details>
                             }
+
+                            @if (investigator.medicare.procedures is { Count: > 0 })
+                            {
+                                <details class="mt-3">
+                                    <summary class="text-muted small">Top Procedures by Volume (@investigator.medicare.procedures.Count)</summary>
+                                    <div class="table-responsive mt-2">
+                                        <table class="table table-sm table-hover small mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>HCPCS</th>
+                                                    <th>Description</th>
+                                                    <th class="text-end">Beneficiaries</th>
+                                                    <th class="text-end">Services</th>
+                                                    <th class="text-end">Allowed Amt</th>
+                                                    <th class="text-end">Payments</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var proc in investigator.medicare.procedures)
+                                                {
+                                                    <tr>
+                                                        <td><code>@proc.hcpcsCode</code></td>
+                                                        <td>@proc.hcpcsDescription</td>
+                                                        <td class="text-end">@proc.beneficiaryCount?.ToString("N0")</td>
+                                                        <td class="text-end">@proc.serviceCount?.ToString("N0")</td>
+                                                        <td class="text-end">$@proc.medicareAllowedAmount?.ToString("N0")</td>
+                                                        <td class="text-end">$@proc.medicarePaymentAmount?.ToString("N0")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            }
                         </div>
                     </div>
                 </div>
@@ -527,6 +561,19 @@
         public decimal? medicalMedicarePayment { get; set; }
         public decimal? drugMedicarePayment { get; set; }
         public Dictionary<string, decimal?>? chronicConditions { get; set; }
+        public List<ProcedureItem>? procedures { get; set; }
+    }
+
+    private class ProcedureItem
+    {
+        public string? hcpcsCode { get; set; }
+        public string? hcpcsDescription { get; set; }
+        public string? placeOfService { get; set; }
+        public int? beneficiaryCount { get; set; }
+        public long? serviceCount { get; set; }
+        public decimal? submittedChargeAmount { get; set; }
+        public decimal? medicareAllowedAmount { get; set; }
+        public decimal? medicarePaymentAmount { get; set; }
     }
 
     private class Statistics
