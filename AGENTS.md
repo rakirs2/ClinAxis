@@ -172,7 +172,22 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 ## GitHub Actions
 - CI must run `dotnet build` + `dotnet test` on every push and pull request, covering unit, DB integration, and live HTTP tests.
 - **No push to `main` without all integration tests passing.** The CI workflow blocks the merge if any test — unit, integration, or live HTTP — fails.
-- Deploy workflow (added in a future PR) runs only after CI passes, publishing to a DigitalOcean Droplet.
+
+## Deployment
+- Production deployment is **manual only** — triggered via `workflow_dispatch` from the GitHub Actions UI or CLI. There is no auto-deploy on push to `main`.
+- **Agents must always ask the user before triggering a deployment.** Do not deploy without explicit user confirmation.
+- To deploy from CLI:
+  ```bash
+  gh workflow run deploy.yml --ref <branch>
+  ```
+- The `deploy.yml` workflow:
+  1. Runs the full test suite (unit + DB integration)
+  2. Publishes DataApi, Frontend, and IngestionApp as self-contained linux-x64 binaries
+  3. Generates an EF Core migration bundle
+  4. SSHes to the DigitalOcean Droplet, copies binaries, stops services
+  5. Applies pending migrations
+  6. Starts services and validates health
+  7. Rolls back automatically on failure
 
 ## Style Enforcement
 - **`.editorconfig`** is the sole authority for ALL code analysis, including both style (`IDE*`) and quality (`CA*`) rules. No `#pragma warning disable` anywhere in the codebase. No `<NoWarn>` in any `.csproj` file. If a rule fires, fix the code — do not suppress it.
@@ -195,11 +210,9 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **PRs must be reviewable in under 5 minutes.** If a diff spans multiple concerns, split it.
 
 ### 15. efbundle Connection String — No Double `Search Path`
-- **Rule:** When building the connection string for `efbundle --connection`, the `Search Path=public` must appear only in the `POSTGRES_CONNECTION_STRING` env var, NOT appended again to the `--connection` argument.
-- **Why it fails:** `POSTGRES_CONNECTION_STRING` (line 176) already contains `;Search Path=public`. Passing `--connection "$cs;Search Path=public"` (line 214) appends it a second time, causing the migration bundle to fail with: `ERROR: schema "publicpublic" does not exist`.
-- **Fix:** Use `--connection "$cs"` (the `$cs` variable carries `Search Path=public` from the env var).
-- **Verification:** After the fix, `grep -n "Search Path" .github/workflows/deploy.yml` should return exactly 1 match (line 176's env var). Line 214 must have no `Search Path`.
-- **Root cause history:** The `POSTGRES_CONNECTION_STRING` secret was recently changed to include `;Search Path=public`, making the hardcoded suffix in the efbundle call redundant. The deploy script was not updated to match.
+- **Rule:** `Search Path=public` must appear only in the `PROD_DB_CONNECTION` secret, NOT appended in `deploy.yml`. The `${{ secrets.PROD_DB_CONNECTION }}` reference on its own is sufficient.
+- **Why it fails:** If `deploy.yml` appends `;Search Path=public` to a secret that already contains it, the resulting env var has it twice, and the migration bundle fails with: `ERROR: schema "publicpublic" does not exist`.
+- **Verification:** `grep -n "Search Path" .github/workflows/deploy.yml` should return 0 matches (the value comes solely from the GitHub secret).
 
 ## Human-Only Files
 - **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
