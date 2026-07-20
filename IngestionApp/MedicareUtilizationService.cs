@@ -226,24 +226,27 @@ internal sealed class MedicareUtilizationService : BackgroundService
 
     private static void StoreProcedureRecords(ClinicalTrialsContext context, Guid personId, IReadOnlyList<CmsMedicareServiceRecord> records, int dataYear)
     {
-        foreach (var sr in records)
-        {
-            var entity = new MedicareProcedureEntity
+        var grouped = records
+            .GroupBy(sr => new { sr.HcpcsCode, sr.PlaceOfService })
+            .Select(g => new MedicareProcedureEntity
             {
                 InvestigatorPersonId = personId,
                 DataYear = dataYear,
-                HcpcsCode = sr.HcpcsCode ?? string.Empty,
-                HcpcsDescription = sr.HcpcsDescription,
-                PlaceOfService = sr.PlaceOfService,
-                BeneficiaryCount = sr.BeneficiaryCount,
-                ServiceCount = sr.ServiceCount,
-                SubmittedChargeAmount = sr.SubmittedChargeAmount,
-                MedicareAllowedAmount = sr.MedicareAllowedAmount,
-                MedicarePaymentAmount = sr.MedicarePaymentAmount,
-                ProviderType = sr.ProviderType,
+                HcpcsCode = g.Key.HcpcsCode ?? string.Empty,
+                HcpcsDescription = g.First().HcpcsDescription,
+                PlaceOfService = g.Key.PlaceOfService,
+                BeneficiaryCount = g.Sum(r => r.BeneficiaryCount ?? 0),
+                ServiceCount = g.Sum(r => r.ServiceCount ?? 0),
+                SubmittedChargeAmount = g.Average(r => r.SubmittedChargeAmount),
+                MedicareAllowedAmount = g.Average(r => r.MedicareAllowedAmount),
+                MedicarePaymentAmount = g.Average(r => r.MedicarePaymentAmount),
+                ProviderType = g.First().ProviderType,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
-            };
+            });
+
+        foreach (var entity in grouped)
+        {
             context.MedicareProcedures.Add(entity);
         }
     }

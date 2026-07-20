@@ -340,25 +340,25 @@ public sealed class CmsMedicareServiceRecord
     [JsonPropertyName("Hcpcs_Cd")]
     public string? HcpcsCode { get; set; }
 
-    [JsonPropertyName("Hcpcs_Desc")]
+    [JsonPropertyName("HCPCS_Desc")]
     public string? HcpcsDescription { get; set; }
 
     [JsonPropertyName("Place_Of_Srvc")]
     public string? PlaceOfService { get; set; }
 
-    [JsonPropertyName("Bene_Unique_Cnt")]
+    [JsonPropertyName("Tot_Benes")]
     public int? BeneficiaryCount { get; set; }
 
-    [JsonPropertyName("Srvc_Cnt")]
+    [JsonPropertyName("Tot_Srvcs")]
     public long? ServiceCount { get; set; }
 
-    [JsonPropertyName("Sbmtd_Chrg")]
+    [JsonPropertyName("Avg_Sbmtd_Chrg")]
     public decimal? SubmittedChargeAmount { get; set; }
 
-    [JsonPropertyName("Alowd_Chrg")]
+    [JsonPropertyName("Avg_Mdcr_Alowd_Amt")]
     public decimal? MedicareAllowedAmount { get; set; }
 
-    [JsonPropertyName("Mdcr_Pymt_Amt")]
+    [JsonPropertyName("Avg_Mdcr_Pymt_Amt")]
     public decimal? MedicarePaymentAmount { get; set; }
 }
 

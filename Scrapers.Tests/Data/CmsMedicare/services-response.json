@@ -5,14 +5,14 @@
     "Rndrng_Prvdr_First_Name": "ROBERT",
     "Rndrng_Prvdr_Type": "Internal Medicine",
     "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
-    "Hcpcs_Cd": "99214",
-    "Hcpcs_Desc": "Office/outpatient visit est low to high 30-39 min",
+    "HCPCS_Cd": "99214",
+    "HCPCS_Desc": "Office/outpatient visit est low to high 30-39 min",
     "Place_Of_Srvc": "O",
-    "Bene_Unique_Cnt": 85,
-    "Srvc_Cnt": 180,
-    "Sbmtd_Chrg": 36000.00,
-    "Alowd_Chrg": 25200.00,
-    "Mdcr_Pymt_Amt": 19000.00
+    "Tot_Benes": 85,
+    "Tot_Srvcs": 180,
+    "Avg_Sbmtd_Chrg": 200.00,
+    "Avg_Mdcr_Alowd_Amt": 140.00,
+    "Avg_Mdcr_Pymt_Amt": 105.56
   },
   {
     "Rndrng_NPI": "1234567890",
@@ -20,14 +20,14 @@
     "Rndrng_Prvdr_First_Name": "ROBERT",
     "Rndrng_Prvdr_Type": "Internal Medicine",
     "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
-    "Hcpcs_Cd": "99396",
-    "Hcpcs_Desc": "Periodic comprehensive preventive medicine",
+    "HCPCS_Cd": "99396",
+    "HCPCS_Desc": "Periodic comprehensive preventive medicine",
     "Place_Of_Srvc": "O",
-    "Bene_Unique_Cnt": 40,
-    "Srvc_Cnt": 65,
-    "Sbmtd_Chrg": 16250.00,
-    "Alowd_Chrg": 11700.00,
-    "Mdcr_Pymt_Amt": 8900.00
+    "Tot_Benes": 40,
+    "Tot_Srvcs": 65,
+    "Avg_Sbmtd_Chrg": 250.00,
+    "Avg_Mdcr_Alowd_Amt": 180.00,
+    "Avg_Mdcr_Pymt_Amt": 136.92
   },
   {
     "Rndrng_NPI": "1234567890",
@@ -35,13 +35,13 @@
     "Rndrng_Prvdr_First_Name": "ROBERT",
     "Rndrng_Prvdr_Type": "Internal Medicine",
     "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
-    "Hcpcs_Cd": "93000",
-    "Hcpcs_Desc": "Electrocardiogram complete",
+    "HCPCS_Cd": "93000",
+    "HCPCS_Desc": "Electrocardiogram complete",
     "Place_Of_Srvc": "F",
-    "Bene_Unique_Cnt": 30,
-    "Srvc_Cnt": 45,
-    "Sbmtd_Chrg": 6750.00,
-    "Alowd_Chrg": 4725.00,
-    "Mdcr_Pymt_Amt": 3600.00
+    "Tot_Benes": 30,
+    "Tot_Srvcs": 45,
+    "Avg_Sbmtd_Chrg": 150.00,
+    "Avg_Mdcr_Alowd_Amt": 105.00,
+    "Avg_Mdcr_Pymt_Amt": 80.00
   }
 ]
