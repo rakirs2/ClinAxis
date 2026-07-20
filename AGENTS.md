@@ -188,6 +188,19 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - Ensure schema fixtures stay synchronized with real API responses.
 - Keep PRs small — a reviewer should be able to understand the entire diff in under 5 minutes.
 
+### 14. Multiple Agents/People — Lock PRs to Single Issue
+- **Rule:** When multiple agents or people may work on the same feature area concurrently, every PR must remain a single logical issue. No bundling. No scope creep.
+- **If another agent is handling a related PR**, do not add commits to it. Create a new branch from `origin/main` and a new PR. The other agent will merge or rebase as needed.
+- **Before pushing to an existing branch/PR**, verify with the team (or the orchestrator agent) that no one else is actively working on it. If uncertain, branch fresh.
+- **PRs must be reviewable in under 5 minutes.** If a diff spans multiple concerns, split it.
+
+### 15. efbundle Connection String — No Double `Search Path`
+- **Rule:** When building the connection string for `efbundle --connection`, the `Search Path=public` must appear only in the `POSTGRES_CONNECTION_STRING` env var, NOT appended again to the `--connection` argument.
+- **Why it fails:** `POSTGRES_CONNECTION_STRING` (line 176) already contains `;Search Path=public`. Passing `--connection "$cs;Search Path=public"` (line 214) appends it a second time, causing the migration bundle to fail with: `ERROR: schema "publicpublic" does not exist`.
+- **Fix:** Use `--connection "$cs"` (the `$cs` variable carries `Search Path=public` from the env var).
+- **Verification:** After the fix, `grep -n "Search Path" .github/workflows/deploy.yml` should return exactly 1 match (line 176's env var). Line 214 must have no `Search Path`.
+- **Root cause history:** The `POSTGRES_CONNECTION_STRING` secret was recently changed to include `;Search Path=public`, making the hardcoded suffix in the efbundle call redundant. The deploy script was not updated to match.
+
 ## Human-Only Files
 - **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
   modify, append, or restructure it. Any LLM receiving a request to edit this file
