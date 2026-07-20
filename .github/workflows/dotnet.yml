@@ -24,13 +24,14 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
+      POSTGRES_CONNECTION_STRING: >-
+        Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -45,7 +46,9 @@ jobs:
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
 
       - name: DB Integration Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory!=HttpLive"
+        run: >-
+          dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
+          --no-build --filter "TestCategory!=HttpLive"
 
   live-http-tests:
     needs: unit-and-db-tests
@@ -65,13 +68,14 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
+      POSTGRES_CONNECTION_STRING: >-
+        Host=localhost;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres;
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -94,10 +98,16 @@ jobs:
         run: |
           set +e
           for i in $(seq 1 15); do
-            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/api/studies?page=1\&pageSize=1 2>/dev/null)
+            api_url="http://localhost:5003/api/studies?page=1\&pageSize=1"
+            api_code=$(curl -s -o /dev/null -w "%{http_code}" "$api_url" 2>/dev/null)
             frontend_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/ 2>/dev/null)
             echo "[$((i*2))s] DataApi=$api_code Frontend=$frontend_code"
-            if [ -n "$api_code" ] && [ "$api_code" != "000" ] && [ -n "$frontend_code" ] && [ "$frontend_code" != "000" ]; then
+            ready=true
+            [ -z "$api_code" ] && ready=false
+            [ "$api_code" = "000" ] && ready=false
+            [ -z "$frontend_code" ] && ready=false
+            [ "$frontend_code" = "000" ] && ready=false
+            if $ready; then
               echo "Both services ready (returning $api_code / $frontend_code)"
               exit 0
             fi
@@ -111,4 +121,6 @@ jobs:
           exit 1
 
       - name: Live HTTP Tests
-        run: dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj --no-build --filter "TestCategory=HttpLive"
+        run: >-
+          dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
+          --no-build --filter "TestCategory=HttpLive"
