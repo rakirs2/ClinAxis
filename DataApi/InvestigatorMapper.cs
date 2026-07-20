@@ -143,6 +143,60 @@ internal static class InvestigatorMapper
             };
         }
 
+        object? openPaymentsData = null;
+        if (person.OpenPayments is { Count: > 0 })
+        {
+            var byType = person.OpenPayments
+                .GroupBy(p => p.PaymentType)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        totalPayments = g.Sum(p => p.PaymentAmount ?? 0),
+                        count = g.Count(),
+                        uniquePayors = g.Select(p => p.PayorName).Where(n => n != null).Distinct().Count(),
+                        latestYear = g.Max(p => p.DataYear)
+                    });
+
+            var totalAmount = person.OpenPayments.Sum(p => p.PaymentAmount ?? 0);
+            var totalCount = person.OpenPayments.Count;
+            var uniquePayors = person.OpenPayments.Select(p => p.PayorName).Where(n => n != null).Distinct().Order().ToList();
+
+            var payments = person.OpenPayments
+                .OrderByDescending(p => p.DataYear)
+                .ThenByDescending(p => p.PaymentAmount)
+                .Take(50)
+                .Select(p => new
+                {
+                    dataYear = p.DataYear,
+                    paymentType = p.PaymentType,
+                    paymentAmount = p.PaymentAmount,
+                    paymentDate = p.PaymentDate,
+                    payorName = p.PayorName,
+                    natureOfPayment = p.NatureOfPayment,
+                    formOfPayment = p.FormOfPayment,
+                    studyName = p.StudyName,
+                    clinicalTrialsId = p.ClinicalTrialsId,
+                    contextOfResearch = p.ContextOfResearch,
+                    productCategory = p.ProductCategory,
+                    productName = p.ProductName
+                })
+                .ToList();
+
+            openPaymentsData = new
+            {
+                summary = new
+                {
+                    totalAmount,
+                    totalCount,
+                    uniquePayorCount = uniquePayors.Count,
+                    uniquePayors,
+                    byType
+                },
+                payments
+            };
+        }
+
         object? metricsData = null;
         if (person.Metrics is { Count: > 0 })
         {
@@ -196,6 +250,7 @@ internal static class InvestigatorMapper
                 byPhase = phases.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value)
             },
             medicare = medicareData,
+            openPayments = openPaymentsData,
             metrics = metricsData
         };
     }
