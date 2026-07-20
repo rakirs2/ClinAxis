@@ -17,7 +17,7 @@ public abstract class DbTestBase
 
     private static async Task InitializeAsync()
     {
-        PostgreSqlContainer container = new PostgreSqlBuilder()
+        PostgreSqlContainer container = new PostgreSqlBuilder("postgres:15")
             .WithUsername("postgres")
             .WithPassword("postgres")
             .Build();
