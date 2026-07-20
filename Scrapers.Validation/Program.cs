@@ -26,7 +26,7 @@ if (useExternal)
 else
 {
     await Console.Out.WriteLineAsync("Starting PostgreSQL container...");
-    container = new PostgreSqlBuilder()
+    container = new PostgreSqlBuilder("postgres:15")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .Build();

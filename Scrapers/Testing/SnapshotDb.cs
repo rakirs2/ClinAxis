@@ -16,7 +16,7 @@ public sealed class SnapshotDb : IAsyncDisposable
         var dbName = persist
             ? "clinical_trial_data_snapshot"
             : "ct_snapshot_" + Guid.NewGuid().ToString("N").ToUpperInvariant();
-        _container = new PostgreSqlBuilder()
+        _container = new PostgreSqlBuilder("postgres:15")
             .WithDatabase(dbName)
             .WithUsername("postgres")
             .WithPassword("postgres")
