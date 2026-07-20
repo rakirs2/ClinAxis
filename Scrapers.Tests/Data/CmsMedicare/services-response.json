@@ -1,0 +1,47 @@
+[
+  {
+    "Rndrng_NPI": "1234567890",
+    "Rndrng_Prvdr_Last_Org_Name": "JOHNSON",
+    "Rndrng_Prvdr_First_Name": "ROBERT",
+    "Rndrng_Prvdr_Type": "Internal Medicine",
+    "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
+    "Hcpcs_Cd": "99214",
+    "Hcpcs_Desc": "Office/outpatient visit est low to high 30-39 min",
+    "Place_Of_Srvc": "O",
+    "Bene_Unique_Cnt": 85,
+    "Srvc_Cnt": 180,
+    "Sbmtd_Chrg": 36000.00,
+    "Alowd_Chrg": 25200.00,
+    "Mdcr_Pymt_Amt": 19000.00
+  },
+  {
+    "Rndrng_NPI": "1234567890",
+    "Rndrng_Prvdr_Last_Org_Name": "JOHNSON",
+    "Rndrng_Prvdr_First_Name": "ROBERT",
+    "Rndrng_Prvdr_Type": "Internal Medicine",
+    "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
+    "Hcpcs_Cd": "99396",
+    "Hcpcs_Desc": "Periodic comprehensive preventive medicine",
+    "Place_Of_Srvc": "O",
+    "Bene_Unique_Cnt": 40,
+    "Srvc_Cnt": 65,
+    "Sbmtd_Chrg": 16250.00,
+    "Alowd_Chrg": 11700.00,
+    "Mdcr_Pymt_Amt": 8900.00
+  },
+  {
+    "Rndrng_NPI": "1234567890",
+    "Rndrng_Prvdr_Last_Org_Name": "JOHNSON",
+    "Rndrng_Prvdr_First_Name": "ROBERT",
+    "Rndrng_Prvdr_Type": "Internal Medicine",
+    "Rndrng_Prvdr_Mdcr_Prtcptg_Ind": "Y",
+    "Hcpcs_Cd": "93000",
+    "Hcpcs_Desc": "Electrocardiogram complete",
+    "Place_Of_Srvc": "F",
+    "Bene_Unique_Cnt": 30,
+    "Srvc_Cnt": 45,
+    "Sbmtd_Chrg": 6750.00,
+    "Alowd_Chrg": 4725.00,
+    "Mdcr_Pymt_Amt": 3600.00
+  }
+]

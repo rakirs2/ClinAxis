@@ -90,6 +90,30 @@ internal static class InvestigatorMapper
                 chronicConditions = JsonSerializer.Deserialize<Dictionary<string, decimal?>>(latest.ChronicConditionsJson);
             }
 
+            object? topProcedures = null;
+            if (person.Procedures is { Count: > 0 })
+            {
+                var latestYearProcedures = person.Procedures
+                    .Where(p => p.DataYear == latest.DataYear)
+                    .OrderByDescending(p => p.ServiceCount)
+                    .Take(20)
+                    .Select(p => new
+                    {
+                        hcpcsCode = p.HcpcsCode,
+                        hcpcsDescription = p.HcpcsDescription,
+                        placeOfService = p.PlaceOfService,
+                        beneficiaryCount = p.BeneficiaryCount,
+                        serviceCount = p.ServiceCount,
+                        submittedChargeAmount = p.SubmittedChargeAmount,
+                        medicareAllowedAmount = p.MedicareAllowedAmount,
+                        medicarePaymentAmount = p.MedicarePaymentAmount
+                    })
+                    .ToList();
+
+                if (latestYearProcedures.Count > 0)
+                    topProcedures = latestYearProcedures;
+            }
+
             medicareData = new
             {
                 dataYear = latest.DataYear,
@@ -114,7 +138,8 @@ internal static class InvestigatorMapper
                 drugServices = latest.DrugServices,
                 medicalMedicarePayment = latest.MedicalMedicarePayment,
                 drugMedicarePayment = latest.DrugMedicarePayment,
-                chronicConditions = chronicConditions
+                chronicConditions = chronicConditions,
+                procedures = topProcedures
             };
         }
 

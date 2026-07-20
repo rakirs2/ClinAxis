@@ -92,6 +92,7 @@ public sealed class CmsMedicareClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _datasetUuid;
+    private readonly string _serviceDatasetUuid;
     
     private static readonly JsonSerializerOptions _jsonOptions = CreateJsonOptions();
 
@@ -111,10 +112,14 @@ public sealed class CmsMedicareClient
         return options;
     }
 
-    public CmsMedicareClient(HttpClient httpClient, string datasetUuid = "8889d81e-2ee7-448f-8713-f071038289b5")
+    public CmsMedicareClient(
+        HttpClient httpClient,
+        string datasetUuid = "8889d81e-2ee7-448f-8713-f071038289b5",
+        string serviceDatasetUuid = "92396110-2aed-4d63-a6a2-5d6207d46a29")
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _datasetUuid = datasetUuid;
+        _serviceDatasetUuid = serviceDatasetUuid;
     }
 
     public async Task<CmsMedicareRecord?> GetByNpiAsync(string npi, CancellationToken ct = default)
@@ -151,6 +156,23 @@ public sealed class CmsMedicareClient
 
         var json = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         return await JsonSerializer.DeserializeAsync<List<CmsMedicareRecord>>(json, _jsonOptions, ct).ConfigureAwait(false) ?? [];
+    }
+
+    public async Task<IReadOnlyList<CmsMedicareServiceRecord>> GetServicesByNpiAsync(string npi, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(npi))
+            return [];
+
+        var url = $"{_serviceDatasetUuid}/data?filter[Rndrng_NPI][condition][value]={Uri.EscapeDataString(npi.Trim())}&size=200";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
+        using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+            return [];
+
+        var json = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        return await JsonSerializer.DeserializeAsync<List<CmsMedicareServiceRecord>>(json, _jsonOptions, ct).ConfigureAwait(false) ?? [];
     }
 }
 
@@ -297,3 +319,47 @@ public sealed class CmsMedicareRecord
     [JsonPropertyName("Bene_CC_PH_Stroke_TIA_V2_Pct")]
     public decimal? BeneCcPhStrokeTiaPct { get; set; }
 }
+
+public sealed class CmsMedicareServiceRecord
+{
+    [JsonPropertyName("Rndrng_NPI")]
+    public string? Npi { get; set; }
+
+    [JsonPropertyName("Rndrng_Prvdr_Last_Org_Name")]
+    public string? LastName { get; set; }
+
+    [JsonPropertyName("Rndrng_Prvdr_First_Name")]
+    public string? FirstName { get; set; }
+
+    [JsonPropertyName("Rndrng_Prvdr_Type")]
+    public string? ProviderType { get; set; }
+
+    [JsonPropertyName("Rndrng_Prvdr_Mdcr_Prtcptg_Ind")]
+    public string? MedicareParticipationIndicator { get; set; }
+
+    [JsonPropertyName("Hcpcs_Cd")]
+    public string? HcpcsCode { get; set; }
+
+    [JsonPropertyName("Hcpcs_Desc")]
+    public string? HcpcsDescription { get; set; }
+
+    [JsonPropertyName("Place_Of_Srvc")]
+    public string? PlaceOfService { get; set; }
+
+    [JsonPropertyName("Bene_Unique_Cnt")]
+    public int? BeneficiaryCount { get; set; }
+
+    [JsonPropertyName("Srvc_Cnt")]
+    public long? ServiceCount { get; set; }
+
+    [JsonPropertyName("Sbmtd_Chrg")]
+    public decimal? SubmittedChargeAmount { get; set; }
+
+    [JsonPropertyName("Alowd_Chrg")]
+    public decimal? MedicareAllowedAmount { get; set; }
+
+    [JsonPropertyName("Mdcr_Pymt_Amt")]
+    public decimal? MedicarePaymentAmount { get; set; }
+}
+
+

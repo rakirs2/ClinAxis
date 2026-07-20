@@ -28,5 +28,6 @@ namespace Scrapers.Persistence.Entities
         public ICollection<PersonIdentifierCandidateEntity>? IdentifierCandidates { get; set; }
         public ICollection<MedicareUtilizationEntity>? MedicareUtilizations { get; set; }
         public ICollection<InvestigatorMetricEntity>? Metrics { get; set; }
+        public ICollection<MedicareProcedureEntity>? Procedures { get; set; }
     }
 }
