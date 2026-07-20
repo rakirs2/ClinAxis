@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260719212257_AddEntityProvenance")]
+    [Migration("20260720161607_AddEntityProvenance")]
     partial class AddEntityProvenance
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace Scrapers.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);

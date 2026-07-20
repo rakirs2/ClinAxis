@@ -18,7 +18,7 @@ namespace Scrapers.Persistence.Migrations
                 type: "character varying(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "ClinicalTrials.gov/v2");
+                defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "source",
@@ -26,7 +26,7 @@ namespace Scrapers.Persistence.Migrations
                 type: "character varying(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "PubMed/EUtils");
+                defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "source",
@@ -34,7 +34,7 @@ namespace Scrapers.Persistence.Migrations
                 type: "character varying(50)",
                 maxLength: 50,
                 nullable: false,
-                defaultValue: "ClinicalTrials.gov");
+                defaultValue: "");
 
             migrationBuilder.CreateTable(
                 name: "entity_aliases",

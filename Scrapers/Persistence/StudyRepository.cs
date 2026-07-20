@@ -1668,15 +1668,23 @@ namespace Scrapers.Persistence
                         Source = "PubMed/EUtils"
                     };
                     context.PubmedPapers.Add(paper);
-                    context.EntityAliases.Add(new EntityAliasEntity
+                    var aliasExists = await context.EntityAliases
+                        .AnyAsync(a => a.EntityType == "PubmedPaper"
+                            && a.Source == "PubMed/EUtils"
+                            && a.SourceEntityId == pmid, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!aliasExists)
                     {
-                        EntityType = "PubmedPaper",
-                        CanonicalId = paper.Id.ToString(),
-                        Source = paper.Source,
-                        SourceEntityId = paper.Pmid,
-                        FirstSeenAt = DateTime.UtcNow,
-                        LastSeenAt = DateTime.UtcNow
-                    });
+                        context.EntityAliases.Add(new EntityAliasEntity
+                        {
+                            EntityType = "PubmedPaper",
+                            CanonicalId = paper.Id.ToString(),
+                            Source = paper.Source,
+                            SourceEntityId = paper.Pmid,
+                            FirstSeenAt = DateTime.UtcNow,
+                            LastSeenAt = DateTime.UtcNow
+                        });
+                    }
                 }
 
                 var existingLink = await context.InvestigatorPapers
