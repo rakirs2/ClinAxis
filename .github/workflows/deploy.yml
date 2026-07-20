@@ -1,10 +1,9 @@
 name: Build, Test & Deploy
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -58,7 +57,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -173,7 +172,7 @@ jobs:
           /usr/bin/fuser -k 5001/tcp 2>/dev/null || true
           echo "Services stopped."
           cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
-          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }};Search Path=public
+          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
           INGESTION_STUDY_LIMIT=0
           ASPNETCORE_ENVIRONMENT=Production
           EOF
