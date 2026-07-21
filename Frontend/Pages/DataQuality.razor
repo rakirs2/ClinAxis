@@ -118,6 +118,12 @@
 }
 else if (activeTab == 1)
 {
+    <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+            <a href="/api/export/training/keywords" class="btn btn-sm btn-outline-secondary">Download Keywords CSV</a>
+            <a href="/api/export/training/conditions" class="btn btn-sm btn-outline-secondary ms-1">Download Conditions CSV</a>
+        </div>
+    </div>
     @if (kwLoading)
     {
         <div class="d-flex justify-content-center mt-4">
@@ -190,6 +196,11 @@ else if (activeTab == 1)
 }
 else if (activeTab == 2)
 {
+    <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+            <a href="/api/export/training/names" class="btn btn-sm btn-outline-secondary">Download Names CSV</a>
+        </div>
+    </div>
     @if (nmLoading)
     {
         <div class="d-flex justify-content-center mt-4">
@@ -262,6 +273,11 @@ else if (activeTab == 2)
 }
 else if (activeTab == 3)
 {
+    <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+            <a href="/api/export/training/affiliations" class="btn btn-sm btn-outline-secondary">Download Affiliations CSV</a>
+        </div>
+    </div>
     @if (enrichmentLoading)
     {
         <div class="d-flex justify-content-center mt-4">
