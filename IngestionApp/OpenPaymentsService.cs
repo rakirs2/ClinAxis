@@ -16,7 +16,7 @@ internal sealed class OpenPaymentsService : BackgroundService
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
 
-    private static readonly HashSet<string> AllYears = [.. Enumerable.Range(2019, 7).Select(y => y.ToString(CultureInfo.InvariantCulture))];
+    private static readonly HashSet<string> AllYears = [.. Enumerable.Range(2023, 3).Select(y => y.ToString(CultureInfo.InvariantCulture))];
 
     public OpenPaymentsService(
         IEventQueueService eventQueueService,
@@ -57,10 +57,7 @@ internal sealed class OpenPaymentsService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    await _eventQueueService.FailEventAsync(
-                        @event.Id,
-                        $"{ex.GetType().Name}: {ex.Message}",
-                        stoppingToken).ConfigureAwait(false);
+                    await _eventQueueService.FailEventAsync(@event.Id, ex.ToString(), stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -90,6 +87,12 @@ internal sealed class OpenPaymentsService : BackgroundService
         if (person == null || string.IsNullOrWhiteSpace(person.Npi))
             return;
 
+        var existing = await context.OpenPayments
+            .Where(o => o.InvestigatorPersonId == person.Id)
+            .ToListAsync(ct).ConfigureAwait(false);
+        context.OpenPayments.RemoveRange(existing);
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
         foreach (var year in AllYears)
         {
             var researchRecords = await _cmsClient.GetResearchPaymentsByNpiAsync(person.Npi, year, ct).ConfigureAwait(false);
@@ -111,8 +114,8 @@ internal sealed class OpenPaymentsService : BackgroundService
         foreach (var r in records)
         {
             DateTime? paymentDate = null;
-            if (r.PaymentDateString != null && DateTime.TryParse(r.PaymentDateString, out var parsed))
-                paymentDate = parsed;
+            if (r.PaymentDateString != null && DateTimeOffset.TryParse(r.PaymentDateString, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+                paymentDate = dto.UtcDateTime;
 
             context.OpenPayments.Add(new OpenPaymentEntity
             {

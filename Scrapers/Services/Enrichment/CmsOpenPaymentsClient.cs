@@ -1,7 +1,44 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Scrapers.Services.Enrichment;
+
+internal sealed class NullableDecimalConverter : JsonConverter<decimal?>
+{
+    public override decimal? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null)
+            return null;
+
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var str = reader.GetString();
+            if (string.IsNullOrWhiteSpace(str))
+                return null;
+            if (decimal.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                return val;
+            return null;
+        }
+
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            if (reader.TryGetDecimal(out var val))
+                return val;
+            return null;
+        }
+
+        return null;
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
 
 public sealed class OpenPaymentRecord
 {
@@ -26,6 +63,7 @@ public sealed class OpenPaymentRecord
     public string? Pi1LastName { get; set; }
 
     [JsonPropertyName("total_amount_of_payment_usdollars")]
+    [JsonConverter(typeof(NullableDecimalConverter))]
     public decimal? PaymentAmount { get; set; }
 
     [JsonPropertyName("date_of_payment")]
@@ -129,7 +167,7 @@ public sealed class CmsOpenPaymentsClient
                       "&count=true&results=true&format=json&keys=true" +
                       $"&conditions[0][property]=covered_recipient_npi" +
                       $"&conditions[0][value]={Uri.EscapeDataString(npi)}" +
-                      "&conditions[0][operator]=";
+                      "&conditions[0][operator]=%3D";
 
             using var response = await _httpClient.GetAsync(new Uri(url), ct).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
@@ -177,6 +215,9 @@ public sealed class CmsOpenPaymentsClient
 
     private async Task<List<OpenPaymentRecord>> FetchPaymentsByNpiAsync(Dictionary<string, string> uuidMap, string npi, string? year, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(npi))
+            return [];
+
         var years = year != null ? new[] { year } : (string[]?)null;
         var targetYears = years ?? [.. uuidMap.Keys];
 
