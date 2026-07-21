@@ -25,7 +25,7 @@ namespace Scrapers.Services
         public async Task<int> IngestPubMedPapersAsync(CancellationToken cancellationToken = default)
         {
             DbContextOptions<ClinicalTrialsContext> contextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options;
 
             var totalPapers = 0;

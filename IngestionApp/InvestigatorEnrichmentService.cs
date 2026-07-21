@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.Enrichment;
@@ -55,6 +56,20 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                     await ProcessEnrichmentEventAsync(@event, stoppingToken).ConfigureAwait(false);
                     await _eventQueueService.CompleteEventAsync(@event.Id, stoppingToken).ConfigureAwait(false);
                 }
+                catch (HttpRequestException ex)
+                {
+                    await _eventQueueService.FailEventAsync(
+                        @event.Id,
+                        $"HttpRequestException: {ex.Message}",
+                        stoppingToken).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    await _eventQueueService.FailEventAsync(
+                        @event.Id,
+                        $"InvalidOperationException: {ex.Message}",
+                        stoppingToken).ConfigureAwait(false);
+                }
                 catch (Exception ex)
                 {
                     await _eventQueueService.FailEventAsync(
@@ -67,9 +82,12 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
             {
                 break;
             }
-            catch (Exception ex)
+            catch (HttpRequestException)
             {
-                System.Diagnostics.Debug.WriteLine($"InvestigatorEnrichmentService error: {ex}");
+                await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }
@@ -82,7 +100,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
 
         using var context = new ClinicalTrialsContext(
             new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString).Options);
+                .ConfigureNpgsql(_connectionString).Options);
 
         var person = await context.InvestigatorPersons
             .FirstOrDefaultAsync(p => p.Id == personId, ct).ConfigureAwait(false);

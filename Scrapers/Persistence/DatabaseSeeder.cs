@@ -139,10 +139,7 @@ public class DatabaseSeeder
     {
         // Create context with the provided connection string
         var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ClinicalTrialsContext>();
-        optionsBuilder.UseNpgsql(_connectionString, o =>
-        {
-            o.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-        });
+        optionsBuilder.ConfigureNpgsql(_connectionString);
         using ClinicalTrialsContext context = new(optionsBuilder.Options);
 
         // Check if database already has data
@@ -170,10 +167,7 @@ public class DatabaseSeeder
 
         // Database is now empty — seed with current corpus
         var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<ClinicalTrialsContext>();
-        optionsBuilder.UseNpgsql(_connectionString, o =>
-        {
-            o.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-        });
+        optionsBuilder.ConfigureNpgsql(_connectionString);
         using ClinicalTrialsContext context = new(optionsBuilder.Options);
         var (studies, persons) = GenerateStudies(120);
         await context.InvestigatorPersons.AddRangeAsync(persons, cancellationToken);

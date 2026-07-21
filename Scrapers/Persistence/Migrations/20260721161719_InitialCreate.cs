@@ -731,6 +731,11 @@ namespace Scrapers.Persistence.Migrations
                 column: "full_name");
 
             migrationBuilder.CreateIndex(
+                name: "IX_investigator_persons_is_human_npi_enrichment_result",
+                table: "investigator_persons",
+                columns: new[] { "is_human", "npi_enrichment_result" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_investigator_persons_ncbi_id",
                 table: "investigator_persons",
                 column: "ncbi_id",
@@ -850,6 +855,16 @@ namespace Scrapers.Persistence.Migrations
                 table: "source_fetch_history",
                 columns: new[] { "study_nct_id", "source_type" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_studies_enrollment_count",
+                table: "studies",
+                column: "enrollment_count");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_studies_overall_status_start_date",
+                table: "studies",
+                columns: new[] { "overall_status", "start_date" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_study_arm_groups_study_nct_id",

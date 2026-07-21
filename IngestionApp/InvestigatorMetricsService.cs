@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.Enrichment;
@@ -90,7 +91,7 @@ internal sealed class InvestigatorMetricsService : BackgroundService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString).Options);
+                .ConfigureNpgsql(_connectionString).Options);
 
         // Find persons who have papers but no SemanticScholar metrics attempt
         var personsNeedingMetrics = await context.InvestigatorPersons
@@ -136,7 +137,7 @@ internal sealed class InvestigatorMetricsService : BackgroundService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString).Options);
+                .ConfigureNpgsql(_connectionString).Options);
 
         var person = await context.InvestigatorPersons
             .Include(p => p.Metrics)

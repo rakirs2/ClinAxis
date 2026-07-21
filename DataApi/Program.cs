@@ -277,7 +277,7 @@ app.MapGet("/api/pipeline-runs", async (int? page, int? pageSize) =>
 app.MapGet("/api/rejected-names", async () =>
 {
     using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
-        .UseNpgsql(connectionString).Options);
+        .ConfigureNpgsql(connectionString).Options);
     var names = await ctx.Set<RejectedInvestigatorNameEntity>()
         .OrderByDescending(n => n.OccurrenceCount)
         .Select(n => new
@@ -343,7 +343,7 @@ app.MapGet("/api/stats", async () =>
 app.MapGet("/api/export/keywords", async (HttpResponse response) =>
 {
     using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
-        .UseNpgsql(connectionString).Options);
+        .ConfigureNpgsql(connectionString).Options);
 
     var keywords = await ctx.StudyKeywords
         .GroupBy(k => k.Keyword)

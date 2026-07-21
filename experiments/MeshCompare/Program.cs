@@ -10,7 +10,7 @@ var cs = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
     ?? $"Host=localhost;Port=5432;Database=clinical_trial_data;Username={Environment.UserName}";
 
 var options = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-    .UseNpgsql(cs)
+    .ConfigureNpgsql(cs)
     .Options;
 
 var sampleSize = 100;

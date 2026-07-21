@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260720163434_InitialCreate")]
+    [Migration("20260721161719_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -427,6 +427,8 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("Orcid")
                         .IsUnique()
                         .HasFilter("orcid IS NOT NULL");
+
+                    b.HasIndex("IsHuman", "NpiEnrichmentResult");
 
                     b.ToTable("investigator_persons", (string)null);
                 });
@@ -1276,6 +1278,10 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("study_type");
 
                     b.HasKey("NctId");
+
+                    b.HasIndex("EnrollmentCount");
+
+                    b.HasIndex("OverallStatus", "StartDate");
 
                     b.ToTable("studies", (string)null);
                 });

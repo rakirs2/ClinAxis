@@ -23,7 +23,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var state = await context.DataSourceStates
@@ -55,7 +55,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var state = await context.DataSourceStates
@@ -82,7 +82,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         return await context.DataSourceStates
@@ -95,7 +95,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         return await context.DataSourceStates
@@ -112,7 +112,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var exists = await context.DataSourceStates

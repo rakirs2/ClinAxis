@@ -36,7 +36,7 @@ else
 }
 
 DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-    .UseNpgsql(connectionString).Options;
+    .ConfigureNpgsql(connectionString!).Options;
 
 // Apply schema via migrations.
 await Console.Out.WriteLineAsync("Applying schema...");
@@ -61,7 +61,7 @@ using (var ctx = new ClinicalTrialsContext(opts))
 }
 
 var studyRepo = new StudyRepository(connectionString!);
-var clinicalTrialsClient = new ClinicalTrialsGov();
+var clinicalTrialsClient = new ClinicalTrialsGovClient();
 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
 
 await Console.Out.WriteLineAsync($"Scraping {studyLimit} studies from ClinicalTrials.gov...");

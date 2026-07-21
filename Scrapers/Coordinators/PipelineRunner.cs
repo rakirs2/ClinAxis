@@ -31,7 +31,7 @@ namespace Scrapers.Coordinators
 
             try
             {
-                var clinicalTrialsClient = new ClinicalTrialsGov(pageSize: 100);
+                var clinicalTrialsClient = new ClinicalTrialsGovClient(pageSize: 100);
                 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
                 await clinicalTrialsIngestionService.IngestAsync(clinicalTrialsCount, cancellationToken).ConfigureAwait(false);
 
@@ -40,7 +40,7 @@ namespace Scrapers.Coordinators
 
                 using var requeueContext = new ClinicalTrialsContext(
                     new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                        .UseNpgsql(connectionString)
+                        .ConfigureNpgsql(connectionString)
                         .Options);
                 var requeuedCount = await StudyRepository.RequeueInvestigatorScrubEventsAsync(
                     requeueContext, cancellationToken).ConfigureAwait(false);
