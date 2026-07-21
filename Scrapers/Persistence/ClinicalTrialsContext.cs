@@ -35,6 +35,7 @@ namespace Scrapers.Persistence
         public DbSet<InvestigatorMetricEntity> InvestigatorMetrics => Set<InvestigatorMetricEntity>();
         public DbSet<EntityAliasEntity> EntityAliases => Set<EntityAliasEntity>();
         public DbSet<MedicareProcedureEntity> MedicareProcedures => Set<MedicareProcedureEntity>();
+        public DbSet<OpenPaymentEntity> OpenPayments => Set<OpenPaymentEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -659,6 +660,37 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => new { e.EntityType, e.Source, e.SourceEntityId }).IsUnique();
                 entity.HasIndex(e => new { e.EntityType, e.CanonicalId });
+            });
+
+            modelBuilder.Entity<OpenPaymentEntity>(entity =>
+            {
+                entity.ToTable("open_payments");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.InvestigatorPersonId).HasColumnName("investigator_person_id");
+                entity.Property(e => e.DataYear).HasColumnName("data_year");
+                entity.Property(e => e.PaymentType).HasColumnName("payment_type").HasMaxLength(20);
+                entity.Property(e => e.PaymentAmount).HasColumnName("payment_amount").HasColumnType("decimal(18,2)");
+                entity.Property(e => e.PaymentDate).HasColumnName("payment_date");
+                entity.Property(e => e.PayorName).HasColumnName("payor_name").HasMaxLength(500);
+                entity.Property(e => e.NatureOfPayment).HasColumnName("nature_of_payment");
+                entity.Property(e => e.FormOfPayment).HasColumnName("form_of_payment").HasMaxLength(200);
+                entity.Property(e => e.StudyName).HasColumnName("study_name");
+                entity.Property(e => e.ClinicalTrialsId).HasColumnName("clinical_trials_id").HasMaxLength(20);
+                entity.Property(e => e.ContextOfResearch).HasColumnName("context_of_research");
+                entity.Property(e => e.ProductCategory).HasColumnName("product_category").HasMaxLength(500);
+                entity.Property(e => e.ProductName).HasColumnName("product_name").HasMaxLength(500);
+                entity.Property(e => e.RecordId).HasColumnName("record_id").HasMaxLength(100);
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.InvestigatorPerson)
+                    .WithMany(p => p.OpenPayments)
+                    .HasForeignKey(e => e.InvestigatorPersonId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.InvestigatorPersonId);
+                entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear, e.PaymentType, e.RecordId }).IsUnique();
             });
         }
     }
