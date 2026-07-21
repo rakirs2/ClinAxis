@@ -36,7 +36,7 @@ else
 }
 
 DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-    .UseNpgsql(connectionString).Options;
+    .ConfigureNpgsql(connectionString!).Options;
 
 // Apply schema via migrations.
 await Console.Out.WriteLineAsync("Applying schema...");

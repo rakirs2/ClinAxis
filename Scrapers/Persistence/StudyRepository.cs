@@ -24,10 +24,7 @@ namespace Scrapers.Persistence
             }
 
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
-            builder.UseNpgsql(connectionString, options =>
-            {
-                options.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-            });
+            builder.ConfigureNpgsql(connectionString);
             _options = builder.Options;
         }
 
@@ -60,6 +57,7 @@ namespace Scrapers.Persistence
             var rejectedAffiliations = new List<string>();
             var rejectedConditions = new List<string>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
+            var batchCount = 0;
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -345,6 +343,16 @@ namespace Scrapers.Persistence
                                 Type = reference.Type
                             });
                         }
+                    }
+                }
+
+                batchCount++;
+                if (batchCount % 25 == 0)
+                {
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    foreach (var entry in context.ChangeTracker.Entries().ToList())
+                    {
+                        entry.State = EntityState.Detached;
                     }
                 }
             }

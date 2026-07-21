@@ -33,7 +33,7 @@ internal static class PostgresTestHelper
 
     internal static DbContextOptions<ClinicalTrialsContext> CreateOptions()
     {
-        return new DbContextOptionsBuilder<ClinicalTrialsContext>().UseNpgsql(ConnectionString).Options;
+        return new DbContextOptionsBuilder<ClinicalTrialsContext>().ConfigureNpgsql(ConnectionString).Options;
     }
 
     internal static async Task ClearDatabaseAsync()

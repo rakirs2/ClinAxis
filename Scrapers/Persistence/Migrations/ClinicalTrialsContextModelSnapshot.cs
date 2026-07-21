@@ -425,6 +425,8 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("orcid IS NOT NULL");
 
+                    b.HasIndex("IsHuman", "NpiEnrichmentResult");
+
                     b.ToTable("investigator_persons", (string)null);
                 });
 
@@ -1440,6 +1442,10 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("study_type");
 
                     b.HasKey("NctId");
+
+                    b.HasIndex("EnrollmentCount");
+
+                    b.HasIndex("OverallStatus", "StartDate");
 
                     b.ToTable("studies", (string)null);
                 });

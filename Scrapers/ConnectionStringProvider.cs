@@ -1,4 +1,5 @@
-﻿using Npgsql;
+﻿using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Scrapers;
 
@@ -20,5 +21,15 @@ public static class ConnectionStringProvider
             ConnectionPruningInterval = 60
         };
         return builder.ConnectionString;
+    }
+
+    public static DbContextOptionsBuilder<T> ConfigureNpgsql<T>(
+        this DbContextOptionsBuilder<T> builder,
+        string connectionString,
+        int maxRetryCount = 3)
+        where T : DbContext
+    {
+        builder.UseNpgsql(connectionString, o => o.EnableRetryOnFailure(maxRetryCount));
+        return builder;
     }
 }

@@ -12,8 +12,8 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260720175213_AddMedicareProcedures")]
-    partial class AddMedicareProcedures
+    [Migration("20260721170118_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -428,6 +428,8 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("orcid IS NOT NULL");
 
+                    b.HasIndex("IsHuman", "NpiEnrichmentResult");
+
                     b.ToTable("investigator_persons", (string)null);
                 });
 
@@ -629,6 +631,98 @@ namespace Scrapers.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("medicare_utilizations", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.OpenPaymentEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ClinicalTrialsId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("clinical_trials_id");
+
+                    b.Property<string>("ContextOfResearch")
+                        .HasColumnType("text")
+                        .HasColumnName("context_of_research");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DataYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("data_year");
+
+                    b.Property<string>("FormOfPayment")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("form_of_payment");
+
+                    b.Property<Guid>("InvestigatorPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("investigator_person_id");
+
+                    b.Property<string>("NatureOfPayment")
+                        .HasColumnType("text")
+                        .HasColumnName("nature_of_payment");
+
+                    b.Property<decimal?>("PaymentAmount")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("payment_amount");
+
+                    b.Property<DateTime?>("PaymentDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("payment_date");
+
+                    b.Property<string>("PaymentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payment_type");
+
+                    b.Property<string>("PayorName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("payor_name");
+
+                    b.Property<string>("ProductCategory")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("product_category");
+
+                    b.Property<string>("ProductName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("product_name");
+
+                    b.Property<string>("RecordId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("record_id");
+
+                    b.Property<string>("StudyName")
+                        .HasColumnType("text")
+                        .HasColumnName("study_name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvestigatorPersonId");
+
+                    b.HasIndex("InvestigatorPersonId", "DataYear", "PaymentType", "RecordId")
+                        .IsUnique();
+
+                    b.ToTable("open_payments", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
@@ -1352,6 +1446,10 @@ namespace Scrapers.Persistence.Migrations
 
                     b.HasKey("NctId");
 
+                    b.HasIndex("EnrollmentCount");
+
+                    b.HasIndex("OverallStatus", "StartDate");
+
                     b.ToTable("studies", (string)null);
                 });
 
@@ -1662,6 +1760,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("InvestigatorPerson");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.OpenPaymentEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
+                        .WithMany("OpenPayments")
+                        .HasForeignKey("InvestigatorPersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InvestigatorPerson");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "Person")
@@ -1809,6 +1918,8 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("MedicareUtilizations");
 
                     b.Navigation("Metrics");
+
+                    b.Navigation("OpenPayments");
 
                     b.Navigation("Procedures");
 

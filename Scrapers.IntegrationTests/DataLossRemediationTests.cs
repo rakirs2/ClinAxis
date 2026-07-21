@@ -137,7 +137,7 @@ public sealed class DataLossRemediationTests : DbTestBase
     public async Task NewColumns_ExistInSchema()
     {
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-            .UseNpgsql(ConnectionString).Options;
+            .ConfigureNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
         await context.Database.EnsureCreatedAsync();
 
@@ -171,7 +171,7 @@ public sealed class DataLossRemediationTests : DbTestBase
     public async Task NewTables_ExistInSchema()
     {
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-            .UseNpgsql(ConnectionString).Options;
+            .ConfigureNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
         await context.Database.EnsureCreatedAsync();
 

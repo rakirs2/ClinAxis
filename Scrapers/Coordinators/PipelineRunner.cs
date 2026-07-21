@@ -40,7 +40,7 @@ namespace Scrapers.Coordinators
 
                 using var requeueContext = new ClinicalTrialsContext(
                     new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                        .UseNpgsql(connectionString)
+                        .ConfigureNpgsql(connectionString)
                         .Options);
                 var requeuedCount = await StudyRepository.RequeueInvestigatorScrubEventsAsync(
                     requeueContext, cancellationToken).ConfigureAwait(false);
