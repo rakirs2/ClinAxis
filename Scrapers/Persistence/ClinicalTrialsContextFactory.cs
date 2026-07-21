@@ -8,7 +8,10 @@ public class ClinicalTrialsContextFactory : IDesignTimeDbContextFactory<Clinical
     public ClinicalTrialsContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
-        optionsBuilder.UseNpgsql(ConnectionStringProvider.Default);
+        optionsBuilder.UseNpgsql(ConnectionStringProvider.Default, options =>
+        {
+            options.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+        });
         return new ClinicalTrialsContext(optionsBuilder.Options);
     }
 }

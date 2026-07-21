@@ -5,14 +5,15 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
+KillMode=mixed
 User=ct-deploy
 WorkingDirectory=/opt/clinicaltrialdata/api
 EnvironmentFile=/etc/clinicaltrialdata.env
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 Environment="ASPNETCORE_URLS=http://localhost:5003"
 ExecStart=/opt/clinicaltrialdata/api/DataApi
-ExecStop=/bin/sh -c 'kill -TERM $MAINPID 2>/dev/null; sleep 5; /usr/bin/fuser -k 5003/tcp 2>/dev/null || true'
-TimeoutStopSec=15
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
 Restart=always
 RestartSec=10
 StandardOutput=journal

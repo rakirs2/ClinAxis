@@ -5,13 +5,14 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
+KillMode=mixed
 User=ct-deploy
 WorkingDirectory=/opt/clinicaltrialdata/ingestion
 EnvironmentFile=/etc/clinicaltrialdata.env
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 ExecStart=/opt/clinicaltrialdata/ingestion/IngestionApp
-ExecStop=/bin/sh -c 'kill -TERM $MAINPID 2>/dev/null; sleep 5; kill -KILL $MAINPID 2>/dev/null || true'
-TimeoutStopSec=15
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
 Restart=always
 RestartSec=10
 StandardOutput=journal

@@ -24,7 +24,10 @@ namespace Scrapers.Persistence
             }
 
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
-            builder.UseNpgsql(connectionString);
+            builder.UseNpgsql(connectionString, options =>
+            {
+                options.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+            });
             _options = builder.Options;
         }
 
