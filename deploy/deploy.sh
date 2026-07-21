@@ -12,7 +12,7 @@ for arg in "$@"; do
 done
 
 cleanup() {
-  rm -f "$SSH_KEY_FILE" "$ENV_FILE" "${REMOTE_SCRIPT:-}"
+  rm -f "$SSH_KEY_FILE" "${ENV_FILE:-}" "${REMOTE_SCRIPT:-}"
 }
 trap cleanup EXIT
 
