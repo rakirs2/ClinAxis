@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.Enrichment;
@@ -81,7 +82,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString).Options);
+                .ConfigureNpgsql(_connectionString).Options);
 
         var manualPersons = await context.InvestigatorPersons
             .Where(p => p.Npi != null && p.MedicareLookupAttemptedAt == null)
@@ -114,7 +115,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString).Options);
+                .ConfigureNpgsql(_connectionString).Options);
 
         var person = await context.InvestigatorPersons
             .FirstOrDefaultAsync(p => p.Id == personId, ct).ConfigureAwait(false);

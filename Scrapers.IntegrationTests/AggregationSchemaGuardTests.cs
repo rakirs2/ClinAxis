@@ -14,7 +14,7 @@ public sealed class AggregationSchemaGuardTests : DbTestBase
     public async Task PiAggregationsTable_HasRequiredColumns()
     {
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-            .UseNpgsql(ConnectionString).Options;
+            .ConfigureNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
         await context.Database.EnsureCreatedAsync();
 
@@ -48,7 +48,7 @@ public sealed class AggregationSchemaGuardTests : DbTestBase
     public async Task CategoryAggregationsTable_HasRequiredColumns()
     {
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-            .UseNpgsql(ConnectionString).Options;
+            .ConfigureNpgsql(ConnectionString).Options;
         await using var context = new ClinicalTrialsContext(opts);
         await context.Database.EnsureCreatedAsync();
 

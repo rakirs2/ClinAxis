@@ -26,7 +26,7 @@ public sealed class SourceFetchHistoryService : ISourceFetchHistoryService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var lastFetch = await context.SourceFetchHistories
@@ -56,7 +56,7 @@ public sealed class SourceFetchHistoryService : ISourceFetchHistoryService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var history = await context.SourceFetchHistories
@@ -93,7 +93,7 @@ public sealed class SourceFetchHistoryService : ISourceFetchHistoryService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var history = await context.SourceFetchHistories
@@ -123,7 +123,7 @@ public sealed class SourceFetchHistoryService : ISourceFetchHistoryService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var records = await context.SourceFetchHistories

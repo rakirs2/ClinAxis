@@ -13,6 +13,7 @@ public sealed class EventQueueService : IEventQueueService
     private readonly string _connectionString;
     private const int MaxRetries = 3;
     private const int ClaimedEventTimeoutMinutes = 30;
+    private static readonly SemaphoreSlim ClaimLock = new(1, 1);
 
     public EventQueueService(string connectionString)
     {
@@ -26,7 +27,7 @@ public sealed class EventQueueService : IEventQueueService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = new PipelineEventEntity
@@ -49,32 +50,41 @@ public sealed class EventQueueService : IEventQueueService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         // First, release stuck claimed events (claimed > 30 minutes ago)
         await ReleaseStuckEventsAsync(TimeSpan.FromMinutes(ClaimedEventTimeoutMinutes), ct).ConfigureAwait(false);
 
-        // Claim the oldest pending event atomically
-        var query = context.PipelineEvents.Where(e => e.Status == "pending");
-        if (eventTypes is { Length: > 0 })
+        // Claim the oldest pending event under a lock to prevent concurrent claim races
+        await ClaimLock.WaitAsync(ct).ConfigureAwait(false);
+        PipelineEventEntity? @event;
+        try
         {
-            query = query.Where(e => eventTypes.Contains(e.EventType));
+            var claimQuery = context.PipelineEvents.Where(e => e.Status == "pending");
+            if (eventTypes is { Length: > 0 })
+            {
+                claimQuery = claimQuery.Where(e => eventTypes.Contains(e.EventType));
+            }
+            @event = await claimQuery
+                .OrderBy(e => e.CreatedAt)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+
+            if (@event != null)
+            {
+                @event.Status = "processing";
+                @event.ClaimedBy = claimedBy;
+                @event.ClaimedAt = DateTime.UtcNow;
+                @event.UpdatedAt = DateTime.UtcNow;
+                await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            }
         }
-        var @event = await query
-            .OrderBy(e => e.CreatedAt)
-            .FirstOrDefaultAsync(ct)
-            .ConfigureAwait(false);
+        finally
+        {
+            ClaimLock.Release();
+        }
 
-        if (@event == null)
-            return null;
-
-        @event.Status = "processing";
-        @event.ClaimedBy = claimedBy;
-        @event.ClaimedAt = DateTime.UtcNow;
-        @event.UpdatedAt = DateTime.UtcNow;
-
-        await context.SaveChangesAsync(ct).ConfigureAwait(false);
         return @event;
     }
 
@@ -82,7 +92,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
@@ -102,7 +112,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
@@ -126,7 +136,7 @@ public sealed class EventQueueService : IEventQueueService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
@@ -162,7 +172,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         return await context.PipelineEvents
@@ -178,7 +188,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var query = context.PipelineEvents
@@ -201,7 +211,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var pending = await context.PipelineEvents.CountAsync(e => e.Status == "pending", cancellationToken: ct)
@@ -262,7 +272,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var groups = await context.PipelineEvents
@@ -317,7 +327,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var since = period switch
@@ -378,7 +388,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
@@ -404,7 +414,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var @event = await context.PipelineEvents.FindAsync(new object[] { eventId }, cancellationToken: ct)
@@ -453,7 +463,7 @@ public sealed class EventQueueService : IEventQueueService
     {
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var threshold = DateTime.UtcNow - claimTimeout;

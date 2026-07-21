@@ -74,6 +74,9 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
+
+                entity.HasIndex(e => new { e.OverallStatus, e.StartDate });
+                entity.HasIndex(e => e.EnrollmentCount);
             });
 
             modelBuilder.Entity<PubmedPaperEntity>(entity =>
@@ -232,6 +235,7 @@ namespace Scrapers.Persistence
                 entity.HasIndex(e => e.NcbiId).IsUnique().HasFilter("ncbi_id IS NOT NULL");
                 entity.HasIndex(e => e.Npi).IsUnique().HasFilter("npi IS NOT NULL");
                 entity.HasIndex(e => e.FullName);
+                entity.HasIndex(e => new { e.IsHuman, e.NpiEnrichmentResult });
 
                 entity.HasMany(e => e.MedicareUtilizations)
                     .WithOne(m => m.InvestigatorPerson)

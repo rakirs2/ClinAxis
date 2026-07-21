@@ -16,7 +16,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
     {
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(ConnectionString).Options);
+                .ConfigureNpgsql(ConnectionString).Options);
 
         bool hasPending = ctx.Database.HasPendingModelChanges();
         Assert.IsFalse(hasPending, "There are pending model changes not captured in a migration. Run 'dotnet ef migrations add' to create one.");
@@ -27,7 +27,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
     {
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(ConnectionString).Options);
+                .ConfigureNpgsql(ConnectionString).Options);
 
         await ctx.Database.EnsureDeletedAsync();
         await ctx.Database.MigrateAsync();
@@ -49,7 +49,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
     {
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(ConnectionString).Options);
+                .ConfigureNpgsql(ConnectionString).Options);
 
         await ctx.Database.EnsureDeletedAsync();
         await ctx.Database.MigrateAsync();
@@ -72,7 +72,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
 
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(ConnectionString).Options);
+                .ConfigureNpgsql(ConnectionString).Options);
 
         ctx.Studies.Add(new Scrapers.Persistence.Entities.StudyEntity
         {
@@ -102,7 +102,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
         var cs = $"{ConnectionString};Search Path=public;Pooling=false";
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(cs).Options);
+                .ConfigureNpgsql(cs).Options);
 
         await ctx.Database.MigrateAsync();
         await ctx.Database.MigrateAsync();
@@ -117,7 +117,7 @@ public sealed class MigrationIntegrationTests : DbTestBase
         var cs = $"{ConnectionString};Search Path=public;Pooling=false";
         using var ctx = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(cs).Options);
+                .ConfigureNpgsql(cs).Options);
 
         await ctx.Database.EnsureDeletedAsync();
         await ctx.Database.MigrateAsync();

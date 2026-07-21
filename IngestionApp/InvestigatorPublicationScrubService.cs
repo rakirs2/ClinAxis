@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.EventQueue;
@@ -65,7 +66,7 @@ namespace IngestionApp
         private async Task ProcessNextEventAsync(CancellationToken cancellationToken)
         {
             var contextOptions = new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options;
 
             using var context = new ClinicalTrialsContext(contextOptions);

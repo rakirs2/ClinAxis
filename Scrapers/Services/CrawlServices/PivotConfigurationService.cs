@@ -76,7 +76,7 @@ public sealed class PivotConfigurationService
 
         using var context = new ClinicalTrialsContext(
             new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .UseNpgsql(_connectionString)
+                .ConfigureNpgsql(_connectionString)
                 .Options);
 
         var configs = await context.ScraperPivots
