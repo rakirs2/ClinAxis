@@ -37,8 +37,6 @@ jobs:
 
       - name: Build
         run: dotnet build --no-restore
-        # Note: Release builds are only used for publishing to production, not for CI validation.
-        # CA* code analysis rules from .editorconfig are enforced locally but not in CI.
 
       - name: Unit Tests
         run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
@@ -66,255 +64,33 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore
-
       - name: Install dotnet-ef tool
         run: dotnet tool install --global dotnet-ef
 
       - name: Publish DataApi
-        run: dotnet publish DataApi/ -c Release -r linux-x64 --self-contained -o publish/dataapi
+        run: >-
+          dotnet publish DataApi/ -c Release -r linux-x64
+          --self-contained -o publish/dataapi
 
       - name: Publish Frontend
-        run: dotnet publish Frontend/ -c Release -r linux-x64 --self-contained -o publish/frontend
+        run: >-
+          dotnet publish Frontend/ -c Release -r linux-x64
+          --self-contained -o publish/frontend
 
       - name: Publish IngestionApp
-        run: dotnet publish IngestionApp/ -c Release -r linux-x64 --self-contained -o publish/ingestion
+        run: >-
+          dotnet publish IngestionApp/ -c Release -r linux-x64
+          --self-contained -o publish/ingestion
 
       - name: Generate migration bundle
         run: |
           dotnet ef migrations bundle --project Scrapers/ --self-contained -r linux-x64 -o publish/efbundle
           chmod +x publish/efbundle
 
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          echo "SSH key created. Testing ssh-keyscan..."
-          if ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>&1; then
-            echo "✓ Host key added to known_hosts"
-            cat ~/.ssh/known_hosts
-          else
-            echo "✗ ssh-keyscan failed. Host may be unreachable."
-            echo "Continuing anyway (will fail at connection test)..."
-          fi
-
-      - name: Test SSH connection
-        run: |
-          echo "Testing SSH connection to ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}..."
-          if ssh -vvv -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
-              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "echo '✓ SSH connection successful'" 2>&1; then
-            echo "✓ Connection test passed"
-          else
-            echo "✗ Connection test failed - see verbose output above"
-            echo ""
-            echo "Diagnostic info:"
-            echo "  - Key file readable: $(test -r ~/.ssh/deploy_key && echo 'YES' || echo 'NO')"
-            if [ -f ~/.ssh/deploy_key ]; then
-              echo "  - Key file exists: YES"
-            else
-              echo "  - Key file exists: NO"
-            fi
-            echo "  - known_hosts contents:"
-            cat ~/.ssh/known_hosts 2>/dev/null || echo "    (empty or missing)"
-            exit 1
-          fi
-
-      - name: Save current as rollback target
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo mkdir -p /opt/clinicaltrialdata && \
-            for dir in api frontend ingestion; do \
-              mv /opt/clinicaltrialdata/\$dir /opt/clinicaltrialdata/\$dir.previous \
-                2>/dev/null || true; \
-            done"
-
-      - name: Copy binaries to Droplet
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo mkdir -p /opt/clinicaltrialdata/{api,frontend,ingestion} && \
-            sudo chown -R ct-deploy:ct-deploy /opt/clinicaltrialdata"
-          scp -r -i ~/.ssh/deploy_key \
-            "$PWD/publish/dataapi"/* \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/api/
-          scp -r -i ~/.ssh/deploy_key \
-            "$PWD/publish/frontend"/* \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/frontend/
-          scp -r -i ~/.ssh/deploy_key \
-            "$PWD/publish/ingestion"/* \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/ingestion/
-          scp -i ~/.ssh/deploy_key \
-            "$PWD/publish/efbundle" \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/efbundle
-          scp -i ~/.ssh/deploy_key \
-            deploy/systemd/clinicaltrialdata-api.service \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
-          scp -i ~/.ssh/deploy_key \
-            deploy/systemd/clinicaltrialdata-frontend.service \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
-          scp -i ~/.ssh/deploy_key \
-            deploy/systemd/clinicaltrialdata-ingestion.service \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/clinicaltrialdata/
-
-      - name: Stop services and update environment
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          echo "Stopping services..."
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
-            clinicaltrialdata-ingestion; do
-            sudo systemctl stop "$svc" 2>/dev/null || true
-          done
-          sleep 5
-          /usr/bin/fuser -k 5003/tcp 2>/dev/null || true
-          /usr/bin/fuser -k 5001/tcp 2>/dev/null || true
-          echo "Services stopped."
-          cat <<'EOF' | sudo tee /etc/clinicaltrialdata.env > /dev/null 2>&1
-          POSTGRES_CONNECTION_STRING=${{ secrets.PROD_DB_CONNECTION }}
-          INGESTION_STUDY_LIMIT=0
-          ASPNETCORE_ENVIRONMENT=Production
-          EOF
-          echo "Environment file updated."
-          EOSSH
-
-      - name: Install systemd unit files
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          src=/opt/clinicaltrialdata
-          dst=/etc/systemd/system
-          sudo cp "$src/clinicaltrialdata-api.service" "$dst/"
-          sudo cp "$src/clinicaltrialdata-frontend.service" "$dst/"
-          sudo cp "$src/clinicaltrialdata-ingestion.service" "$dst/"
-          sudo systemctl daemon-reload
-          echo "Systemd unit files installed."
-          EOSSH
-
-      - name: Reset schema and apply database migrations
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          cs=$(grep POSTGRES_CONNECTION_STRING /etc/clinicaltrialdata.env | cut -d= -f2-)
-          host=$(echo "$cs" | grep -o 'Host=[^;]*' | cut -d= -f2)
-          port=$(echo "$cs" | grep -o 'Port=[^;]*' | cut -d= -f2)
-          db=$(echo "$cs" | grep -o 'Database=[^;]*' | cut -d= -f2)
-          user=$(echo "$cs" | grep -o 'Username=[^;]*' | cut -d= -f2)
-          pass=$(echo "$cs" | grep -o 'Password=[^;]*' | cut -d= -f2)
-          echo "Dropping and recreating database schema..."
-          export PGPASSWORD="$pass"
-          psql -h "$host" -p "$port" -U "$user" -d "$db" \
-            -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" \
-            -c "ALTER DATABASE \"$db\" SET search_path TO public;"
-          echo "Schema reset complete."
-          echo "Applying all migrations via efbundle..."
-          chmod +x /opt/clinicaltrialdata/efbundle
-          /opt/clinicaltrialdata/efbundle --connection "$cs"
-          echo "Migrations applied successfully."
-          EOSSH
-
-      - name: Start services (sequential with health checks)
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          echo "Starting DataApi..."
-          sudo systemctl start clinicaltrialdata-api
-          for i in $(seq 1 30); do
-            api_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5003/health 2>/dev/null || echo "000")
-            echo "  DataApi health attempt $i/30: $api_code"
-            if [ "$api_code" = "200" ]; then
-              echo "  DataApi healthy. Warming up..."
-              sleep 2
-              break
-            fi
-            sleep 2
-          done
-          if [ "$api_code" != "200" ]; then
-            echo "ERROR: DataApi failed to become healthy after 60 seconds"
-            sudo journalctl -u clinicaltrialdata-api --no-pager -n 50 || true
-            exit 1
-          fi
-          echo "Starting Frontend and IngestionApp..."
-          sudo systemctl start clinicaltrialdata-frontend clinicaltrialdata-ingestion
-          sleep 5
-          echo "All services started."
-          EOSSH
-
-      - name: Health check
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          echo "Checking service health..."
-          echo "--- Service status ---"
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
-            status=$(systemctl is-active "$svc" 2>/dev/null) || status="not-found"
-            echo "  $svc: $status"
-          done
-          echo "--- Health check ---"
-          healthy=false
-          for i in $(seq 1 20); do
-            hc="http://localhost:5003/health"
-            api_code=$(curl -s -o /dev/null -w "%{http_code}" "$hc" 2>/dev/null || echo "000")
-            hc="http://localhost:5001/health"
-            frontend_code=$(curl -s -o /dev/null -w "%{http_code}" "$hc" 2>/dev/null || echo "000")
-            echo "Attempt $i/20: DataApi=$api_code Frontend=$frontend_code"
-            if [ "$api_code" = "200" ] && [ "$frontend_code" = "200" ]; then
-              echo "Health check passed - All services healthy"
-              healthy=true
-              break
-            fi
-            sleep 2
-          done
-          if [ "$healthy" != "true" ]; then
-            echo "Health check failed - dumping service logs"
-            for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
-              clinicaltrialdata-ingestion; do
-              echo "--- $svc journal ---"
-              sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
-            done
-            exit 1
-          fi
-          EOSSH
-
-      - name: Cleanup rollback
-        if: success()
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          for dir in api frontend ingestion; do
-            rm -rf "/opt/clinicaltrialdata/$dir.previous" 2>/dev/null || true
-          done
-          echo "Rollback artifacts cleaned up."
-          EOSSH
-
-      - name: Rollback on failure
-        if: failure()
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOSSH'
-          set -e
-          echo "=== Deploy failed. Collecting diagnostics ==="
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
-            echo "--- $svc journal (last 30 lines) ---"
-            sudo journalctl -u "$svc" --no-pager -n 30 2>/dev/null || true
-          done
-          echo "=== Rolling back to previous deployment ==="
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
-            clinicaltrialdata-ingestion; do
-            sudo systemctl stop "$svc" 2>/dev/null || true
-          done
-          sleep 3
-          for dir in api frontend ingestion; do
-            if [ -d "/opt/clinicaltrialdata/$dir.previous" ]; then
-              rm -rf "/opt/clinicaltrialdata/$dir"
-              mv "/opt/clinicaltrialdata/$dir.previous" "/opt/clinicaltrialdata/$dir"
-              echo "  Restored $dir from previous"
-            fi
-          done
-          echo "Starting previous versions..."
-          for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
-            clinicaltrialdata-ingestion; do
-            sudo systemctl start "$svc"
-          done
-          echo "Rollback complete."
-          EOSSH
+      - name: Deploy to Droplet
+        run: bash deploy/deploy.sh --skip-build
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          PROD_DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
