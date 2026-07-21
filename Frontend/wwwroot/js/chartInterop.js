@@ -1,7 +1,7 @@
 window.chartInterop = {
   charts: {},
 
-  createBarChart: function (canvasId, labels, datasets, options) {
+  createChart: function (canvasId, type, labels, datasets, options) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
@@ -10,7 +10,7 @@ window.chartInterop = {
     }
 
     this.charts[canvasId] = new Chart(ctx, {
-      type: 'bar',
+      type: type || 'bar',
       data: {
         labels: labels,
         datasets: datasets
@@ -30,6 +30,10 @@ window.chartInterop = {
         }
       }
     });
+  },
+
+  createBarChart: function (canvasId, labels, datasets, options) {
+    this.createChart(canvasId, 'bar', labels, datasets, options);
   },
 
   destroyChart: function (canvasId) {
