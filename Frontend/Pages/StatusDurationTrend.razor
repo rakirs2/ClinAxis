@@ -26,7 +26,21 @@
 {
     <div class="alert alert-danger">@error</div>
 }
-else if (queueStats is null)
+
+@if (warnings is { Count: > 0 })
+{
+    <div class="alert alert-warning">
+        <strong>Partial data:</strong> Some event types could not be loaded.
+        <ul class="mb-0 mt-1">
+            @foreach (var w in warnings)
+            {
+                <li>@w</li>
+            }
+        </ul>
+    </div>
+}
+
+@if (queueStats is null)
 {
     <div class="d-flex justify-content-center mt-4">
         <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -121,83 +135,148 @@ else
 @code {
     private QueueStatsResponse? queueStats;
     private string? error;
+    private List<string>? warnings;
     private string period = "24h";
+    private Dictionary<string, List<DurationPoint>>? historyData;
+    private bool _hasRendered;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && historyData is { Count: > 0 })
+        {
+            _hasRendered = true;
+            await RenderAllCharts();
+        }
+    }
+
     private async Task SetPeriod(string p)
     {
         period = p;
+        _hasRendered = false;
         await LoadData();
     }
 
     private async Task LoadData()
     {
+        error = null;
+        warnings = null;
+        historyData = null;
+
         try
         {
             queueStats = await Client.GetFromJsonAsync<QueueStatsResponse>("/api/event-queue/stats");
-
-            if (queueStats?.byEventType is not null)
-            {
-                foreach (var et in queueStats.byEventType)
-                {
-                    if (et.percentiles is null) continue;
-
-                    var chartId = $"chart-{et.eventType.Replace(".", "-")}";
-                    List<DurationPoint>? history;
-
-                    try
-                    {
-                        history = await Client.GetFromJsonAsync<List<DurationPoint>>(
-                            $"/api/event-queue/duration-history?eventType={Uri.EscapeDataString(et.eventType)}&period={period}&bucketMinutes=60");
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-
-                    if (history is { Count: > 0 })
-                    {
-                        var labels = history.Select(h => h.bucket.ToString("MM-dd HH:mm")).ToList();
-                        var datasets = new[]
-                        {
-                            new
-                            {
-                                label = "P50",
-                                data = history.Select(h => h.p50Ms).ToList(),
-                                backgroundColor = "rgba(54, 162, 235, 0.6)",
-                                borderColor = "rgba(54, 162, 235, 1)",
-                                borderWidth = 1
-                            },
-                            new
-                            {
-                                label = "P95",
-                                data = history.Select(h => h.p95Ms).ToList(),
-                                backgroundColor = "rgba(255, 159, 64, 0.6)",
-                                borderColor = "rgba(255, 159, 64, 1)",
-                                borderWidth = 1
-                            },
-                            new
-                            {
-                                label = "P99",
-                                data = history.Select(h => h.p99Ms).ToList(),
-                                backgroundColor = "rgba(255, 99, 132, 0.6)",
-                                borderColor = "rgba(255, 99, 132, 1)",
-                                borderWidth = 1
-                            }
-                        };
-
-                        await JsRuntime.InvokeVoidAsync("chartInterop.createBarChart", chartId, labels, datasets);
-                    }
-                }
-            }
         }
         catch (Exception ex)
         {
-            error = $"Failed to load duration trend data: {ex.Message}";
+            error = $"Failed to load stats: {ex.Message}";
+            return;
+        }
+
+        if (queueStats?.byEventType is null) return;
+
+        var eventTypes = queueStats.byEventType
+            .Where(et => et.percentiles is not null)
+            .Select(et => et.eventType)
+            .ToList();
+
+        if (eventTypes.Count == 0) return;
+
+        var fetchTasks = new List<Task<(string EventType, List<DurationPoint>? History)>>();
+        foreach (var et in eventTypes)
+        {
+            fetchTasks.Add(FetchDurationHistory(et));
+        }
+
+        var results = await Task.WhenAll(fetchTasks);
+
+        historyData = new Dictionary<string, List<DurationPoint>>();
+        var collectedWarnings = new List<string>();
+
+        foreach (var (eventType, history) in results)
+        {
+            if (history is { Count: > 0 })
+            {
+                historyData[eventType] = history;
+            }
+            else
+            {
+                collectedWarnings.Add($"{eventType}: no duration data for period {period}");
+            }
+        }
+
+        if (collectedWarnings.Count > 0)
+        {
+            warnings = collectedWarnings;
+        }
+
+        if (_hasRendered && historyData.Count > 0)
+        {
+            await RenderAllCharts();
+        }
+    }
+
+    private async Task<(string EventType, List<DurationPoint>? History)> FetchDurationHistory(string eventType)
+    {
+        try
+        {
+            var history = await Client.GetFromJsonAsync<List<DurationPoint>>(
+                $"/api/event-queue/duration-history?eventType={Uri.EscapeDataString(eventType)}&period={period}&bucketMinutes=60");
+            return (eventType, history);
+        }
+        catch
+        {
+            return (eventType, null);
+        }
+    }
+
+    private async Task RenderAllCharts()
+    {
+        if (historyData is null) return;
+
+        foreach (var kvp in historyData)
+        {
+            var eventType = kvp.Key;
+            var history = kvp.Value;
+            var chartId = $"chart-{eventType.Replace(".", "-")}";
+
+            var labels = history.Select(h => h.bucket.ToString("MM-dd HH:mm")).ToList();
+            var datasets = new[]
+            {
+                new
+                {
+                    label = "P50",
+                    data = history.Select(h => h.p50Ms).ToList(),
+                    backgroundColor = "rgba(54, 162, 235, 0.1)",
+                    borderColor = "rgba(54, 162, 235, 1)",
+                    borderWidth = 2,
+                    pointRadius = 2
+                },
+                new
+                {
+                    label = "P95",
+                    data = history.Select(h => h.p95Ms).ToList(),
+                    backgroundColor = "rgba(255, 159, 64, 0.1)",
+                    borderColor = "rgba(255, 159, 64, 1)",
+                    borderWidth = 2,
+                    pointRadius = 2
+                },
+                new
+                {
+                    label = "P99",
+                    data = history.Select(h => h.p99Ms).ToList(),
+                    backgroundColor = "rgba(255, 99, 132, 0.1)",
+                    borderColor = "rgba(255, 99, 132, 1)",
+                    borderWidth = 2,
+                    pointRadius = 2
+                }
+            };
+
+            await JsRuntime.InvokeVoidAsync("chartInterop.createChart", chartId, "line", labels, datasets);
         }
     }
 

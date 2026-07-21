@@ -46,6 +46,7 @@ else
             else
             {
                 var pct = scraperProgress.percentScraped;
+                var pctDisplay = Math.Min(pct, 100).ToString("F1");
                 var barClass = pct >= 90 ? "bg-success" : pct >= 50 ? "bg-warning" : "bg-danger";
                 var statusColor = pct >= 90 ? "success" : pct >= 50 ? "warning" : "danger";
                 <div class="mb-2">
@@ -56,8 +57,8 @@ else
                     <div class="progress" style="height: 24px;">
                         <div class="progress-bar @barClass"
                              role="progressbar"
-                             style="width: @(pct > 100 ? 100 : pct)%"
-                             aria-valuenow="@pct"
+                             style="width: @pctDisplay%"
+                             aria-valuenow="@pctDisplay"
                              aria-valuemin="0"
                              aria-valuemax="100">
                             @pct.ToString("F1")%
