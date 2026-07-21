@@ -20,7 +20,8 @@ var startupRepo = new StudyRepository(connectionString);
 if (args.Contains("--reset-db"))
 {
     await startupRepo.ResetDatabaseAsync();
-    await Console.Out.WriteLineAsync("Database reset complete. Starting normally.");
+    await Console.Out.WriteLineAsync("Database reset complete.");
+    return;
 }
 
 var maxRetries = 5;
