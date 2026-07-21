@@ -69,7 +69,20 @@ echo "--- Apply migrations (old code still serving) ---"
 remote "chmod +x $R/efbundle && $R/efbundle --connection \"$DB_CONN\""
 
 echo "--- Install systemd units ---"
-remote "for f in $R/*.service; do sudo cp \"\$f\" /etc/systemd/system/; done && sudo systemctl daemon-reload"
+remote "set -e
+for f in clinicaltrialdata-api.service clinicaltrialdata-frontend.service clinicaltrialdata-ingestion.service; do
+  echo \"Checking source \$R/\$f...\"
+  test -f $R/\$f || { echo \"  ✗ Source \$R/\$f not found\"; exit 1; }
+  sudo cp $R/\$f /etc/systemd/system/
+  if grep -q KillMode /etc/systemd/system/\$f; then
+    echo \"  ✓ \$f installed with KillMode\"
+  else
+    echo \"  ✗ KillMode missing in copied \$f\"
+    exit 1
+  fi
+done
+sudo systemctl daemon-reload
+echo 'Systemd units installed.'"
 
 echo "--- Stop services ---"
 REMOTE_SCRIPT=$(mktemp)
