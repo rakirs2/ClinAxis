@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      reset_db:
+        description: 'Reset the database before deploying (drops all data)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test:
@@ -39,19 +45,19 @@ jobs:
         run: dotnet build --no-restore
 
       - name: Unit Tests
-        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build
+        run: dotnet test Scrapers.Tests/Scrapers.Tests.csproj --no-build --logger trx
 
       - name: DB Integration Tests
         run: >-
           dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
-          --no-build --filter "TestCategory!=HttpLive"
+          --no-build --filter "TestCategory!=HttpLive" --logger trx
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: '**/test-results.trx'
+          path: '**/*.trx'
 
   deploy:
     needs: test
@@ -94,3 +100,4 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           PROD_DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          RESET_DB: ${{ github.event.inputs.reset_db || 'false' }}

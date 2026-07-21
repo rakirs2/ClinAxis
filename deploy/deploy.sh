@@ -12,7 +12,7 @@ for arg in "$@"; do
 done
 
 cleanup() {
-  rm -f "$SSH_KEY_FILE" "$ENV_FILE" "$REMOTE_SCRIPT"
+  rm -f "$SSH_KEY_FILE" "$ENV_FILE" "${REMOTE_SCRIPT:-}"
 }
 trap cleanup EXIT
 
@@ -54,6 +54,13 @@ copy -r publish/ingestion/* "$USER@$HOST:$R/ingestion/"
 copy publish/efbundle "$USER@$HOST:$R/efbundle"
 copy deploy/systemd/*.service "$USER@$HOST:$R/"
 copy deploy/reset-db.sh "$USER@$HOST:$R/reset-db.sh"
+
+if [[ "${RESET_DB:-false}" == "true" ]]; then
+  echo "--- Reset database ---"
+  remote "sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true"
+  remote "POSTGRES_CONNECTION_STRING=\"$DB_CONN\" $R/api/DataApi --reset-db"
+  echo "Database reset complete."
+fi
 
 echo "--- Write env file ---"
 ENV_FILE=$(mktemp)
