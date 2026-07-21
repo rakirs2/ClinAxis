@@ -343,6 +343,37 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "medicare_procedures",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    investigator_person_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    data_year = table.Column<int>(type: "integer", nullable: false),
+                    hcpcs_code = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    hcpcs_description = table.Column<string>(type: "text", nullable: true),
+                    place_of_service = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
+                    beneficiary_count = table.Column<int>(type: "integer", nullable: true),
+                    service_count = table.Column<long>(type: "bigint", nullable: true),
+                    submitted_charge_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    medicare_allowed_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    medicare_payment_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    provider_type = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_medicare_procedures", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_medicare_procedures_investigator_persons_investigator_perso~",
+                        column: x => x.investigator_person_id,
+                        principalTable: "investigator_persons",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "medicare_utilizations",
                 columns: table => new
                 {
@@ -380,6 +411,40 @@ namespace Scrapers.Persistence.Migrations
                     table.PrimaryKey("PK_medicare_utilizations", x => x.id);
                     table.ForeignKey(
                         name: "FK_medicare_utilizations_investigator_persons_investigator_per~",
+                        column: x => x.investigator_person_id,
+                        principalTable: "investigator_persons",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "open_payments",
+                columns: table => new
+                {
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    investigator_person_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    data_year = table.Column<int>(type: "integer", nullable: false),
+                    payment_type = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    payment_amount = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    payment_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    payor_name = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    nature_of_payment = table.Column<string>(type: "text", nullable: true),
+                    form_of_payment = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    study_name = table.Column<string>(type: "text", nullable: true),
+                    clinical_trials_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    context_of_research = table.Column<string>(type: "text", nullable: true),
+                    product_category = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    product_name = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    record_id = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_open_payments", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_open_payments_investigator_persons_investigator_person_id",
                         column: x => x.investigator_person_id,
                         principalTable: "investigator_persons",
                         principalColumn: "id",
@@ -757,6 +822,17 @@ namespace Scrapers.Persistence.Migrations
                 filter: "orcid IS NOT NULL");
 
             migrationBuilder.CreateIndex(
+                name: "IX_medicare_procedures_investigator_person_id",
+                table: "medicare_procedures",
+                column: "investigator_person_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_medicare_procedures_investigator_person_id_data_year_hcpcs_~",
+                table: "medicare_procedures",
+                columns: new[] { "investigator_person_id", "data_year", "hcpcs_code", "place_of_service" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_medicare_utilizations_investigator_person_id",
                 table: "medicare_utilizations",
                 column: "investigator_person_id");
@@ -765,6 +841,17 @@ namespace Scrapers.Persistence.Migrations
                 name: "IX_medicare_utilizations_investigator_person_id_data_year",
                 table: "medicare_utilizations",
                 columns: new[] { "investigator_person_id", "data_year" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_open_payments_investigator_person_id",
+                table: "open_payments",
+                column: "investigator_person_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_open_payments_investigator_person_id_data_year_payment_type~",
+                table: "open_payments",
+                columns: new[] { "investigator_person_id", "data_year", "payment_type", "record_id" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -974,7 +1061,13 @@ namespace Scrapers.Persistence.Migrations
                 name: "investigator_papers");
 
             migrationBuilder.DropTable(
+                name: "medicare_procedures");
+
+            migrationBuilder.DropTable(
                 name: "medicare_utilizations");
+
+            migrationBuilder.DropTable(
+                name: "open_payments");
 
             migrationBuilder.DropTable(
                 name: "person_identifier_candidates");
