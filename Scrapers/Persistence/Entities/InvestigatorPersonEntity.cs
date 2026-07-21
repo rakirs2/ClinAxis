@@ -29,5 +29,6 @@ namespace Scrapers.Persistence.Entities
         public ICollection<MedicareUtilizationEntity>? MedicareUtilizations { get; set; }
         public ICollection<InvestigatorMetricEntity>? Metrics { get; set; }
         public ICollection<MedicareProcedureEntity>? Procedures { get; set; }
+        public ICollection<OpenPaymentEntity>? OpenPayments { get; set; }
     }
 }

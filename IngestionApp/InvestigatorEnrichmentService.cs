@@ -233,6 +233,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         {
             await _eventQueueService.EnqueueAsync("investigator.discovered", personId.ToString(), ct).ConfigureAwait(false);
             await _eventQueueService.EnqueueAsync("medicare.utilization", personId.ToString(), ct).ConfigureAwait(false);
+            await _eventQueueService.EnqueueAsync("cms.openpayments", personId.ToString(), ct).ConfigureAwait(false);
         }
     }
 }

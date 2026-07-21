@@ -109,6 +109,14 @@ var host = Host.CreateDefaultBuilder(args)
             pollIntervalSeconds: 30,
             dataYear: medicareDataYear));
 
+        // CMS Open Payments (Sunshine Act) enrichment
+        services.AddSingleton<CmsOpenPaymentsClient>(_ => new CmsOpenPaymentsClient(new HttpClient()));
+        services.AddHostedService(sp => new OpenPaymentsService(
+            sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<CmsOpenPaymentsClient>(),
+            cs,
+            pollIntervalSeconds: 30));
+
         // Investigator Metrics enrichment (Semantic Scholar h-index and citations)
         services.AddSingleton<SemanticScholarClient>(_ => new SemanticScholarClient(new HttpClient()));
         services.AddHostedService(sp => new InvestigatorMetricsService(

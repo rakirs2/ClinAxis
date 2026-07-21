@@ -247,8 +247,16 @@ NPPES NPI Registry lookup and ORCID API cross-reference to assign persistent ide
 | ORCID Client | `Scrapers/Services/Cms/OrcidApiClient.cs` |
 | Enrichment Pipeline | `Scrapers/Services/Cms/EnrichmentPipeline.cs` |
 
-#### 14.3 CMS Open Payments (Phase 3 — Planned)
+#### 14.3 CMS Open Payments (Phase 3 — IMPLEMENTED)
 Research payments, general payments, ownership data from openpaymentsdata.cms.gov. See Issue #125.
+
+**Implementation**:
+| Component | File |
+|-----------|------|
+| Entity | `Scrapers/Persistence/Entities/OpenPaymentEntity.cs` |
+| Client | `Scrapers/Services/Enrichment/CmsOpenPaymentsClient.cs` |
+| Service | `IngestionApp/OpenPaymentsService.cs` |
+| Migration | `Scrapers/Persistence/Migrations/20260720204634_AddOpenPayments.cs` |
 
 #### 14.4 CMS Medicare Provider Listing (Phase 4 — Planned)
 Provider demographic data via CSV import. See Issue #31 and PR #86.
