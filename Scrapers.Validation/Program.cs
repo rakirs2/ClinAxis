@@ -61,7 +61,7 @@ using (var ctx = new ClinicalTrialsContext(opts))
 }
 
 var studyRepo = new StudyRepository(connectionString!);
-var clinicalTrialsClient = new ClinicalTrialsGovClient();
+var clinicalTrialsClient = new ClinicalTrialsGov();
 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
 
 await Console.Out.WriteLineAsync($"Scraping {studyLimit} studies from ClinicalTrials.gov...");
