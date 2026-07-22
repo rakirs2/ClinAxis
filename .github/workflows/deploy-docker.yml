@@ -93,8 +93,12 @@ jobs:
 
           echo "--- Install docker compose plugin if needed ---"
           remote "docker compose version 2>/dev/null || (
-            sudo apt-get update -qq &&
-            sudo apt-get install -y -qq docker-compose-plugin
+            sudo mkdir -p /usr/local/lib/docker/cli-plugins;
+            os=\$(uname -s | tr A-Z a-z); arch=\$(uname -m);
+            url=\"https://github.com/docker/compose/releases/latest/download/docker-compose-\$os-\$arch\";
+            sudo curl -sSL \"\$url\" -o /usr/local/lib/docker/cli-plugins/docker-compose;
+            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose;
+            docker compose version;
           )"
 
           echo "--- Copy docker-compose.yml (with production image tags) ---"
