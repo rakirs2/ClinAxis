@@ -117,11 +117,13 @@ jobs:
               sudo systemctl disable \"\$svc\" 2>/dev/null || true; \
             done"
 
+          echo "--- Write .env file ---"
+          printf "POSTGRES_CONNECTION_STRING=%s\nINGESTION_STUDY_LIMIT=0\n" \
+            "$PROD_DB_CONNECTION" > /tmp/docker-compose.env
+          copy /tmp/docker-compose.env "$DEPLOY_USER@$DEPLOY_HOST:$R/.env"
+
           echo "--- Start Docker containers ---"
-          remote "cd $R \
-            && POSTGRES_CONNECTION_STRING='$PROD_DB_CONNECTION' \
-              INGESTION_STUDY_LIMIT=0 \
-            docker compose up -d --wait --wait-timeout 60"
+          remote "cd $R && docker compose up -d --wait --wait-timeout 60"
 
           echo "--- Health check ---"
           remote "for i in \$(seq 1 10); do
