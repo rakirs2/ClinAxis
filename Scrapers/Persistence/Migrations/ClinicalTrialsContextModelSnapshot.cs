@@ -908,71 +908,6 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("pipeline_events", (string)null);
                 });
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineModelDisagreementEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("BertRecommendedResult")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("bert_recommended_result");
-
-                    b.Property<string>("BertTopCandidate")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("bert_top_candidate");
-
-                    b.Property<double?>("BertTopScore")
-                        .HasColumnType("double precision")
-                        .HasColumnName("bert_top_score");
-
-                    b.Property<string>("CandidatesJson")
-                        .HasColumnType("text")
-                        .HasColumnName("candidates_json");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DisagreementType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("disagreement_type");
-
-                    b.Property<string>("InvestigatorContext")
-                        .HasColumnType("text")
-                        .HasColumnName("investigator_context");
-
-                    b.Property<Guid>("PersonId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("person_id");
-
-                    b.Property<string>("RuleBasedNpi")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("rule_based_npi");
-
-                    b.Property<string>("RuleBasedResult")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("rule_based_result");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("DisagreementType");
-
-                    b.HasIndex("PersonId");
-
-                    b.ToTable("pipeline_model_disagreements", (string)null);
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineRunEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1837,17 +1772,6 @@ namespace Scrapers.Persistence.Migrations
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "Person")
                         .WithMany("IdentifierCandidates")
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Person");
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineModelDisagreementEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "Person")
-                        .WithMany()
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

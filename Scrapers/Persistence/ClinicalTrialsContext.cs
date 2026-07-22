@@ -36,7 +36,6 @@ namespace Scrapers.Persistence
         public DbSet<EntityAliasEntity> EntityAliases => Set<EntityAliasEntity>();
         public DbSet<MedicareProcedureEntity> MedicareProcedures => Set<MedicareProcedureEntity>();
         public DbSet<OpenPaymentEntity> OpenPayments => Set<OpenPaymentEntity>();
-        public DbSet<PipelineModelDisagreementEntity> PipelineModelDisagreements => Set<PipelineModelDisagreementEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -696,32 +695,6 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear, e.PaymentType, e.RecordId }).IsUnique();
-            });
-
-            modelBuilder.Entity<PipelineModelDisagreementEntity>(entity =>
-            {
-                entity.ToTable("pipeline_model_disagreements");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.PersonId).HasColumnName("person_id");
-                entity.Property(e => e.RuleBasedResult).HasColumnName("rule_based_result").HasMaxLength(20);
-                entity.Property(e => e.RuleBasedNpi).HasColumnName("rule_based_npi").HasMaxLength(20);
-                entity.Property(e => e.BertTopCandidate).HasColumnName("bert_top_candidate").HasMaxLength(20);
-                entity.Property(e => e.BertTopScore).HasColumnName("bert_top_score");
-                entity.Property(e => e.BertRecommendedResult).HasColumnName("bert_recommended_result").HasMaxLength(20);
-                entity.Property(e => e.DisagreementType).HasColumnName("disagreement_type").HasMaxLength(50);
-                entity.Property(e => e.InvestigatorContext).HasColumnName("investigator_context");
-                entity.Property(e => e.CandidatesJson).HasColumnName("candidates_json");
-                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-
-                entity.HasOne(e => e.Person)
-                    .WithMany()
-                    .HasForeignKey(e => e.PersonId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasIndex(e => e.PersonId);
-                entity.HasIndex(e => e.DisagreementType);
-                entity.HasIndex(e => e.CreatedAt);
             });
         }
     }
