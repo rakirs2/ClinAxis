@@ -29,7 +29,7 @@ public class ClinicalTrialsIngestionService
         {
             var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, cancellationToken).ConfigureAwait(false);
             totalIngested += ingested;
-        }, cancellationToken).ConfigureAwait(false);
+        }, lastUpdatedPost: null, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         return totalIngested;
     }

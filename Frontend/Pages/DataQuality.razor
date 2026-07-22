@@ -2,22 +2,21 @@
 @page "/data-quality/{Tab:int}"
 @using System.Net.Http.Json
 @inject HttpClient Client
-@inject NavigationManager Navigation
 
 <h1>Data Quality</h1>
 
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
-        <button class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => SwitchTab(0)">Failed Events</button>
+        <a class="nav-link @(activeTab == 0 ? "active" : "")" href="/data-quality/0">Failed Events</a>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => SwitchTab(1)">Rejected Keywords</button>
+        <a class="nav-link @(activeTab == 1 ? "active" : "")" href="/data-quality/1">Rejected Keywords</a>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="() => SwitchTab(2)">Rejected Names</button>
+        <a class="nav-link @(activeTab == 2 ? "active" : "")" href="/data-quality/2">Rejected Names</a>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(activeTab == 3 ? "active" : "")" @onclick="() => SwitchTab(3)">NPI Enrichment</button>
+        <a class="nav-link @(activeTab == 3 ? "active" : "")" href="/data-quality/3">NPI Enrichment</a>
     </li>
 </ul>
 
@@ -351,11 +350,13 @@ else if (activeTab == 3)
         await LoadDataForTab(activeTab);
     }
 
-    private async Task SwitchTab(int tab)
+    protected override async Task OnParametersSetAsync()
     {
-        activeTab = tab;
-        Navigation.NavigateTo($"/data-quality/{tab}");
-        await LoadDataForTab(tab);
+        if (activeTab != Tab)
+        {
+            activeTab = Tab;
+            await LoadDataForTab(Tab);
+        }
     }
 
     private async Task LoadDataForTab(int tab)
@@ -585,7 +586,7 @@ else if (activeTab == 3)
     }
 
     private static string FormatDate(DateTime dt) =>
-        dt.ToString("yyyy-MM-dd HH:mm");
+        dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
 
     private static string TruncatePayload(string? data)
     {
