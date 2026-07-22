@@ -44,6 +44,34 @@ copy() {
 
 R="/opt/clinicaltrialdata"
 
+echo "--- Stop services (prevents Restart=always race) ---"
+remote "set -e
+for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
+  sudo systemctl stop \"\$svc\" 2>/dev/null || true
+  sudo systemctl reset-failed \"\$svc\" 2>/dev/null || true
+done
+
+echo 'Verifying ports free...'
+for port in 5003 5001; do
+  for i in \$(seq 1 10); do
+    if ! ss -tlnp | grep -q \":\$port \"; then
+      break
+    fi
+    sleep 1
+  done
+  if ss -tlnp | grep -q \":\$port \"; then
+    pid=\$(ss -tlnp | grep \":\$port \" | grep -oP 'pid=\\K[0-9]+')
+    echo \"Port \$port held by PID \$pid — sending SIGKILL\"
+    kill -KILL \"\$pid\" 2>/dev/null || true
+    sleep 2
+    if ss -tlnp | grep -q \":\$port \"; then
+      echo \"FATAL: Port \$port still held after SIGKILL\"
+      exit 1
+    fi
+  fi
+done
+echo 'All ports free.'"
+
 echo "--- Save rollback ---"
 remote "sudo mkdir -p $R && for d in api frontend ingestion; do sudo mv $R/\$d $R/\$d.previous 2>/dev/null || true; done"
 
@@ -57,7 +85,6 @@ copy deploy/reset-db.sh "$USER@$HOST:$R/reset-db.sh"
 
 if [[ "${RESET_DB:-false}" == "true" ]]; then
   echo "--- Reset database ---"
-  remote "sudo systemctl stop clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion 2>/dev/null || true"
   remote "POSTGRES_CONNECTION_STRING=\"$DB_CONN\" $R/api/DataApi --reset-db"
   echo "Database reset complete."
 fi
@@ -72,7 +99,7 @@ EOF
 scp -i "$SSH_KEY_FILE" "$ENV_FILE" "$USER@$HOST:/tmp/clinicaltrialdata.env"
 remote "sudo mv /tmp/clinicaltrialdata.env /etc/clinicaltrialdata.env && sudo chmod 600 /etc/clinicaltrialdata.env"
 
-echo "--- Apply migrations (old code still serving) ---"
+echo "--- Apply migrations (old code stopped, new binaries ready) ---"
 remote "chmod +x $R/efbundle && $R/efbundle --connection \"$DB_CONN\""
 
 echo "--- Install systemd units ---"
@@ -91,41 +118,6 @@ done
 sudo systemctl daemon-reload
 echo 'Systemd units installed.'"
 
-echo "--- Stop services ---"
-REMOTE_SCRIPT=$(mktemp)
-cat > "$REMOTE_SCRIPT" <<'STOPSCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-
-for svc in clinicaltrialdata-api clinicaltrialdata-frontend clinicaltrialdata-ingestion; do
-  echo "Stopping $svc..."
-  sudo systemctl stop "$svc"
-done
-
-echo "Verifying ports free..."
-for port in 5003 5001; do
-  for i in $(seq 1 10); do
-    if ! ss -tlnp | grep -q ":$port "; then
-      break
-    fi
-    sleep 1
-  done
-  if ss -tlnp | grep -q ":$port "; then
-    pid=$(ss -tlnp | grep ":$port " | grep -oP 'pid=\K[0-9]+')
-    echo "Port $port held by PID $pid — sending SIGKILL"
-    kill -KILL "$pid" 2>/dev/null || true
-    sleep 2
-    if ss -tlnp | grep -q ":$port "; then
-      echo "FATAL: Port $port still held after SIGKILL"
-      exit 1
-    fi
-  fi
-done
-echo "All ports free."
-STOPSCRIPT
-scp -i "$SSH_KEY_FILE" "$REMOTE_SCRIPT" "$USER@$HOST:/tmp/stop-verify.sh"
-remote "chmod +x /tmp/stop-verify.sh && sudo bash /tmp/stop-verify.sh"
-
 echo "--- Start DataApi ---"
 remote "sudo systemctl start clinicaltrialdata-api"
 
@@ -138,10 +130,10 @@ remote "for i in \$(seq 1 30); do
 done"
 
 echo "--- Smoke test ---"
-remote "for i in \$(seq 1 10); do
+remote "for i in \$(seq 1 15); do
   code=\$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:5003/api/stats 2>/dev/null || echo '000')
   if [ \"\$code\" = \"200\" ]; then echo 'DB queries working'; break; fi
-  if [ \"\$i\" = \"10\" ]; then echo 'FATAL: API stats endpoint failed'; exit 1; fi
+  if [ \"\$i\" = \"15\" ]; then echo 'FATAL: API stats endpoint failed'; exit 1; fi
   sleep 3
 done"
 

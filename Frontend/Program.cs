@@ -9,9 +9,9 @@ WebApplication CreateApp()
 
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-    builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri("http://localhost:5003"));
-
-    builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5003") });
+    var dataApiBaseUrl = builder.Configuration["DataApi:BaseUrl"] ?? "http://localhost:5003";
+    builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri(dataApiBaseUrl));
+    builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(dataApiBaseUrl) });
 
     builder.Services.AddHealthChecks();
 
