@@ -93,14 +93,15 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 2. Click **Run All Tests** in the test runner — every test, including integration tests against a real Postgres via Testcontainers, executes locally. No exceptions. No manual setup.
 
 ### 9. Deployment Standard
-- **Primary:** `dotnet publish --self-contained -r linux-x64` → SCP → systemd unit files (`deploy/deploy.sh`)
-- **Experimental:** Docker-based deploy via `.github/workflows/deploy-docker.yml` (workflow_dispatch only — not CI-triggered)
+- **Primary:** Docker-based deploy via `.github/workflows/deploy-docker.yml` (workflow_dispatch only — not CI-triggered)
   - `Dockerfile.api`, `Dockerfile.frontend`, `Dockerfile.ingestion` with `runtime-deps:10.0` base
-  - Images pushed to GHCR, deployed via `docker compose up -d` on the droplet
-  - Must pass 3 consecutive manual runs before being considered as replacement
-- Kestrel serves on port 5003 (DataApi) and 5001 (Frontend) — behind systemd or Docker
+  - Images pushed to GHCR, deployed via `docker compose up -d` on the droplet via SSH
+  - `network_mode: host` for all services (containers share host network stack)
+  - Memory limits: 256m for data-api, 192m for frontend/ingestion
+  - PostgreSQL runs on the host (not in Docker); connection string via `.env` file
+- **Optional reset-db:** Pass `reset_db=true` to the workflow to reset the database before deploy
+- Kestrel serves on port 5003 (DataApi) and 5001 (Frontend) — behind Docker
 - No nginx. Keep the stack minimal.
-- Docker for .NET apps is experimental — do not assume it's the deploy path
 
 ### 10. It's OK to Delete Bad Code
 - Refactor first, add features second.
