@@ -174,11 +174,11 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **Migration squash:** If migration history grows unwieldy during development, migrations can be squashed by deleting the `Migrations/` directory and running `dotnet ef migrations add InitialCreate`. Only do this when no production data depends on the history.
 
 ### Database Reset
-To reset the production database (run on the droplet):
+To reset the production database, trigger the deploy workflow with `reset_db=true`:
 ```bash
-sudo bash /opt/clinicaltrialdata/reset-db.sh
+gh workflow run deploy-docker.yml --ref main -f reset_db=true
 ```
-This stops services, runs `DataApi --reset-db` (drops and recreates schema), and starts services.
+This runs `DataApi --reset-db` before starting containers, dropping and recreating the schema.
 
 For local dev:
 ```bash
@@ -194,16 +194,15 @@ bash scripts/reset-db.sh
 - **Agents must always ask the user before triggering a deployment.** Do not deploy without explicit user confirmation.
 - To deploy from CLI:
   ```bash
-  gh workflow run deploy.yml --ref <branch>
+  gh workflow run deploy-docker.yml --ref main
   ```
-- The `deploy.yml` workflow:
-  1. Runs the full test suite (unit + DB integration)
-  2. Publishes DataApi, Frontend, and IngestionApp as self-contained linux-x64 binaries
-  3. Generates an EF Core migration bundle
-  4. SSHes to the DigitalOcean Droplet, copies binaries, stops services
-  5. Applies pending migrations
-  6. Starts services and validates health
-  7. Rolls back automatically on failure
+- The `deploy-docker.yml` workflow:
+  1. Runs tests and builds Docker images
+  2. Pushes images to GHCR
+  3. SSHes to the DigitalOcean Droplet, pulls images, stops old containers
+  4. Starts new containers via `docker compose up -d` (with host network)
+  5. Validates health via healthcheck + curl
+  6. Optionally resets database if `reset_db=true` is passed
 
 ## Style Enforcement
 - **`.editorconfig`** is the sole authority for ALL code analysis, including both style (`IDE*`) and quality (`CA*`) rules. No `#pragma warning disable` anywhere in the codebase. No `<NoWarn>` in any `.csproj` file. If a rule fires, fix the code — do not suppress it.
@@ -230,9 +229,9 @@ bash scripts/reset-db.sh
 - **PRs must be reviewable in under 5 minutes.** If a diff spans multiple concerns, split it.
 
 ### 16. efbundle Connection String — No Double `Search Path`
-- **Rule:** `Search Path=public` must appear only in the `PROD_DB_CONNECTION` secret, NOT appended in `deploy.yml`. The `${{ secrets.PROD_DB_CONNECTION }}` reference on its own is sufficient.
-- **Why it fails:** If `deploy.yml` appends `;Search Path=public` to a secret that already contains it, the resulting env var has it twice, and the migration bundle fails with: `ERROR: schema "publicpublic" does not exist`.
-- **Verification:** `grep -n "Search Path" .github/workflows/deploy.yml` should return 0 matches (the value comes solely from the GitHub secret).
+- **Rule:** `Search Path=public` must appear only in the `PROD_DB_CONNECTION` secret, NOT appended in `deploy-docker.yml`. The `${{ secrets.PROD_DB_CONNECTION }}` reference on its own is sufficient.
+- **Why it fails:** If `deploy-docker.yml` appends `;Search Path=public` to a secret that already contains it, the resulting env var has it twice, and the migration bundle fails with: `ERROR: schema "publicpublic" does not exist`.
+- **Verification:** `grep -n "Search Path" .github/workflows/deploy-docker.yml` should return 0 matches (the value comes solely from the GitHub secret).
 
 ### 17. Deploy Failure Documentation
 - **Every deploy failure must be documented in `docs/DeployLearnings.md`.**
@@ -241,6 +240,28 @@ bash scripts/reset-db.sh
 - If no entry exists for the current failure, create one before closing the issue.
 - Agents: before working on a deploy-related bug, check `DeployLearnings.md` to see
   if the same failure pattern has been seen before.
+
+### 18. Branch Cleanup — Prune Stale Local and Remote Branches
+- Periodically clean up unused local branches and stale remote branches to keep the repo tidy.
+- **Local cleanup:** Delete merged branches that are no longer needed:
+  ```bash
+  git branch --merged origin/main | grep -v "\* main" | xargs -r git branch -d
+  ```
+- **Remote stale branch cleanup:** Delete remote branches older than 2 weeks that have no open PR:
+  ```bash
+  gh pr list --state open --json headRefName --jq '.[].headRefName' | sort > /tmp/open-pr-branches
+  for ref in $(git for-each-ref --format='%(refname:short)' \
+    --sort=-committerdate refs/remotes/origin \
+    | grep -v 'origin/main$' | grep -v 'origin/HEAD'); do
+    age=$(( ($(date +%s) - $(git log -1 --format=%ct "$ref" 2>/dev/null || echo 0)) / 86400 ))
+    branch="${ref#origin/}"
+    if [ "$age" -gt 14 ] && ! grep -qx "$branch" /tmp/open-pr-branches 2>/dev/null; then
+      echo "Delete stale: $ref (${age}d old, no open PR)"
+      git push origin --delete "$branch"
+    fi
+  done
+  ```
+- **Caveat:** Always confirm the list before deleting remote branches. When in doubt, run in dry mode first.
 
 ## Human-Only Files
 - **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
