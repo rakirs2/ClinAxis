@@ -10,9 +10,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_API: ${{ github.repository }}-api
-  IMAGE_FRONTEND: ${{ github.repository }}-frontend
-  IMAGE_INGESTION: ${{ github.repository }}-ingestion
+  IMAGE_API: rakirs2/clinicaltrialdata-api
+  IMAGE_FRONTEND: rakirs2/clinicaltrialdata-frontend
+  IMAGE_INGESTION: rakirs2/clinicaltrialdata-ingestion
 
 jobs:
   deploy:
