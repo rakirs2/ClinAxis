@@ -45,7 +45,8 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 | Database | PostgreSQL 15+ (via Docker for local dev) | Standard relational DB |
 | Testing | MSTest only (`MSTest.TestAdapter` + `MSTest.TestFramework`) | No xUnit, no NUnit |
 | CI/CD | GitHub Actions only | Source of truth for builds |
-| Deploy | DigitalOcean Droplet — `dotnet publish` → SCP → systemd → Kestrel directly on port 80/443 | Per [Microsoft docs](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/linux-nginx) and [DigitalOcean docs](https://docs.digitalocean.com/developer-center/deploying-to-digitalocean-with-github-actions/) |
+| Deploy | DigitalOcean Droplet — `dotnet publish` → SCP → systemd | systemd primary; Docker experimental per `.github/workflows/deploy-docker.yml` |
+| | Docker-based (experimental): images → GHCR → `docker compose up -d` | Per [Docker docs](https://docs.docker.com/compose/) |
 
 ### 6. Zero Data Loss in Scraping — Persist All API Fields
 - **Rule: Never discard API response data.** If an external API (ClinicalTrials.gov, PubMed, etc.) returns a field, it MUST be persisted to PostgreSQL.
@@ -92,12 +93,14 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 2. Click **Run All Tests** in the test runner — every test, including integration tests against a real Postgres via Testcontainers, executes locally. No exceptions. No manual setup.
 
 ### 9. Deployment Standard
-- `dotnet publish --self-contained -r linux-x64`
-- SCP publish output to Droplet
-- systemd unit files for process management
-- Kestrel serves HTTPS directly on port 80/443. TLS via .NET's built-in HTTPS + Let's Encrypt cert.
-- No Docker for .NET apps in production. Docker is for local PostgreSQL only.
+- **Primary:** `dotnet publish --self-contained -r linux-x64` → SCP → systemd unit files (`deploy/deploy.sh`)
+- **Experimental:** Docker-based deploy via `.github/workflows/deploy-docker.yml` (workflow_dispatch only — not CI-triggered)
+  - `Dockerfile.api`, `Dockerfile.frontend`, `Dockerfile.ingestion` with `runtime-deps:10.0` base
+  - Images pushed to GHCR, deployed via `docker compose up -d` on the droplet
+  - Must pass 3 consecutive manual runs before being considered as replacement
+- Kestrel serves on port 5003 (DataApi) and 5001 (Frontend) — behind systemd or Docker
 - No nginx. Keep the stack minimal.
+- Docker for .NET apps is experimental — do not assume it's the deploy path
 
 ### 10. It's OK to Delete Bad Code
 - Refactor first, add features second.

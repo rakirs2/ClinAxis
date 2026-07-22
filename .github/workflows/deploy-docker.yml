@@ -1,0 +1,128 @@
+name: Deploy (Docker) — Experimental
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_API: ${{ github.repository }}-api
+  IMAGE_FRONTEND: ${{ github.repository }}-frontend
+  IMAGE_INGESTION: ${{ github.repository }}-ingestion
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push DataApi
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_API }}:${{ inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:${{ inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push IngestionApp
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ingestion
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_INGESTION }}:${{ inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push docker-compose.yml and deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          PROD_DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          SSH_KEY_FILE=$(mktemp)
+          echo "$DEPLOY_SSH_KEY" > "$SSH_KEY_FILE"
+          chmod 600 "$SSH_KEY_FILE"
+
+          remote() {
+            ssh -i "$SSH_KEY_FILE" -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+              "$DEPLOY_USER@$DEPLOY_HOST" "$@"
+          }
+          copy() { scp -i "$SSH_KEY_FILE" "$@"; }
+
+          R="/opt/clinicaltrialdata"
+
+          echo "--- Create deploy dir ---"
+          remote "mkdir -p $R"
+
+          echo "--- Copy docker-compose.yml (with production image tags) ---"
+          sed "s|:latest|:${{ inputs.tag }}|g" docker-compose.yml > /tmp/docker-compose.prod.yml
+          copy /tmp/docker-compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$R/docker-compose.yml"
+
+          echo "--- Pull images ---"
+          remote "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} \
+            -u ${{ github.actor }} --password-stdin"
+          remote "cd $R && docker compose pull"
+
+          echo "--- Stop systemd services ---"
+          remote "for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
+            clinicaltrialdata-ingestion; do \
+              sudo systemctl stop \"\$svc\" 2>/dev/null || true; \
+              sudo systemctl disable \"\$svc\" 2>/dev/null || true; \
+            done"
+
+          echo "--- Start Docker containers ---"
+          remote "cd $R \
+            && POSTGRES_CONNECTION_STRING='$PROD_DB_CONNECTION' \
+              INGESTION_STUDY_LIMIT=0 \
+            docker compose up -d --wait --wait-timeout 60"
+
+          echo "--- Health check ---"
+          remote "for i in \$(seq 1 10); do
+            code=\$(curl -s -o /dev/null -w '%{http_code}' \
+              --max-time 30 http://localhost:5003/api/stats 2>/dev/null || echo '000')
+            if [ \"\$code\" = \"200\" ]; then
+              echo 'Docker deploy healthy'; break
+            fi
+            if [ \"\$i\" = \"10\" ]; then
+              echo 'FATAL: Docker deploy health check failed'; exit 1
+            fi
+            sleep 3
+          done"
+
+          echo "--- Cleanup old images ---"
+          remote "docker image prune -f 2>/dev/null || true"
+
+          echo "=== Docker deploy complete (tag: ${{ inputs.tag }}) ==="
