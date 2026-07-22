@@ -7,6 +7,7 @@ services:
     container_name: clinicaltrialdata-api
     restart: unless-stopped
     network_mode: host
+    mem_limit: 256m
     environment:
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
     healthcheck:
@@ -24,6 +25,7 @@ services:
     container_name: clinicaltrialdata-frontend
     restart: unless-stopped
     network_mode: host
+    mem_limit: 192m
     environment:
       - DataApi__BaseUrl=http://localhost:5003
     depends_on:
@@ -38,6 +40,7 @@ services:
     container_name: clinicaltrialdata-ingestion
     restart: unless-stopped
     network_mode: host
+    mem_limit: 192m
     environment:
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - INGESTION_STUDY_LIMIT=${INGESTION_STUDY_LIMIT:-0}
