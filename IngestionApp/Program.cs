@@ -78,20 +78,11 @@ var host = Host.CreateDefaultBuilder(args)
         // Enrichment services (NPI lookup via NPPES NPI Registry, ORCID API for disambiguation)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
         services.AddSingleton<OrcidApiClient>(_ => new OrcidApiClient(new HttpClient()));
-
-        // BERT model for AB test disambiguation (optional — if model files exist)
-        var bertModelPath = Environment.GetEnvironmentVariable("BERT_MODEL_PATH") ?? "models/npi_embedder.onnx";
-        var bertVocabPath = Environment.GetEnvironmentVariable("BERT_VOCAB_PATH") ?? "models/vocab.txt";
-        var bertScorer = new BertNpiScorer(bertModelPath, bertVocabPath);
-        bertScorer.Load();
-        services.AddSingleton(bertScorer);
-
         services.AddHostedService(sp => new InvestigatorEnrichmentService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<NppesNpiRegistryClient>(),
             sp.GetRequiredService<OrcidApiClient>(),
             cs,
-            bertScorer: sp.GetRequiredService<BertNpiScorer>(),
             pollIntervalSeconds: 30));
 
         // Medicare Utilization enrichment
