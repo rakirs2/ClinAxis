@@ -1,0 +1,239 @@
+using System.Text.Json;
+using Bunit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using RichardSzalay.MockHttp;
+
+namespace Frontend.Tests;
+
+[TestClass]
+public sealed class DataQualityPageTests
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    [TestMethod]
+    public void DataQualityPageRendersTitle()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 0));
+        Assert.IsNotNull(cut.Find("h1"));
+        Assert.AreEqual("Data Quality", cut.Find("h1").TextContent);
+    }
+
+    [TestMethod]
+    public void Tab0IsActiveByDefault()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 0));
+
+        var links = cut.FindAll(".nav-tabs .nav-link");
+        Assert.AreEqual(4, links.Count);
+        Assert.IsTrue(links[0].ClassList.Contains("active"));
+        Assert.IsFalse(links[1].ClassList.Contains("active"));
+        Assert.IsFalse(links[2].ClassList.Contains("active"));
+        Assert.IsFalse(links[3].ClassList.Contains("active"));
+    }
+
+    [TestMethod]
+    public void Tab0ShowsDeadLetterContent()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 0));
+
+        cut.WaitForState(() => cut.Markup.Contains("dead-letter", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
+        StringAssert.Contains(cut.Markup, "Failed Events", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Tab1ShowsRejectedKeywords()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 1));
+
+        cut.WaitForState(() => cut.Markup.Contains("BREAST CANCER", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
+        StringAssert.Contains(cut.Markup, "Rejected Keywords", StringComparison.Ordinal);
+        var links = cut.FindAll(".nav-tabs .nav-link");
+        Assert.IsFalse(links[0].ClassList.Contains("active"));
+        Assert.IsTrue(links[1].ClassList.Contains("active"));
+    }
+
+    [TestMethod]
+    public void Tab2ShowsRejectedNames()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 2));
+
+        cut.WaitForState(() => cut.Markup.Contains("Medical Director", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
+        StringAssert.Contains(cut.Markup, "Rejected Names", StringComparison.Ordinal);
+        var links = cut.FindAll(".nav-tabs .nav-link");
+        Assert.IsFalse(links[0].ClassList.Contains("active"));
+        Assert.IsFalse(links[1].ClassList.Contains("active"));
+        Assert.IsTrue(links[2].ClassList.Contains("active"));
+    }
+
+    [TestMethod]
+    public void Tab3ShowsNpiEnrichmentBreakdown()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 3));
+
+        cut.WaitForState(() => cut.Markup.Contains("Ambiguous", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
+        StringAssert.Contains(cut.Markup, "NPI Enrichment", StringComparison.Ordinal);
+        var links = cut.FindAll(".nav-tabs .nav-link");
+        Assert.IsFalse(links[0].ClassList.Contains("active"));
+        Assert.IsFalse(links[1].ClassList.Contains("active"));
+        Assert.IsFalse(links[2].ClassList.Contains("active"));
+        Assert.IsTrue(links[3].ClassList.Contains("active"));
+    }
+
+    [TestMethod]
+    public void HrefsPointToCorrectRoutes()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        MockTab1(mockHttp);
+        MockTab2(mockHttp);
+        MockTab3(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 0));
+
+        var links = cut.FindAll(".nav-tabs a");
+        Assert.AreEqual("/data-quality/0", links[0].GetAttribute("href"));
+        Assert.AreEqual("/data-quality/1", links[1].GetAttribute("href"));
+        Assert.AreEqual("/data-quality/2", links[2].GetAttribute("href"));
+        Assert.AreEqual("/data-quality/3", links[3].GetAttribute("href"));
+    }
+
+    private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
+    {
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        return client;
+    }
+
+    private static void MockTab0(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/event-queue/dead-letter*")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        id = 1,
+                        eventType = "medicare.utilization",
+                        data = "test",
+                        status = "dead-letter",
+                        errorMessage = "Test error",
+                        retryCount = 3,
+                        createdAt = DateTime.UtcNow
+                    }
+                },
+                total = 1,
+                page = 1,
+                pageSize = 20,
+                totalPages = 1
+            }, JsonOptions));
+    }
+
+    private static void MockTab1(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/rejected-entities")
+            .WithQueryString("type=keyword")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                data = new[]
+                {
+                    new { id = 1, entityType = "keyword", value = "BREAST CANCER", studyNctId = "NCT00000001", rejectedAt = DateTime.UtcNow },
+                    new { id = 2, entityType = "keyword", value = "HIV/AIDS", studyNctId = "NCT00000002", rejectedAt = DateTime.UtcNow }
+                },
+                total = 2,
+                page = 1,
+                pageSize = 50,
+                totalPages = 1
+            }, JsonOptions));
+    }
+
+    private static void MockTab2(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/rejected-entities")
+            .WithQueryString("type=investigator_name")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                data = new[]
+                {
+                    new { id = 1, entityType = "investigator_name", value = "Medical Director", studyNctId = "NCT00000001", rejectedAt = DateTime.UtcNow },
+                    new { id = 2, entityType = "investigator_name", value = "GSK Clinical Trials", studyNctId = "NCT00000002", rejectedAt = DateTime.UtcNow }
+                },
+                total = 2,
+                page = 1,
+                pageSize = 50,
+                totalPages = 1
+            }, JsonOptions));
+    }
+
+    private static void MockTab3(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/enrichment/breakdown")
+            .Respond("application/json", JsonSerializer.Serialize(new Dictionary<string, int>
+            {
+                ["assigned"] = 85,
+                ["ambiguous"] = 84,
+                ["not_found"] = 615
+            }, JsonOptions));
+    }
+}

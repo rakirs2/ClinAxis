@@ -34,14 +34,6 @@ if (Environment.GetEnvironmentVariable("INGESTION_RESET_DB") == "true")
     await repo.ResetDatabaseAsync().ConfigureAwait(false);
 }
 
-// Study limit: default 200 for dev, INGESTION_STUDY_LIMIT=0 for all (production)
-var studyLimit = 200;
-var envStudyLimit = Environment.GetEnvironmentVariable("INGESTION_STUDY_LIMIT");
-if (!string.IsNullOrWhiteSpace(envStudyLimit) && int.TryParse(envStudyLimit, out var envLimit))
-{
-    studyLimit = envLimit > 0 ? envLimit : int.MaxValue;
-}
-
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
@@ -66,9 +58,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new ClinicalTrialsScrapeService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<IDataSourceStateService>(),
-            scrapeIntervalMinutes: 60,
-            localDevelopmentStudyCount: studyLimit,
-            isDevelopment: true));
+            scrapeIntervalMinutes: 60));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),

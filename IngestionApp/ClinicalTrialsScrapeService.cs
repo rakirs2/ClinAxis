@@ -14,8 +14,6 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     private readonly IEventQueueService _eventQueueService;
     private readonly IDataSourceStateService _dataSourceStateService;
     private readonly int _scrapeIntervalMinutes;
-    private readonly int _localDevelopmentStudyCount;
-    private readonly bool _isDevelopment;
 
     private const string SourceName = "ClinicalTrials.gov";
     private DateTime _lastRunTime = DateTime.MinValue;
@@ -23,15 +21,11 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     public ClinicalTrialsScrapeService(
         IEventQueueService eventQueueService,
         IDataSourceStateService dataSourceStateService,
-        int scrapeIntervalMinutes = 60,
-        int localDevelopmentStudyCount = 1000,
-        bool isDevelopment = false)
+        int scrapeIntervalMinutes = 60)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _dataSourceStateService = dataSourceStateService ?? throw new ArgumentNullException(nameof(dataSourceStateService));
         _scrapeIntervalMinutes = scrapeIntervalMinutes;
-        _localDevelopmentStudyCount = localDevelopmentStudyCount;
-        _isDevelopment = isDevelopment;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -78,17 +72,15 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     {
         await _dataSourceStateService.SetStatusAsync(SourceName, "syncing", ct: ct).ConfigureAwait(false);
 
-        // Get last sync timestamp
+        // Get last sync timestamp for incremental fetching
         var state = await _dataSourceStateService.GetStateAsync(SourceName, ct).ConfigureAwait(false);
-        var lastSyncTimestamp = state?.LastSyncTimestamp ?? DateTime.MinValue;
+        var lastSyncTimestamp = state?.LastSyncTimestamp;
 
-        // For development, limit to configured study count
-        var studyLimit = _isDevelopment ? _localDevelopmentStudyCount : int.MaxValue;
-
-        // Fetch studies from CT.gov API using batched processing
+        // Fetch new/updated studies from CT.gov API since last sync
         var studyCount = 0;
         await ctClient.GetTrialRecordsBatchedAsync(
-            count: studyLimit,
+            count: int.MaxValue,
+            lastUpdatedPost: lastSyncTimestamp,
             onBatch: async batch =>
             {
                 studyCount += batch.Count;
