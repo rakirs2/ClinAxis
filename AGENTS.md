@@ -218,18 +218,22 @@ bash scripts/reset-db.sh
 - Ensure schema fixtures stay synchronized with real API responses.
 - Keep PRs small — a reviewer should be able to understand the entire diff in under 5 minutes.
 
-### 14. Multiple Agents/People — Lock PRs to Single Issue
+### 14. Single Command Preference — Combine Shell Commands for the User
+- **Rule:** When providing shell commands for the user to run, combine them into a single command using `&&` or `;` as appropriate, rather than asking them to run multiple commands sequentially.
+- **Exceptions:** Only break into separate commands when one command depends on user feedback (e.g., confirming output before proceeding).
+
+### 15. Multiple Agents/People — Lock PRs to Single Issue
 - **Rule:** When multiple agents or people may work on the same feature area concurrently, every PR must remain a single logical issue. No bundling. No scope creep.
 - **If another agent is handling a related PR**, do not add commits to it. Create a new branch from `origin/main` and a new PR. The other agent will merge or rebase as needed.
 - **Before pushing to an existing branch/PR**, verify with the team (or the orchestrator agent) that no one else is actively working on it. If uncertain, branch fresh.
 - **PRs must be reviewable in under 5 minutes.** If a diff spans multiple concerns, split it.
 
-### 15. efbundle Connection String — No Double `Search Path`
+### 16. efbundle Connection String — No Double `Search Path`
 - **Rule:** `Search Path=public` must appear only in the `PROD_DB_CONNECTION` secret, NOT appended in `deploy.yml`. The `${{ secrets.PROD_DB_CONNECTION }}` reference on its own is sufficient.
 - **Why it fails:** If `deploy.yml` appends `;Search Path=public` to a secret that already contains it, the resulting env var has it twice, and the migration bundle fails with: `ERROR: schema "publicpublic" does not exist`.
 - **Verification:** `grep -n "Search Path" .github/workflows/deploy.yml` should return 0 matches (the value comes solely from the GitHub secret).
 
-### 16. Deploy Failure Documentation
+### 17. Deploy Failure Documentation
 - **Every deploy failure must be documented in `docs/DeployLearnings.md`.**
 - When you investigate or fix a deploy issue, add an entry with: date, GitHub issue #,
   workflow run URL, symptom, root cause, fix, and prevention.
