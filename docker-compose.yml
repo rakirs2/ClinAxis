@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:?err}
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:5003/health"]
       interval: 15s
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:?err}
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - INGESTION_STUDY_LIMIT=${INGESTION_STUDY_LIMIT:-0}
     depends_on:
       data-api:
