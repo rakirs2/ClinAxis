@@ -1,4 +1,4 @@
-name: Deploy (Docker) — Experimental
+name: Deploy (Docker)
 
 on:
   workflow_dispatch:
@@ -7,6 +7,14 @@ on:
         description: 'Image tag (default: latest)'
         required: false
         default: 'latest'
+      reset_db:
+        description: 'Reset database before deploy (drops and recreates schema)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   contents: read
@@ -97,6 +105,10 @@ jobs:
           echo "--- Create deploy dir ---"
           remote "mkdir -p $R"
 
+          echo "--- Stop and remove any leftover containers ---"
+          remote "cd $R && sudo docker compose --env-file $R/.env down --remove-orphans 2>/dev/null || true"
+          remote "sudo docker rm -f \$(sudo docker ps -aq) 2>/dev/null || true"
+
           echo "--- Ensure Docker is installed and running ---"
           remote "sudo docker version >/dev/null 2>&1 || curl -fsSL https://get.docker.com | sudo sh"
           remote "sudo systemctl reset-failed docker.service 2>/dev/null; \
@@ -136,6 +148,14 @@ jobs:
               sudo systemctl stop \"\$svc\" 2>/dev/null || true; \
               sudo systemctl disable \"\$svc\" 2>/dev/null || true; \
             done"
+
+          if [ "${{ inputs.reset_db }}" = "true" ]; then
+            echo "--- Resetting database ---"
+            remote "sudo docker run --rm --network host \
+              -e POSTGRES_CONNECTION_STRING='$PROD_DB_CONNECTION' \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_API }}:${{ inputs.tag }} \
+              /app/DataApi --reset-db"
+          fi
 
           echo "--- Start Docker containers ---"
           remote "cd $R && sudo docker compose --env-file $R/.env up -d --wait --wait-timeout 60"
