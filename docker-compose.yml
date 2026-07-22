@@ -1,22 +1,4 @@
 services:
-  postgres:
-    image: postgres:16
-    container_name: clinical-trial-data-db
-    profiles: ["dev", "full"]
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clinical_trial_data
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   data-api:
     build:
       context: .
@@ -24,10 +6,9 @@ services:
     image: ghcr.io/rakirs2/clinicaltrialdata-api:latest
     container_name: clinicaltrialdata-api
     restart: unless-stopped
-    ports:
-      - "5003:5003"
+    network_mode: host
     environment:
-      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres}
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:?err}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:5003/health"]
       interval: 15s
@@ -42,13 +23,12 @@ services:
     image: ghcr.io/rakirs2/clinicaltrialdata-frontend:latest
     container_name: clinicaltrialdata-frontend
     restart: unless-stopped
-    ports:
-      - "5001:5001"
+    network_mode: host
     environment:
-      - DataApi__BaseUrl=http://data-api:5003
+      - DataApi__BaseUrl=http://localhost:5003
     depends_on:
       data-api:
-        condition: service_healthy
+        condition: service_started
 
   ingestion:
     build:
@@ -57,12 +37,10 @@ services:
     image: ghcr.io/rakirs2/clinicaltrialdata-ingestion:latest
     container_name: clinicaltrialdata-ingestion
     restart: unless-stopped
+    network_mode: host
     environment:
-      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=clinical_trial_data;Username=postgres;Password=postgres}
+      - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING:?err}
       - INGESTION_STUDY_LIMIT=${INGESTION_STUDY_LIMIT:-0}
     depends_on:
       data-api:
         condition: service_started
-
-volumes:
-  pgdata:
