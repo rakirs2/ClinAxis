@@ -45,7 +45,7 @@ public class ClinicalTrialsGov
         return await GetTrialsInternalAsync(count, payload => payload.ToRecord(), cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<int> GetTrialRecordsBatchedAsync(int count, Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch, CancellationToken cancellationToken = default)
+    public async Task<int> GetTrialRecordsBatchedAsync(int count, Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch, DateTime? lastUpdatedPost = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onBatch);
 
@@ -59,7 +59,7 @@ public class ClinicalTrialsGov
 
         while (totalFetched < count)
         {
-            StudyListResponse response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
+            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost, cancellationToken).ConfigureAwait(false);
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
             if (studies.Count == 0)
             {
@@ -110,7 +110,7 @@ public class ClinicalTrialsGov
 
         while (collected.Count < count)
         {
-            StudyListResponse response = await FetchPageAsync(pageToken, cancellationToken).ConfigureAwait(false);
+            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost: null, cancellationToken: cancellationToken).ConfigureAwait(false);
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
 
             foreach (StudyListResponse.StudyPayload studyPayload in studies)
@@ -139,9 +139,9 @@ public class ClinicalTrialsGov
         return collected;
     }
 
-    private async Task<StudyListResponse> FetchPageAsync(string? pageToken, CancellationToken cancellationToken)
+    private async Task<StudyListResponse> FetchPageAsync(string? pageToken, DateTime? lastUpdatedPost = null, CancellationToken cancellationToken = default)
     {
-        var requestUri = BuildRequestUri(pageToken);
+        var requestUri = BuildRequestUri(pageToken, lastUpdatedPost);
         TimeSpan delay = _initialBackoff;
 
         for (var attempt = 1; attempt <= MaxRetryAttempts; attempt++)
@@ -186,9 +186,14 @@ public class ClinicalTrialsGov
         throw new InvalidOperationException("Unable to reach ClinicalTrials.gov after multiple attempts.");
     }
 
-    private string BuildRequestUri(string? pageToken)
+    private string BuildRequestUri(string? pageToken, DateTime? lastUpdatedPost = null)
     {
         var query = $"?format=json&pageSize={_pageSize}";
+        if (lastUpdatedPost.HasValue)
+        {
+            var since = lastUpdatedPost.Value.ToUniversalTime().ToString("O");
+            query += $"&sort=@lastupdateposteddate:asc&filter.updatedDate=range({Uri.EscapeDataString(since)},)";
+        }
         if (!string.IsNullOrWhiteSpace(pageToken))
         {
             query += $"&pageToken={Uri.EscapeDataString(pageToken)}";

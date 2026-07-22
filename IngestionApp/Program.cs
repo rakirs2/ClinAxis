@@ -34,14 +34,6 @@ if (Environment.GetEnvironmentVariable("INGESTION_RESET_DB") == "true")
     await repo.ResetDatabaseAsync().ConfigureAwait(false);
 }
 
-// Study limit: default 200 for dev, INGESTION_STUDY_LIMIT=0 for all (production)
-var studyLimit = 200;
-var envStudyLimit = Environment.GetEnvironmentVariable("INGESTION_STUDY_LIMIT");
-if (!string.IsNullOrWhiteSpace(envStudyLimit) && int.TryParse(envStudyLimit, out var envLimit))
-{
-    studyLimit = envLimit > 0 ? envLimit : int.MaxValue;
-}
-
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
@@ -66,9 +58,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService(sp => new ClinicalTrialsScrapeService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<IDataSourceStateService>(),
-            scrapeIntervalMinutes: 60,
-            localDevelopmentStudyCount: studyLimit,
-            isDevelopment: true));
+            scrapeIntervalMinutes: 60));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
@@ -88,11 +78,20 @@ var host = Host.CreateDefaultBuilder(args)
         // Enrichment services (NPI lookup via NPPES NPI Registry, ORCID API for disambiguation)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
         services.AddSingleton<OrcidApiClient>(_ => new OrcidApiClient(new HttpClient()));
+
+        // BERT model for AB test disambiguation (optional — if model files exist)
+        var bertModelPath = Environment.GetEnvironmentVariable("BERT_MODEL_PATH") ?? "models/npi_embedder.onnx";
+        var bertVocabPath = Environment.GetEnvironmentVariable("BERT_VOCAB_PATH") ?? "models/vocab.txt";
+        var bertScorer = new BertNpiScorer(bertModelPath, bertVocabPath);
+        bertScorer.Load();
+        services.AddSingleton(bertScorer);
+
         services.AddHostedService(sp => new InvestigatorEnrichmentService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<NppesNpiRegistryClient>(),
             sp.GetRequiredService<OrcidApiClient>(),
             cs,
+            bertScorer: sp.GetRequiredService<BertNpiScorer>(),
             pollIntervalSeconds: 30));
 
         // Medicare Utilization enrichment
