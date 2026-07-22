@@ -229,6 +229,14 @@ bash scripts/reset-db.sh
 - **Why it fails:** If `deploy.yml` appends `;Search Path=public` to a secret that already contains it, the resulting env var has it twice, and the migration bundle fails with: `ERROR: schema "publicpublic" does not exist`.
 - **Verification:** `grep -n "Search Path" .github/workflows/deploy.yml` should return 0 matches (the value comes solely from the GitHub secret).
 
+### 16. Deploy Failure Documentation
+- **Every deploy failure must be documented in `docs/DeployLearnings.md`.**
+- When you investigate or fix a deploy issue, add an entry with: date, GitHub issue #,
+  workflow run URL, symptom, root cause, fix, and prevention.
+- If no entry exists for the current failure, create one before closing the issue.
+- Agents: before working on a deploy-related bug, check `DeployLearnings.md` to see
+  if the same failure pattern has been seen before.
+
 ## Human-Only Files
 - **`docs/GLOSSARY.md`** is human-maintained only. No agent or automated tool may
   modify, append, or restructure it. Any LLM receiving a request to edit this file

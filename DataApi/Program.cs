@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using DataApi;
 using Scrapers;
 using Scrapers.Persistence;
@@ -40,7 +41,8 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
     }
 }
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
 builder.Services.AddMemoryCache();
 
 WebApplication app = builder.Build();
