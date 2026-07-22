@@ -91,14 +91,17 @@ jobs:
           echo "--- Create deploy dir ---"
           remote "mkdir -p $R"
 
+          echo "--- Ensure Docker is installed ---"
+          remote "docker version 2>/dev/null || curl -fsSL https://get.docker.com | sudo sh"
+
           echo "--- Install docker compose plugin if needed ---"
-          remote "docker compose version 2>/dev/null || (
+          remote "sudo docker compose version 2>/dev/null || (
             sudo mkdir -p /usr/local/lib/docker/cli-plugins;
             os=\$(uname -s | tr A-Z a-z); arch=\$(uname -m);
-            url=\"https://github.com/docker/compose/releases/latest/download/docker-compose-\$os-\$arch\";
-            sudo curl -sSL \"\$url\" -o /usr/local/lib/docker/cli-plugins/docker-compose;
+            sudo curl -sSL \
+              \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$os-\$arch\" \
+              -o /usr/local/lib/docker/cli-plugins/docker-compose;
             sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose;
-            docker compose version;
           )"
 
           echo "--- Copy docker-compose.yml (with production image tags) ---"
@@ -106,9 +109,9 @@ jobs:
           copy /tmp/docker-compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$R/docker-compose.yml"
 
           echo "--- Pull images ---"
-          remote "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} \
+          remote "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ${{ env.REGISTRY }} \
             -u ${{ github.actor }} --password-stdin"
-          remote "cd $R && docker compose pull"
+          remote "cd $R && sudo docker compose pull"
 
           echo "--- Stop systemd services ---"
           remote "for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
@@ -123,7 +126,7 @@ jobs:
           copy /tmp/docker-compose.env "$DEPLOY_USER@$DEPLOY_HOST:$R/.env"
 
           echo "--- Start Docker containers ---"
-          remote "cd $R && docker compose up -d --wait --wait-timeout 60"
+          remote "cd $R && sudo docker compose up -d --wait --wait-timeout 60"
 
           echo "--- Health check ---"
           remote "for i in \$(seq 1 10); do
@@ -139,6 +142,6 @@ jobs:
           done"
 
           echo "--- Cleanup old images ---"
-          remote "docker image prune -f 2>/dev/null || true"
+          remote "sudo docker image prune -f 2>/dev/null || true"
 
           echo "=== Docker deploy complete (tag: ${{ inputs.tag }}) ==="
