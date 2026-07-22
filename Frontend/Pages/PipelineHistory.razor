@@ -119,8 +119,8 @@ else
             {
                 <tr>
                     <td>@run.id</td>
-                    <td>@run.startedAt?.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@run.completedAt?.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@run.startedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                    <td>@run.completedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
                     <td>@StatusBadge(run.status)</td>
                     <td>@run.totalStudies</td>
                     <td>@run.totalInvestigators</td>
@@ -225,7 +225,7 @@ else
                     .ToList();
             }
 
-            lastUpdated = DateTime.Now.ToString("HH:mm:ss");
+            lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
         }
         catch (Exception ex)
         {
@@ -359,7 +359,7 @@ else
     }
 
     private static string FormatDate(DateTime dt) =>
-        dt.ToString("yyyy-MM-dd HH:mm");
+        dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
 
     public void Dispose()
     {

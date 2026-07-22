@@ -13,6 +13,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
     private readonly IEventQueueService _eventQueueService;
     private readonly NppesNpiRegistryClient _npiClient;
     private readonly OrcidApiClient _orcidClient;
+    private readonly BertNpiScorer? _bertScorer;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
@@ -22,12 +23,14 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         NppesNpiRegistryClient npiClient,
         OrcidApiClient orcidClient,
         string connectionString,
+        BertNpiScorer? bertScorer = null,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _npiClient = npiClient ?? throw new ArgumentNullException(nameof(npiClient));
         _orcidClient = orcidClient ?? throw new ArgumentNullException(nameof(orcidClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _bertScorer = bertScorer;
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{System.Environment.MachineName}-enrichment-{System.Environment.ProcessId}";
     }
@@ -141,11 +144,12 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
 
         // --- NPI lookup ---
         var enqueueDiscovered = false;
+        IReadOnlyList<NpiRegistryResult> npiResults = [];
+        IReadOnlyList<NpiRegistryResult> resolved = [];
         if (string.IsNullOrWhiteSpace(person.Npi))
         {
             try
             {
-                IReadOnlyList<NpiRegistryResult> npiResults = [];
                 foreach (var (tryFirst, tryLast) in nameVariations)
                 {
                     npiResults = await _npiClient.SearchByNameAsync(tryFirst, tryLast, affilName, affilState, ct).ConfigureAwait(false);
@@ -174,8 +178,6 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                         CreatedAt = DateTime.UtcNow
                     });
                 }
-
-                IReadOnlyList<NpiRegistryResult> resolved;
 
                 // Try affiliation-based filtering (now populated by CT.gov enrichment)
                 if (npiResults.Count > 1 && !string.IsNullOrWhiteSpace(affilName))
@@ -246,6 +248,20 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         person.NpiLookupAttemptedAt = DateTime.UtcNow;
         person.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        // AB Test: run BERT model in parallel (non-binding, logs only)
+        if (_bertScorer is { IsAvailable: true } && npiResults.Count > 0)
+        {
+            try
+            {
+                var abLogger = new NpiBertDisagreementLogger(_bertScorer, _connectionString);
+                await abLogger.LogDisagreementAsync(person, npiResults, resolved, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"BERT AB test logging failed for {person.FullName}: {ex.Message}");
+            }
+        }
 
         if (enqueueDiscovered)
         {

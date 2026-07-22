@@ -216,7 +216,7 @@ else
     }
 
     private static string FormatDate(DateTime dt) =>
-        dt.ToString("yyyy-MM-dd HH:mm");
+        dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
 
     private static string TruncatePayload(string? data)
     {

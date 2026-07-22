@@ -65,7 +65,7 @@ else
                         </div>
                     </div>
                     <small class="text-muted">
-                        Last checked: @scraperProgress.lastChecked.ToString("HH:mm")
+                        Last checked: @scraperProgress.lastChecked.ToString("HH:mm 'UTC'")
                     </small>
                 </div>
             }
@@ -360,7 +360,7 @@ else
             queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
             rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
             scraperProgress = await Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress");
-            lastUpdated = DateTime.Now.ToString("HH:mm:ss");
+            lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
         }
         catch
         {
@@ -369,10 +369,10 @@ else
     }
 
     private static string FormatDate(DateTime? dt) =>
-        dt?.ToString("yyyy-MM-dd HH:mm") ?? "";
+        dt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "";
 
     private static string FormatDate(DateTime dt) =>
-        dt.ToString("yyyy-MM-dd HH:mm");
+        dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
 
     private static string FormatDuration(double? ms)
     {
