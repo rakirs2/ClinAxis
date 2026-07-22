@@ -91,8 +91,14 @@ jobs:
           echo "--- Create deploy dir ---"
           remote "mkdir -p $R"
 
-          echo "--- Ensure Docker is installed ---"
-          remote "docker version 2>/dev/null || curl -fsSL https://get.docker.com | sudo sh"
+          echo "--- Ensure Docker is installed and running ---"
+          remote "sudo docker version >/dev/null 2>&1 || curl -fsSL https://get.docker.com | sudo sh"
+          remote "sudo systemctl reset-failed docker.service 2>/dev/null; \
+            sudo systemctl enable docker.service && \
+            sudo systemctl restart docker.service"
+          remote "for i in \$(seq 1 20); do \
+            test -S /var/run/docker.sock && sudo docker info >/dev/null 2>&1 && break; \
+            sleep 2; done"
 
           echo "--- Install docker compose plugin if needed ---"
           remote "sudo docker compose version 2>/dev/null || (
@@ -108,10 +114,15 @@ jobs:
           sed "s|:latest|:${{ inputs.tag }}|g" docker-compose.yml > /tmp/docker-compose.prod.yml
           copy /tmp/docker-compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$R/docker-compose.yml"
 
+          echo "--- Write .env file ---"
+          printf "POSTGRES_CONNECTION_STRING=%s\nINGESTION_STUDY_LIMIT=0\n" \
+            "$PROD_DB_CONNECTION" > /tmp/docker-compose.env
+          copy /tmp/docker-compose.env "$DEPLOY_USER@$DEPLOY_HOST:$R/.env"
+
           echo "--- Pull images ---"
           remote "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ${{ env.REGISTRY }} \
             -u ${{ github.actor }} --password-stdin"
-          remote "cd $R && sudo docker compose pull"
+          remote "cd $R && sudo docker compose --env-file $R/.env pull"
 
           echo "--- Stop systemd services ---"
           remote "for svc in clinicaltrialdata-api clinicaltrialdata-frontend \
@@ -120,13 +131,8 @@ jobs:
               sudo systemctl disable \"\$svc\" 2>/dev/null || true; \
             done"
 
-          echo "--- Write .env file ---"
-          printf "POSTGRES_CONNECTION_STRING=%s\nINGESTION_STUDY_LIMIT=0\n" \
-            "$PROD_DB_CONNECTION" > /tmp/docker-compose.env
-          copy /tmp/docker-compose.env "$DEPLOY_USER@$DEPLOY_HOST:$R/.env"
-
           echo "--- Start Docker containers ---"
-          remote "cd $R && sudo docker compose up -d --wait --wait-timeout 60"
+          remote "cd $R && sudo docker compose --env-file $R/.env up -d --wait --wait-timeout 60"
 
           echo "--- Health check ---"
           remote "for i in \$(seq 1 10); do
