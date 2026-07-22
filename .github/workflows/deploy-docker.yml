@@ -91,6 +91,12 @@ jobs:
           echo "--- Create deploy dir ---"
           remote "mkdir -p $R"
 
+          echo "--- Install docker compose plugin if needed ---"
+          remote "docker compose version 2>/dev/null || (
+            sudo apt-get update -qq &&
+            sudo apt-get install -y -qq docker-compose-plugin
+          )"
+
           echo "--- Copy docker-compose.yml (with production image tags) ---"
           sed "s|:latest|:${{ inputs.tag }}|g" docker-compose.yml > /tmp/docker-compose.prod.yml
           copy /tmp/docker-compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$R/docker-compose.yml"
