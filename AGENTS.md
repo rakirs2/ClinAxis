@@ -97,7 +97,7 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
   - `Dockerfile.api`, `Dockerfile.frontend`, `Dockerfile.ingestion` with `runtime-deps:10.0` base
   - Images pushed to GHCR, deployed via `docker compose up -d` on the droplet via SSH
   - `network_mode: host` for all services (containers share host network stack)
-  - Memory limits: 256m for data-api, 192m for frontend/ingestion
+  - Memory limits: 256m for data-api, 192m for frontend, 384m for ingestion
   - PostgreSQL runs on the host (not in Docker); connection string via `.env` file
 - **Optional reset-db:** Pass `reset_db=true` to the workflow to reset the database before deploy
 - Kestrel serves on port 5003 (DataApi) and 5001 (Frontend) — behind Docker

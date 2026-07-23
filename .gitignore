@@ -52,6 +52,10 @@ CodeCoverage/
 # Agent planning folder (local use only, not tracked in git)
 .opencode/
 
+# Generated experiment output files
+ab_test_*.csv
+run_*.sh
+
 # EF Core auto-generated migration designer files
 # *.Designer.cs  -- see fix: prod deploy needs Designer.cs for ef bundle
 
