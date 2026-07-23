@@ -1,0 +1,287 @@
+@page "/ab-test"
+@using System.Net.Http.Json
+@inject HttpClient Client
+
+<h1>A/B Test: IsValidCondition vs MeSH</h1>
+
+@if (stats == null)
+{
+    <p class="text-muted">Loading...</p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">@stats.total</h5>
+                    <p class="card-text">Total Terms</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">@stats.accepted</h5>
+                    <p class="card-text">Accepted (MeSH)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">@stats.rejected</h5>
+                    <p class="card-text">Rejected (MeSH)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">@stats.sideAValid / @stats.sideBMatched</h5>
+                    <p class="card-text">Side A Valid / Side B Matched</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">@stats.conditions / @stats.keywords</h5>
+                    <p class="card-text">Conditions / Keywords</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Side A vs Side B Agreement</div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered text-center">
+                        <thead>
+                            <tr><th></th><th>Side B Accepts</th><th>Side B Rejects</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Side A Accepts</strong></td>
+                                <td class="table-success">@agreeAccept</td>
+                                <td class="table-danger">@sideAOnly</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Side A Rejects</strong></td>
+                                <td class="table-warning">@sideBOnly</td>
+                                <td class="table-secondary">@agreeReject</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Categories (MeSH matched)</div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead><tr><th>Category</th><th>Count</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in stats.categories)
+                            {
+                                <tr><td>@c.category</td><td>@c.count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Rejection Reasons</div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead><tr><th>Reason</th><th>Count</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in stats.rejectionReasons)
+                            {
+                                <tr><td><code>@r.reason</code></td><td>@r.count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <span>
+                    All Terms
+                    @if (filterKind != null)
+                    {
+                        <span class="badge bg-info ms-2">@filterKind</span>
+                    }
+                </span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => SetFilter(null)">All</button>
+                    <button class="btn btn-sm btn-outline-success me-1" @onclick="() => SetFilter('disagree')">Disagreements</button>
+                    <button class="btn btn-sm btn-outline-success me-1" @onclick="() => SetFilter('both-accept')">Both Accept</button>
+                    <button class="btn btn-sm btn-outline-danger me-1" @onclick="() => SetFilter('side-a-only')">Side A Only</button>
+                    <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => SetFilter('side-b-only')">Side B Only</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => LoadTerms()">Refresh</button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (terms == null)
+            {
+                <p class="text-muted">Click a filter button to load terms.</p>
+            }
+            else if (terms.Count == 0)
+            {
+                <p class="text-muted">No terms match this filter.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>NCT ID</th>
+                                <th>Value</th>
+                                <th>Source</th>
+                                <th>Side A<br><small>IsValidCondition</small></th>
+                                <th>Side B<br><small>MeSH Match</small></th>
+                                <th>MeSH Term</th>
+                                <th>Category</th>
+                                <th>Similarity</th>
+                                <th>MeSH Accepts</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in terms)
+                            {
+                                var rowClass = "";
+                                string verdict;
+                                if (t.sideAValid && t.accepted) { rowClass = "table-success"; verdict = "Both accept"; }
+                                else if (!t.sideAValid && t.accepted) { rowClass = "table-warning"; verdict = "Side B only"; }
+                                else if (t.sideAValid && !t.accepted) { rowClass = "table-danger"; verdict = "Side A only"; }
+                                else { rowClass = "table-secondary"; verdict = "Both reject"; }
+                                <tr class="@rowClass" title="@verdict">
+                                    <td><code>@t.studyNctId</code></td>
+                                    <td>@t.value</td>
+                                    <td>@t.source</td>
+                                    <td class="text-center">@BoolIcon(t.sideAValid)</td>
+                                    <td class="text-center">@BoolIcon(t.sideBMatched)</td>
+                                    <td>@t.sideBMeshTerm</td>
+                                    <td>@t.sideBCategory</td>
+                                    <td class="text-end">@t.sideBSimilarity.ToString("F4")</td>
+                                    <td class="text-center">@BoolIcon(t.accepted)</td>
+                                    <td><code>@t.rejectionReason</code></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private AbTestStats? stats;
+    private List<AbTestTerm>? terms;
+    private string? filterKind;
+    private List<AbTestTerm>? allTerms;
+
+    private int agreeAccept;
+    private int agreeReject;
+    private int sideAOnly;
+    private int sideBOnly;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stats = await Client.GetFromJsonAsync<AbTestStats>("http://localhost:5003/api/ab-test/stats");
+        if (stats != null)
+        {
+            var s = stats;
+            sideBOnly = s.accepted - (s.sideAValid - (s.total - s.accepted)); // approximate, compute from terms
+            allTerms = await Client.GetFromJsonAsync<List<AbTestTerm>>("http://localhost:5003/api/ab-test/terms?limit=1000");
+            if (allTerms != null)
+            {
+                agreeAccept = allTerms.Count(t => t.sideAValid && t.accepted);
+                agreeReject = allTerms.Count(t => !t.sideAValid && !t.accepted);
+                sideAOnly = allTerms.Count(t => t.sideAValid && !t.accepted);
+                sideBOnly = allTerms.Count(t => !t.sideAValid && t.accepted);
+            }
+        }
+    }
+
+    private async Task LoadTerms()
+    {
+        var url = "http://localhost:5003/api/ab-test/terms?limit=1000";
+        var all = await Client.GetFromJsonAsync<List<AbTestTerm>>(url);
+        terms = filterKind switch
+        {
+            "disagree" => all?.Where(t => t.sideAValid != t.accepted).ToList(),
+            "both-accept" => all?.Where(t => t.sideAValid && t.accepted).ToList(),
+            "side-a-only" => all?.Where(t => t.sideAValid && !t.accepted).ToList(),
+            "side-b-only" => all?.Where(t => !t.sideAValid && t.accepted).ToList(),
+            _ => all
+        };
+        allTerms = all;
+    }
+
+    private async Task SetFilter(string? val)
+    {
+        filterKind = val;
+        await LoadTerms();
+    }
+
+    private static string BoolIcon(bool val) => val ? "✓" : "✗";
+
+    private class AbTestStats
+    {
+        public int total { get; set; }
+        public int accepted { get; set; }
+        public int rejected { get; set; }
+        public int sideAValid { get; set; }
+        public int sideBMatched { get; set; }
+        public int conditions { get; set; }
+        public int keywords { get; set; }
+        public List<CategoryCount> categories { get; set; } = [];
+        public List<ReasonCount> rejectionReasons { get; set; } = [];
+    }
+
+    private class CategoryCount
+    {
+        public string category { get; set; } = "";
+        public int count { get; set; }
+    }
+
+    private class ReasonCount
+    {
+        public string reason { get; set; } = "";
+        public int count { get; set; }
+    }
+
+    private class AbTestTerm
+    {
+        public int id { get; set; }
+        public string studyNctId { get; set; } = "";
+        public string value { get; set; } = "";
+        public string source { get; set; } = "";
+        public bool sideAValid { get; set; }
+        public bool sideBMatched { get; set; }
+        public string sideBMeshTerm { get; set; } = "";
+        public string sideBMeshCui { get; set; } = "";
+        public string sideBCategory { get; set; } = "";
+        public float sideBSimilarity { get; set; }
+        public bool accepted { get; set; }
+        public string rejectionReason { get; set; } = "";
+        public DateTime createdAt { get; set; }
+    }
+}

@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Scrapers.Models;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
@@ -15,6 +16,7 @@ namespace Scrapers.Persistence
     public class StudyRepository
     {
         private readonly DbContextOptions<ClinicalTrialsContext> _options;
+        private readonly MeSHMatcher? _meshMatcher;
 
         public StudyRepository(string connectionString)
         {
@@ -26,6 +28,11 @@ namespace Scrapers.Persistence
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
             builder.ConfigureNpgsql(connectionString);
             _options = builder.Options;
+        }
+
+        public StudyRepository(string connectionString, MeSHMatcher meshMatcher) : this(connectionString)
+        {
+            _meshMatcher = meshMatcher ?? throw new ArgumentNullException(nameof(meshMatcher));
         }
 
         public async Task MigrateSchemaAsync(CancellationToken cancellationToken = default)
@@ -56,6 +63,7 @@ namespace Scrapers.Persistence
             var rejectedKeywords = new List<string>();
             var rejectedAffiliations = new List<string>();
             var rejectedConditions = new List<string>();
+            var meshMatchResults = new List<MeSHMatchResult>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
             var batchCount = 0;
             foreach (ClinicalTrialRecord? record in recordList)
@@ -254,6 +262,19 @@ namespace Scrapers.Persistence
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .ToList();
 
+                        if (_meshMatcher != null)
+                        {
+                            foreach (var rawKw in record.Keywords)
+                            {
+                                if (!string.IsNullOrWhiteSpace(rawKw))
+                                {
+                                    var trimmed = rawKw.Trim();
+                                    var match = _meshMatcher.Match(trimmed, "keyword", record.NctId!);
+                                    meshMatchResults.Add(match);
+                                }
+                            }
+                        }
+
                         var cleanedKeywords = originalKeywords
                             .Where(k => k.Length >= 4 || (k.Length >= 2 && knownShortMedicalTerms.Contains(k)))
                             .Where(k => k.Length <= 150)
@@ -289,6 +310,12 @@ namespace Scrapers.Persistence
                                 else
                                 {
                                     rejectedConditions.Add($"{record.NctId}: {trimmed}");
+                                }
+
+                                if (_meshMatcher != null)
+                                {
+                                    var match = _meshMatcher.Match(trimmed, "condition", record.NctId!);
+                                    meshMatchResults.Add(match);
                                 }
                             }
                         }
@@ -410,6 +437,31 @@ namespace Scrapers.Persistence
             if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0 || rejectedConditions.Count > 0)
             {
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_meshMatcher != null && meshMatchResults.Count > 0)
+            {
+                foreach (var m in meshMatchResults)
+                {
+                    context.RejectedTerms.Add(new RejectedTermEntity
+                    {
+                        StudyNctId = m.StudyNctId,
+                        Value = m.Value,
+                        Source = m.Source,
+                        SideAValid = m.SideAValid,
+                        SideBMatched = m.SideBMatched,
+                        SideBMeshTerm = m.MeshTerm,
+                        SideBMeshCui = m.MeshCui,
+                        SideBCategory = m.Category,
+                        SideBSimilarity = m.Similarity,
+                        Accepted = m.Accepted,
+                        RejectionReason = m.RejectionReason,
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                Console.WriteLine($"  [MeSH A/B] Stored {meshMatchResults.Count} term evaluations");
             }
 
             if (rejectedKeywords.Count > 0)

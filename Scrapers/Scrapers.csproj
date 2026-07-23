@@ -15,6 +15,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.10" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.1" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
@@ -26,6 +27,11 @@
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
     <InternalsVisibleTo Include="Scrapers.Validation" />
     <InternalsVisibleTo Include="MeshCompare" />
+    <InternalsVisibleTo Include="ABTestRunner" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Resources/**" CopyToOutputDirectory="PreserveNewest" LinkBase="Resources\" />
   </ItemGroup>
 
 </Project>
