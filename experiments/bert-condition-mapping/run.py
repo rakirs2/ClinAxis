@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
-BERT Condition Mapping Pipeline
+MeSH Condition Mapping Experiment
 
 Usage:
-  python run.py all          # Full pipeline: download → review → train → normalize → evaluate → export
-  python run.py download     # Step 1: Download training data from API
-  python run.py review       # Step 2: Manual review (flag conditions as valid/invalid)
-  python run.py train        # Step 3: Train BERT classifier
-  python run.py normalize    # Step 4: Normalize conditions with Sentence-BERT
-  python run.py evaluate     # Step 5: Evaluate models vs rule-based approach
-  python run.py export       # Step 6: Export mapping table + ONNX model
+  python run.py fetch        # Step 1: Fetch 50 studies from CT.gov API v2
+  python run.py mesh          # Step 2: Download MeSH → match all conditions + keywords → generate report
+  python run.py report        # Step 3: Print the MeSH mapping report
+  python run.py all           # Full pipeline: fetch → mesh → report
 """
 
 import subprocess
@@ -17,15 +14,13 @@ import sys
 import os
 
 SCRIPTS = {
-    "download": "download_data.py",
-    "review": "review.py",
-    "train": "train.py",
-    "normalize": "normalize.py",
-    "evaluate": "evaluate.py",
-    "export": "export.py",
+    "fetch": "fetch_ctgov.py",
+    "mesh": "mesh_matcher.py",
+    "report": "mesh_report.py",
+    "ab-test": "ab_test.py",
 }
 
-PIPELINE = ["download", "review", "train", "normalize", "evaluate", "export"]
+PIPELINE = ["fetch", "mesh", "report"]
 
 
 def run_script(name: str):
@@ -36,7 +31,7 @@ def run_script(name: str):
         return False
     print(f"\n{'='*60}")
     print(f"Step: {name} ({script})")
-    print(f"{'='*60}\n")
+    print(f"{'='*60}")
     result = subprocess.run([sys.executable, script], capture_output=False)
     return result.returncode == 0
 
@@ -55,7 +50,7 @@ if __name__ == "__main__":
             if not run_script(step):
                 print(f"Step '{step}' failed. Aborting.")
                 sys.exit(1)
-        print("\n" + "=" * 60)
+        print(f"\n{'='*60}")
         print("Pipeline complete!")
         print(f"{'='*60}")
     elif command in SCRIPTS:
