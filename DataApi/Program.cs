@@ -745,6 +745,80 @@ app.MapGet("/api/export/training/affiliations", async (HttpResponse response) =>
     }
 });
 
+app.MapGet("/api/ab-test/stats", async () =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .ConfigureNpgsql(connectionString).Options);
+
+    var total = await ctx.RejectedTerms.CountAsync();
+    var accepted = await ctx.RejectedTerms.CountAsync(t => t.Accepted);
+    var sideAValid = await ctx.RejectedTerms.CountAsync(t => t.SideAValid);
+    var sideBMatched = await ctx.RejectedTerms.CountAsync(t => t.SideBMatched);
+    var conditions = await ctx.RejectedTerms.CountAsync(t => t.Source == "condition");
+    var keywords = await ctx.RejectedTerms.CountAsync(t => t.Source == "keyword");
+    var categories = await ctx.RejectedTerms
+        .GroupBy(t => t.SideBCategory)
+        .Select(g => new { Category = g.Key, Count = g.Count() })
+        .ToListAsync();
+    var rejectionReasons = await ctx.RejectedTerms
+        .Where(t => !t.Accepted)
+        .GroupBy(t => t.RejectionReason)
+        .Select(g => new { Reason = g.Key, Count = g.Count() })
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        total,
+        accepted,
+        rejected = total - accepted,
+        sideAValid,
+        sideBMatched,
+        conditions,
+        keywords,
+        categories,
+        rejectionReasons,
+    });
+});
+
+app.MapGet("/api/ab-test/terms", async (int? limit, string? source, string? category, bool? accepted) =>
+{
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .ConfigureNpgsql(connectionString).Options);
+
+    IQueryable<RejectedTermEntity> query = ctx.RejectedTerms;
+
+    if (!string.IsNullOrEmpty(source))
+        query = query.Where(t => t.Source == source);
+    if (!string.IsNullOrEmpty(category))
+        query = query.Where(t => t.SideBCategory == category);
+    if (accepted.HasValue)
+        query = query.Where(t => t.Accepted == accepted.Value);
+
+    query = query.OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Value);
+
+    if (limit.HasValue && limit.Value > 0)
+        query = query.Take(limit.Value);
+
+    var results = await query.Select(t => new
+    {
+        t.Id,
+        t.StudyNctId,
+        t.Value,
+        t.Source,
+        t.SideAValid,
+        t.SideBMatched,
+        t.SideBMeshTerm,
+        t.SideBMeshCui,
+        t.SideBCategory,
+        t.SideBSimilarity,
+        t.Accepted,
+        t.RejectionReason,
+        t.CreatedAt,
+    }).ToListAsync();
+
+    return Results.Ok(results);
+});
+
 await app.RunAsync();
 
 /// <summary>

@@ -67,13 +67,21 @@ def parse_descriptors(xml_path: str) -> tuple[dict[str, dict], dict[str, list[st
             trees[cui] = tree_numbers
 
         concepts = []
+        seen = set()
         for concept in desc.findall(".//Concept"):
             cname = concept.find("ConceptName/String")
             preferred = concept.find("ConceptPreferredNameYN")
             if cname is not None and preferred is not None and preferred.text == "Y":
                 concepts.insert(0, cname.text)
+                seen.add(cname.text)
             elif cname is not None:
                 concepts.append(cname.text)
+                seen.add(cname.text)
+            for term in concept.findall(".//Term"):
+                ts = term.find("String")
+                if ts is not None and ts.text and ts.text not in seen:
+                    concepts.append(ts.text)
+                    seen.add(ts.text)
 
         descriptors[cui] = {
             "cui": cui,
