@@ -40,7 +40,7 @@ services:
     container_name: clinicaltrialdata-ingestion
     restart: unless-stopped
     network_mode: host
-    mem_limit: 192m
+    mem_limit: 384m
     environment:
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - INGESTION_STUDY_LIMIT=${INGESTION_STUDY_LIMIT:-0}
