@@ -36,6 +36,7 @@ namespace Scrapers.Persistence
         public DbSet<EntityAliasEntity> EntityAliases => Set<EntityAliasEntity>();
         public DbSet<MedicareProcedureEntity> MedicareProcedures => Set<MedicareProcedureEntity>();
         public DbSet<OpenPaymentEntity> OpenPayments => Set<OpenPaymentEntity>();
+        public DbSet<RejectedTermEntity> RejectedTerms => Set<RejectedTermEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -695,6 +696,29 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear, e.PaymentType, e.RecordId }).IsUnique();
+            });
+
+            modelBuilder.Entity<RejectedTermEntity>(entity =>
+            {
+                entity.ToTable("rejected_terms");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Value).HasColumnName("value");
+                entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(20).HasDefaultValue("condition");
+                entity.Property(e => e.SideAValid).HasColumnName("side_a_valid");
+                entity.Property(e => e.SideBMatched).HasColumnName("side_b_matched");
+                entity.Property(e => e.SideBMeshTerm).HasColumnName("side_b_mesh_term");
+                entity.Property(e => e.SideBMeshCui).HasColumnName("side_b_mesh_cui");
+                entity.Property(e => e.SideBCategory).HasColumnName("side_b_category").HasMaxLength(20).HasDefaultValue("unmapped");
+                entity.Property(e => e.SideBSimilarity).HasColumnName("side_b_similarity");
+                entity.Property(e => e.Accepted).HasColumnName("accepted");
+                entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+
+                entity.HasIndex(e => e.StudyNctId);
+                entity.HasIndex(e => e.Accepted);
+                entity.HasIndex(e => e.SideBCategory);
             });
         }
     }

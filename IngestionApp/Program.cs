@@ -43,8 +43,23 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
         services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
 
+        // MeSH Matcher for A/B testing
+        MeSHMatcher? meshMatcher = null;
+        var meshResourcesPath = Path.Combine(AppContext.BaseDirectory, "Resources", "mesh");
+        if (Directory.Exists(meshResourcesPath) && File.Exists(Path.Combine(meshResourcesPath, "model.onnx")))
+        {
+            Console.WriteLine($"  [MeSH] Loading matcher from {meshResourcesPath}");
+            meshMatcher = new MeSHMatcher(meshResourcesPath);
+        }
+        else
+        {
+            Console.WriteLine("  [MeSH] Resources not found, A/B test disabled");
+        }
+
         // Persistence
-        services.AddSingleton<StudyRepository>(new StudyRepository(cs));
+        services.AddSingleton<StudyRepository>(meshMatcher != null
+            ? new StudyRepository(cs, meshMatcher)
+            : new StudyRepository(cs));
 
         // ClinicalTrials.gov ingestion pipeline
         services.AddSingleton<ClinicalTrialsGov>();

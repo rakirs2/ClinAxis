@@ -1113,6 +1113,88 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("rejected_investigator_names", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.RejectedTermEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("accepted");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("RejectionReason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<bool>("SideAValid")
+                        .HasColumnType("boolean")
+                        .HasColumnName("side_a_valid");
+
+                    b.Property<string>("SideBCategory")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("unmapped")
+                        .HasColumnName("side_b_category");
+
+                    b.Property<bool>("SideBMatched")
+                        .HasColumnType("boolean")
+                        .HasColumnName("side_b_matched");
+
+                    b.Property<string>("SideBMeshCui")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("side_b_mesh_cui");
+
+                    b.Property<string>("SideBMeshTerm")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("side_b_mesh_term");
+
+                    b.Property<float>("SideBSimilarity")
+                        .HasColumnType("real")
+                        .HasColumnName("side_b_similarity");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("condition")
+                        .HasColumnName("source");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Accepted");
+
+                    b.HasIndex("SideBCategory");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("rejected_terms", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
                 {
                     b.Property<int>("Id")
