@@ -521,21 +521,16 @@ public sealed class StudyRepositoryTests : DbTestBase
 
         var stored = await Context.StudyConditions
             .Where(c => c.StudyNctId == "NCT00000905")
-            .Select(c => c.Condition)
             .ToListAsync();
 
-        Assert.AreEqual(2, stored.Count, "Only 'Diabetes Mellitus' and 'Hypertension' should be stored");
-        Assert.IsTrue(stored.Contains("Diabetes Mellitus"));
-        Assert.IsTrue(stored.Contains("Hypertension"));
+        Assert.AreEqual(0, stored.Count, "Without MeshMatcher, all conditions go to rejected_conditions JSONB");
 
-        var rejected = await Context.RejectedEntities
-            .Where(r => r.EntityType == "condition" && r.StudyNctId == "NCT00000905")
-            .ToListAsync();
-        Assert.AreEqual(4, rejected.Count, "Four conditions should be rejected and logged");
-        Assert.IsTrue(rejected.Any(r => r.Value == "Diabetes \"Type 2\""), "Quotes should be rejected");
-        Assert.IsTrue(rejected.Any(r => r.Value == "C.O.P.D."), "Periods should be rejected");
-        Assert.IsTrue(rejected.Any(r => r.Value == "Cancer (C80)"), "ICD code in parenthetical should be rejected");
-        Assert.IsTrue(rejected.Any(r => r.Value == "E11.9"), "ICD-10 code should be rejected");
+        var study = await Context.Studies.FirstOrDefaultAsync(s => s.NctId == "NCT00000905");
+        Assert.IsNotNull(study);
+        Assert.IsNotNull(study.RejectedConditions);
+        Assert.IsTrue(study.RejectedConditions.Contains("Diabetes Mellitus", StringComparison.Ordinal));
+        Assert.IsTrue(study.RejectedConditions.Contains("Hypertension", StringComparison.Ordinal));
+        Assert.IsTrue(study.RejectedConditions.Contains("E11.9", StringComparison.Ordinal));
     }
 
     [TestMethod]

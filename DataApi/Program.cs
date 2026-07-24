@@ -99,11 +99,60 @@ app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country
     return Results.Ok(result);
 });
 
+// MeSH tree browser endpoint
+app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch) =>
+{
+    var cacheKey = $"mesh_tree_{branch ?? "__root__"}";
+    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
+    {
+        return Results.Ok(cached);
+    }
+
+    var repo = new StudyRepository(connectionString);
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .ConfigureNpgsql(connectionString).Options);
+
+    var query = ctx.MeshDescriptors.AsQueryable();
+
+    if (!string.IsNullOrEmpty(branch))
+    {
+        // Get next-level children under this branch
+        var prefix = branch + ".";
+        query = query.Where(m => m.TreeNumbers.Any(tn => tn.StartsWith(prefix, StringComparison.Ordinal)));
+    }
+    else
+    {
+        // Get top-level branches (single letter or two-char prefixes)
+        query = query.Where(m => m.TreeNumbers.Any(tn => tn.Length <= 2 || !tn.Contains('.', StringComparison.Ordinal)));
+    }
+
+    var nodes = await query
+        .Select(m => new
+        {
+            cui = m.Cui,
+            name = m.Name,
+            treeNumber = m.TreeNumbers.FirstOrDefault() ?? "",
+            category = m.Category,
+            studyCount = m.StudyConditions!.Count,
+            hasChildren = ctx.MeshDescriptors.Any(c =>
+                c.TreeNumbers.Any(tn =>
+                    m.TreeNumbers.Any(mtn => tn.StartsWith(mtn + ".", StringComparison.Ordinal))))
+        })
+        .OrderBy(m => m.treeNumber)
+        .Take(500)
+        .ToListAsync();
+
+    var result = new { branch = branch ?? "__root__", nodes };
+    var ttl = TimeSpan.FromMinutes(10);
+    cache.Set(cacheKey, result, ttl);
+    return Results.Ok(result);
+});
+
 app.MapGet("/api/studies", async (
     int? page, int? pageSize,
     string? keyword,
     string? status, string? phase,
-    string? condition,
+    string? condition, string? meshTree,
     string? country, string? state, string? city, string? facility,
     int? enrollmentMin, int? enrollmentMax,
     DateTime? startDateFrom, DateTime? startDateTo) =>
@@ -119,6 +168,7 @@ app.MapGet("/api/studies", async (
         Statuses = ParseCsvParam(status),
         Phases = ParseCsvParam(phase),
         Conditions = ParseCsvParam(condition),
+        MeshTreePrefixes = ParseCsvParam(meshTree),
         Countries = ParseCsvParam(country),
         States = ParseCsvParam(state),
         Cities = ParseCsvParam(city),
@@ -695,7 +745,8 @@ app.MapGet("/api/export/training/conditions", async (HttpResponse response) =>
     await response.WriteAsync("value,label,study_nct_id\n");
 
     await foreach (var c in ctx.StudyConditions
-        .Select(c => new { Value = c.Condition, Label = 1, c.StudyNctId })
+        .Include(c => c.MeshDescriptor)
+        .Select(c => new { Value = c.MeshDescriptor != null ? c.MeshDescriptor.Name : "", Label = 1, c.StudyNctId })
         .OrderBy(c => c.StudyNctId)
         .AsAsyncEnumerable())
     {

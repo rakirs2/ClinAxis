@@ -92,19 +92,20 @@ namespace Scrapers.Services
                 {
                     foreach (StudyConditionEntity condition in study.Conditions)
                     {
-                        if (string.IsNullOrWhiteSpace(condition.Condition))
+                        if (condition.MeshDescriptor == null || string.IsNullOrWhiteSpace(condition.MeshDescriptor.Name))
                         {
                             continue;
                         }
 
-                        if (!catMap.TryGetValue(condition.Condition, out (string Type, HashSet<string> StudyIds, int PubmedCount) catEntry))
+                        var conditionName = condition.MeshDescriptor.Name;
+                        if (!catMap.TryGetValue(conditionName, out (string Type, HashSet<string> StudyIds, int PubmedCount) catEntry))
                         {
                             catEntry = ("condition", new HashSet<string>(), 0);
                         }
 
                         catEntry.StudyIds.Add(study.NctId);
                         catEntry.PubmedCount += pubmedCount;
-                        catMap[condition.Condition] = catEntry;
+                        catMap[conditionName] = catEntry;
                     }
                 }
 

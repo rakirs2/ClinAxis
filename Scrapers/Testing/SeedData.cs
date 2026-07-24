@@ -5,6 +5,22 @@ namespace Scrapers.Testing;
 
 internal static class SeedData
 {
+    internal static readonly List<MeshDescriptorEntity> TestDescriptors =
+    [
+        new MeshDescriptorEntity { Id = 1001, Cui = "D009765", Name = "Neuropathic Pain", TreeNumbers = ["C10.500"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1002, Cui = "D002318", Name = "Cardiovascular Diseases", TreeNumbers = ["C14.280"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1003, Cui = "D006333", Name = "Heart Disease", TreeNumbers = ["C14.280"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1004, Cui = "D001249", Name = "Asthma", TreeNumbers = ["C08.127"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1005, Cui = "D008545", Name = "Melanoma", TreeNumbers = ["C04.557"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1006, Cui = "D003924", Name = "Diabetes Mellitus, Type 2", TreeNumbers = ["C19.246"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1007, Cui = "D003865", Name = "Depressive Disorder, Major", TreeNumbers = ["F03.600"], Category = "psychiatry" },
+        new MeshDescriptorEntity { Id = 1008, Cui = "D000544", Name = "Alzheimer Disease", TreeNumbers = ["C10.228"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1009, Cui = "D003072", Name = "Cognitive Impairment", TreeNumbers = ["F01.058"], Category = "psychiatry" },
+        new MeshDescriptorEntity { Id = 1010, Cui = "D006973", Name = "Hypertension", TreeNumbers = ["C14.907"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1011, Cui = "D030342", Name = "Genetic Diseases, Inborn", TreeNumbers = ["C16.320"], Category = "disease" },
+        new MeshDescriptorEntity { Id = 1012, Cui = "D015415", Name = "Biomarkers, Pharmacological", TreeNumbers = ["D23.101"], Category = "chemical" },
+    ];
+
     internal static readonly StudyEntity Study1 = new()
     {
         NctId = "NCT00000001",
@@ -18,7 +34,7 @@ internal static class SeedData
         BriefTitle = "Pregabalin for Neuropathic Pain Relief Trial",
         OverallStatus = "COMPLETED",
         EnrollmentCount = 200,
-        Conditions = [new StudyConditionEntity { Condition = "Neuropathic Pain" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1001 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE3" }]
     };
 
@@ -30,8 +46,8 @@ internal static class SeedData
         EnrollmentCount = 5000,
         Conditions =
         [
-            new StudyConditionEntity { Condition = "Cardiovascular Diseases" },
-            new StudyConditionEntity { Condition = "Heart Disease" }
+            new StudyConditionEntity { MeshDescriptorId = 1002 },
+            new StudyConditionEntity { MeshDescriptorId = 1003 }
         ],
         Phases = [new StudyPhaseEntity { Phase = "PHASE2" }]
     };
@@ -42,7 +58,7 @@ internal static class SeedData
         BriefTitle = "Pediatric Asthma Treatment Study",
         OverallStatus = "RECRUITING",
         EnrollmentCount = 150,
-        Conditions = [new StudyConditionEntity { Condition = "Asthma" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1004 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE4" }]
     };
 
@@ -52,7 +68,7 @@ internal static class SeedData
         BriefTitle = "Cancer Immunotherapy Trial",
         OverallStatus = "TERMINATED",
         EnrollmentCount = 50,
-        Conditions = [new StudyConditionEntity { Condition = "Melanoma" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1005 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE1" }]
     };
 
@@ -63,7 +79,7 @@ internal static class SeedData
         OverallStatus = "RECRUITING",
         EnrollmentCount = 300,
         StartDate = new DateOnly(2024, 1, 15),
-        Conditions = [new StudyConditionEntity { Condition = "Type 2 Diabetes" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1006 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
         Locations =
         [
@@ -79,7 +95,7 @@ internal static class SeedData
         OverallStatus = "ACTIVE",
         EnrollmentCount = 120,
         StartDate = new DateOnly(2023, 6, 1),
-        Conditions = [new StudyConditionEntity { Condition = "Major Depression" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1007 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE2" }],
         Locations =
         [
@@ -96,8 +112,8 @@ internal static class SeedData
         StartDate = new DateOnly(2024, 3, 10),
         Conditions = 
         [
-            new StudyConditionEntity { Condition = "Alzheimer's Disease" },
-            new StudyConditionEntity { Condition = "Cognitive Impairment" }
+            new StudyConditionEntity { MeshDescriptorId = 1001 },
+            new StudyConditionEntity { MeshDescriptorId = 1009 }
         ],
         Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
         Locations =
@@ -115,7 +131,7 @@ internal static class SeedData
         OverallStatus = "COMPLETED",
         EnrollmentCount = 250,
         StartDate = new DateOnly(2022, 9, 1),
-        Conditions = [new StudyConditionEntity { Condition = "Hypertension" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1010 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE4" }],
         Locations =
         [
@@ -131,7 +147,7 @@ internal static class SeedData
         OverallStatus = "NOT_YET_RECRUITING",
         EnrollmentCount = 20,
         StartDate = new DateOnly(2025, 1, 1),
-        Conditions = [new StudyConditionEntity { Condition = "Rare Genetic Disorder" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1011 }],
         Phases = [new StudyPhaseEntity { Phase = "PHASE1" }],
         Locations =
         [
@@ -146,7 +162,7 @@ internal static class SeedData
         OverallStatus = "RECRUITING",
         EnrollmentCount = 500,
         StartDate = new DateOnly(2024, 6, 1),
-        Conditions = [new StudyConditionEntity { Condition = "Biomarker" }],
+        Conditions = [new StudyConditionEntity { MeshDescriptorId = 1012 }],
         Phases = [new StudyPhaseEntity { Phase = "NA" }],
         Locations =
         [
@@ -163,8 +179,8 @@ internal static class SeedData
         StartDate = new DateOnly(2023, 1, 15),
         Conditions =
         [
-            new StudyConditionEntity { Condition = "Hypertension" },
-            new StudyConditionEntity { Condition = "Type 2 Diabetes" }
+            new StudyConditionEntity { MeshDescriptorId = 1010 },
+            new StudyConditionEntity { MeshDescriptorId = 1006 }
         ],
         Phases = [new StudyPhaseEntity { Phase = "PHASE3" }],
         Locations =
@@ -383,6 +399,7 @@ internal static class SeedData
 
     internal static async Task SeedAsync(ClinicalTrialsContext ctx)
     {
+        ctx.MeshDescriptors.AddRange(TestDescriptors);
         ctx.InvestigatorPersons.AddRange(
             Person1, Person2, Person3, Person4, Person5, Person6,
             Person7, Person8, Person9, Person10, Person11, Person12);

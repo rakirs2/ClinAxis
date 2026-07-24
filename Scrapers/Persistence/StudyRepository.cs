@@ -1,3 +1,4 @@
+using System.Text.Json;
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,22 +18,19 @@ namespace Scrapers.Persistence
     {
         private readonly DbContextOptions<ClinicalTrialsContext> _options;
         private readonly MeSHMatcher? _meshMatcher;
+        private readonly Dictionary<string, int> _meshDescriptorIdCache = new();
 
-        public StudyRepository(string connectionString)
+        public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
             }
+            _meshMatcher = meshMatcher;
 
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
             builder.ConfigureNpgsql(connectionString);
             _options = builder.Options;
-        }
-
-        public StudyRepository(string connectionString, MeSHMatcher meshMatcher) : this(connectionString)
-        {
-            _meshMatcher = meshMatcher ?? throw new ArgumentNullException(nameof(meshMatcher));
         }
 
         public async Task MigrateSchemaAsync(CancellationToken cancellationToken = default)
@@ -296,6 +294,8 @@ namespace Scrapers.Persistence
                     }
 
                     entity.Conditions!.Clear();
+                    entity.RejectedConditions = null;
+                    var studyRejected = new List<object>();
                     if (record.Conditions != null)
                     {
                         foreach (var cond in record.Conditions)
@@ -303,22 +303,43 @@ namespace Scrapers.Persistence
                             if (!string.IsNullOrWhiteSpace(cond))
                             {
                                 var trimmed = cond.Trim();
-                                if (IsValidCondition(trimmed))
-                                {
-                                    entity.Conditions!.Add(new StudyConditionEntity { StudyNctId = record.NctId!, Condition = trimmed });
-                                }
-                                else
-                                {
-                                    rejectedConditions.Add($"{record.NctId}: {trimmed}");
-                                }
 
                                 if (_meshMatcher != null)
                                 {
                                     var match = _meshMatcher.Match(trimmed, "condition", record.NctId!);
                                     meshMatchResults.Add(match);
+
+                                    if (match.Accepted)
+                                    {
+                                        var descId = GetMeshDescriptorId(match.MeshCui);
+                                        if (descId > 0)
+                                        {
+                                            entity.Conditions!.Add(new StudyConditionEntity
+                                            {
+                                                StudyNctId = record.NctId!,
+                                                MeshDescriptorId = descId
+                                            });
+                                        }
+                                        else
+                                        {
+                                            studyRejected.Add(new { term = trimmed, reason = "cui_not_found", meshCui = match.MeshCui, similarity = match.Similarity });
+                                        }
+                                    }
+                                    else
+                                    {
+                                        studyRejected.Add(new { term = trimmed, reason = match.RejectionReason, similarity = match.Similarity });
+                                    }
+                                }
+                                else
+                                {
+                                    studyRejected.Add(new { term = trimmed, reason = "mesh_matcher_not_initialized" });
                                 }
                             }
                         }
+                    }
+                    if (studyRejected.Count > 0)
+                    {
+                        entity.RejectedConditions = System.Text.Json.JsonSerializer.Serialize(studyRejected);
                     }
 
                     entity.Phases!.Clear();
@@ -422,19 +443,9 @@ namespace Scrapers.Persistence
                 });
             }
 
-            foreach (var entry in rejectedConditions)
-            {
-                var parts = entry.Split(": ", 2);
-                context.RejectedEntities.Add(new RejectedEntityEntity
-                {
-                    EntityType = "condition",
-                    Value = parts.Length > 1 ? parts[1] : entry,
-                    StudyNctId = parts.Length > 0 ? parts[0] : "",
-                    RejectedAt = DateTime.UtcNow
-                });
-            }
 
-            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0 || rejectedConditions.Count > 0)
+
+            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0)
             {
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -795,7 +806,18 @@ namespace Scrapers.Persistence
 
             if (criteria.Conditions != null && criteria.Conditions.Count > 0)
             {
-                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.MeshDescriptor != null && criteria.Conditions.Contains(c.MeshDescriptor.Name)));
+            }
+
+            if (criteria.MeshTreePrefixes != null && criteria.MeshTreePrefixes.Count > 0)
+            {
+                var prefixes = criteria.MeshTreePrefixes.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (prefixes.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c =>
+                        c.MeshDescriptor != null &&
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
+                }
             }
 
             if (criteria.EnrollmentMin.HasValue)
@@ -861,7 +883,18 @@ namespace Scrapers.Persistence
 
             if (criteria.Conditions != null && criteria.Conditions.Count > 0)
             {
-                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.Condition != null && criteria.Conditions.Contains(c.Condition)));
+                query = query.Where(s => s.Conditions != null && s.Conditions.Any(c => c.MeshDescriptor != null && criteria.Conditions.Contains(c.MeshDescriptor.Name)));
+            }
+
+            if (criteria.MeshTreePrefixes != null && criteria.MeshTreePrefixes.Count > 0)
+            {
+                var prefixes = criteria.MeshTreePrefixes.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (prefixes.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c =>
+                        c.MeshDescriptor != null &&
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
+                }
             }
 
             if (criteria.EnrollmentMin.HasValue)
@@ -1037,7 +1070,19 @@ namespace Scrapers.Persistence
                 var conditions = criteria.Conditions.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
                 if (conditions.Count > 0)
                 {
-                    query = query.Where(s => s.Conditions!.Any(c => conditions.Contains(c.Condition)));
+                    query = query.Where(s => s.Conditions!.Any(c => c.MeshDescriptor != null && conditions.Contains(c.MeshDescriptor.Name)));
+                }
+            }
+
+            // 4b. MeSH tree prefix filter (hierarchical)
+            if (criteria.MeshTreePrefixes != null && criteria.MeshTreePrefixes.Count > 0)
+            {
+                var prefixes = criteria.MeshTreePrefixes.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (prefixes.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c =>
+                        c.MeshDescriptor != null &&
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
                 }
             }
 
@@ -1165,7 +1210,7 @@ namespace Scrapers.Persistence
                 var conditions = criteria.Conditions.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
                 if (conditions.Count > 0)
                 {
-                    query = query.Where(s => s.Conditions!.Any(c => conditions.Contains(c.Condition)));
+                    query = query.Where(s => s.Conditions!.Any(c => c.MeshDescriptor != null && conditions.Contains(c.MeshDescriptor.Name)));
                 }
             }
 
@@ -1236,11 +1281,11 @@ namespace Scrapers.Persistence
         public async Task<List<string>> GetDistinctConditionsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            return await context.StudyConditions
-                .Select(c => c.Condition)
-                .Where(c => c != null)
+            return await context.MeshDescriptors
+                .Select(m => m.Name)
+                .Where(m => m != null)
                 .Distinct()
-                .OrderBy(c => c)
+                .OrderBy(m => m)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -1835,25 +1880,6 @@ namespace Scrapers.Persistence
             return true;
         }
 
-        private static readonly Regex IcdCodePattern = new(
-            @"\b[A-TV-Z][0-9][0-9AB]\.?[0-9]{0,4}\b|\b[0-9]{3}\.?[0-9]{0,2}\b",
-            RegexOptions.Compiled);
-
-        private static bool IsValidCondition(string condition)
-        {
-            if (condition.Contains('"', StringComparison.Ordinal) ||
-                condition.Contains('\'', StringComparison.Ordinal))
-                return false;
-
-            if (condition.Contains('.', StringComparison.Ordinal))
-                return false;
-
-            if (IcdCodePattern.IsMatch(condition))
-                return false;
-
-            return true;
-        }
-
         public async Task<IReadOnlyList<TableRowCount>> GetTableRowCountsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -1922,7 +1948,8 @@ namespace Scrapers.Persistence
         {
             using ClinicalTrialsContext context = CreateContext();
             var items = await context.StudyConditions
-                .GroupBy(c => c.Condition)
+                .Include(c => c.MeshDescriptor)
+                .GroupBy(c => c.MeshDescriptor!.Name)
                 .Select(g => new { Text = g.Key, Weight = g.Count() })
                 .OrderByDescending(w => w.Weight)
                 .Take(limit)
@@ -1940,6 +1967,20 @@ namespace Scrapers.Persistence
                 .Take(limit)
                 .ToListAsync(cancellationToken);
             return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
+        }
+
+        private int GetMeshDescriptorId(string cui)
+        {
+            if (_meshDescriptorIdCache.TryGetValue(cui, out var id))
+                return id;
+            using var ctx = CreateContext();
+            var descriptor = ctx.MeshDescriptors.FirstOrDefault(m => m.Cui == cui);
+            if (descriptor != null)
+            {
+                _meshDescriptorIdCache[cui] = descriptor.Id;
+                return descriptor.Id;
+            }
+            return -1;
         }
 
         private ClinicalTrialsContext CreateContext()

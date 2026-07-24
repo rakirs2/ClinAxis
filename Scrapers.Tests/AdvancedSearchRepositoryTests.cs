@@ -192,7 +192,7 @@ public sealed class AdvancedSearchRepositoryTests : DbTestBase
 
         // Assert
         Assert.AreEqual(count, results.Count, "Count should match results");
-        Assert.IsTrue(results.All(s => s.Conditions != null && s.Conditions.Any(c => c.Condition == "Hypertension")),
+        Assert.IsTrue(results.All(s => s.Conditions != null && s.Conditions.Any(c => c.MeshDescriptor != null && c.MeshDescriptor.Name == "Hypertension")),
             "All results should have Hypertension condition");
     }
 

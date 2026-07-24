@@ -499,6 +499,9 @@ else if (searchExecuted && studies is not null)
             if (criteria.Conditions.Count > 0)
                 queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", criteria.Conditions))}");
 
+            if (criteria.MeshTreePrefixes.Count > 0)
+                queryParams.Add($"meshTree={Uri.EscapeDataString(string.Join(",", criteria.MeshTreePrefixes))}");
+
             if (criteria.Countries.Length > 0 && !string.IsNullOrEmpty(criteria.Countries[0]))
                 queryParams.Add($"country={Uri.EscapeDataString(criteria.Countries[0])}");
 
@@ -609,6 +612,7 @@ else if (searchExecuted && studies is not null)
         public List<string> Statuses { get; set; } = new();
         public List<string> Phases { get; set; } = new();
         public List<string> Conditions { get; set; } = new();
+        public List<string> MeshTreePrefixes { get; set; } = new();
         public string[] Countries { get; set; } = Array.Empty<string>();
         public string[] States { get; set; } = Array.Empty<string>();
         public string[] Cities { get; set; } = Array.Empty<string>();

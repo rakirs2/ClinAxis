@@ -18,7 +18,7 @@ internal static class StudyMapper
             isIncomplete = s.IsIncomplete,
             investigatorCount = s.StudyInvestigators?.Count ?? 0,
             pubmedPaperCount = s.StudyPapers?.Count ?? 0,
-            conditions = s.Conditions?.Select(c => c.Condition).ToList(),
+            conditions = s.Conditions?.Select(c => c.MeshDescriptor?.Name).ToList(),
             phases = s.Phases?.Select(p => p.Phase).ToList()
         };
     }
@@ -57,7 +57,7 @@ internal static class StudyMapper
                 affiliation = si.InvestigatorPerson?.Affiliations?
                     .FirstOrDefault(a => a.IsPrimary)?.InstitutionName
             }).ToList(),
-            conditions = s.Conditions?.Select(c => c.Condition).ToList(),
+            conditions = s.Conditions?.Select(c => c.MeshDescriptor?.Name).ToList(),
             keywords = s.Keywords?.Select(k => k.Keyword).ToList(),
             phases = s.Phases?.Select(p => p.Phase).ToList(),
             locations = s.Locations?.Select(l => new

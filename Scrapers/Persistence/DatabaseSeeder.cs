@@ -50,6 +50,25 @@ public class DatabaseSeeder
         "Thyroid Disease", "Hypothyroidism", "Hyperthyroidism", "Graves' Disease", "Hashimoto's Thyroiditis"
     ];
 
+    private static readonly List<MeshDescriptorEntity> SeededDescriptors = GenerateSeededDescriptors();
+
+    private static List<MeshDescriptorEntity> GenerateSeededDescriptors()
+    {
+        var descs = new List<MeshDescriptorEntity>();
+        for (int i = 0; i < Conditions.Length; i++)
+        {
+            descs.Add(new MeshDescriptorEntity
+            {
+                Id = 2000 + i,
+                Cui = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
+                Name = Conditions[i],
+                TreeNumbers = ["Z99.999"],
+                Category = "disease"
+            });
+        }
+        return descs;
+    }
+
     private static readonly string[] Locations = [
         "United States", "Canada", "United Kingdom", "Australia", "Germany",
         "France", "Japan", "South Korea", "China", "India",
@@ -242,9 +261,10 @@ public class DatabaseSeeder
             var conditions = new List<StudyConditionEntity>();
             for (int c = 0; c < conditionCount; c++)
             {
+                var idx = randomWrapper.Next(SeededDescriptors.Count);
                 conditions.Add(new StudyConditionEntity
                 {
-                    Condition = Conditions[randomWrapper.Next(Conditions.Length)]
+                    MeshDescriptorId = SeededDescriptors[idx].Id
                 });
             }
 
