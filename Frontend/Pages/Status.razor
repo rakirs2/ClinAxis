@@ -211,6 +211,7 @@ else
                 <tr>
                     <th>Source</th>
                     <th>Last Sync</th>
+                    <th>Next Run</th>
                     <th>Status</th>
                     <th>Rejected Keywords</th>
                     <th>Error</th>
@@ -222,6 +223,7 @@ else
                     <tr>
                         <td>@state.sourceName</td>
                         <td>@(state.lastSyncTimestamp.HasValue ? FormatDate(state.lastSyncTimestamp.Value) : "Never")</td>
+                        <td>@(state.nextScheduledRun.HasValue ? FormatDate(state.nextScheduledRun.Value) : "N/A")</td>
                         <td>@StatusBadge(state.status)</td>
                         <td>@state.rejectedKeywordsTotal.ToString("N0")</td>
                         <td><small class="text-danger">@(state.errorMessage ?? "")</small></td>
@@ -472,6 +474,7 @@ else
     {
         public string? sourceName { get; set; }
         public DateTime? lastSyncTimestamp { get; set; }
+        public DateTime? nextScheduledRun { get; set; }
         public string? status { get; set; }
         public string? errorMessage { get; set; }
         public DateTime updatedAt { get; set; }

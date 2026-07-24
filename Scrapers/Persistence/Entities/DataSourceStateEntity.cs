@@ -28,4 +28,7 @@ public sealed class DataSourceStateEntity
 
     /// <summary>Cumulative count of keywords rejected during ingestion for this source</summary>
     public int RejectedKeywordsTotal { get; set; }
+
+    /// <summary>Predicted next run time (set by the background service each loop)</summary>
+    public DateTime? NextScheduledRun { get; set; }
 }
