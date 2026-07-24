@@ -55,21 +55,21 @@ StudyEntity (table: studies)
 ├── PrimaryPurpose, InterventionModel, Allocation
 ├── EnrollmentCount, Sex, MinimumAge, MaximumAge
 ├── StartDate, CompletionDate, StudyFirstPostDate
-├── LeadSponsorName (TODO — data loss fix)
-├── EligibilityCriteria (TODO — data loss fix)
-├── HealthyVolunteers (TODO — data loss fix)
-├── OrgStudyId (TODO — data loss fix)
-├── Masking (TODO — data loss fix)
-├── CollaboratorNames (TODO — data loss fix)
+├── LeadSponsorName
+├── EligibilityCriteria
+├── HealthyVolunteers
+├── OrgStudyId
+├── Masking
+├── CollaboratorNames
 ├── IsIncomplete, CreatedAt
 │
 ├── ICollection<StudyConditionEntity>  → Conditions (junction)
 ├── ICollection<StudyKeywordEntity>    → Keywords (junction)
 ├── ICollection<StudyPhaseEntity>      → Phases (junction)
 ├── ICollection<StudyLocationEntity>   → Locations (junction, FIXED)
-├── ICollection<StudyReferenceEntity>  → References (TODO — data loss fix)
-├── ICollection<StudyOutcomeEntity>    → Outcomes (TODO — data loss fix)
-├── ICollection<StudyArmGroupEntity>   → Arms (TODO — data loss fix)
+├── ICollection<StudyReferenceEntity>  → References
+├── ICollection<StudyOutcomeEntity>    → Outcomes
+├── ICollection<StudyArmGroupEntity>   → Arms
 ├── ICollection<StudyInvestigatorEntity> → Investigators (junction, revised)
 └── ICollection<PubmedStudyEntity>     → PubMed links (legacy, to be replaced)
 ```
@@ -351,8 +351,8 @@ All fields returned by the ClinicalTrials.gov API v2 studies endpoint, their per
 | `statusModule.startDateStruct` | Start date | `StudyEntity.StartDate` | ✅ |
 | `statusModule.completionDateStruct` | Completion date | `StudyEntity.CompletionDate` | ✅ |
 | `statusModule.studyFirstPostDateStruct` | First posted | `StudyEntity.StudyFirstPostDate` | ✅ |
-| `sponsorCollaboratorsModule.leadSponsor.name` | Lead sponsor | `StudyEntity.LeadSponsorName` | ❌ TODO |
-| `sponsorCollaboratorsModule.collaborators[*].name` | Collaborators | `StudyEntity.CollaboratorNames` | ❌ TODO |
+| `sponsorCollaboratorsModule.leadSponsor.name` | Lead sponsor | `StudyEntity.LeadSponsorName` | ✅ |
+| `sponsorCollaboratorsModule.collaborators[*].name` | Collaborators | `StudyEntity.CollaboratorNames` | ✅ |
 | `descriptionModule.briefSummary` | Summary | `StudyEntity.BriefSummary` | ✅ |
 | `conditionsModule.conditions` | Conditions | `StudyConditionEntity` | ✅ |
 | `conditionsModule.keywords` | Keywords | `StudyKeywordEntity` | ✅ |
@@ -361,21 +361,21 @@ All fields returned by the ClinicalTrials.gov API v2 studies endpoint, their per
 | `designModule.designInfo.allocation` | Allocation | `StudyEntity.Allocation` | ✅ |
 | `designModule.designInfo.interventionModel` | Intervention model | `StudyEntity.InterventionModel` | ✅ |
 | `designModule.designInfo.primaryPurpose` | Primary purpose | `StudyEntity.PrimaryPurpose` | ✅ |
-| `designModule.designInfo.masking` | Masking | `StudyEntity.Masking` | ❌ TODO |
+| `designModule.designInfo.masking` | Masking | `StudyEntity.Masking` | ✅ |
 | `designModule.enrollmentInfo.count` | Enrollment | `StudyEntity.EnrollmentCount` | ✅ |
-| `eligibilityModule.eligibilityCriteria` | Criteria | `StudyEntity.EligibilityCriteria` | ❌ TODO |
+| `eligibilityModule.eligibilityCriteria` | Criteria | `StudyEntity.EligibilityCriteria` | ✅ |
 | `eligibilityModule.sex` | Sex | `StudyEntity.Sex` | ✅ |
 | `eligibilityModule.minimumAge` | Min age | `StudyEntity.MinimumAge` | ✅ |
 | `eligibilityModule.maximumAge` | Max age | `StudyEntity.MaximumAge` | ✅ |
-| `eligibilityModule.healthyVolunteers` | Healthy volunteers | `StudyEntity.HealthyVolunteers` | ❌ TODO |
+| `eligibilityModule.healthyVolunteers` | Healthy volunteers | `StudyEntity.HealthyVolunteers` | ✅ |
 | `contactsLocationsModule.overallOfficials` | Officials | `StudyInvestigatorEntity` + `InvestigatorPersonEntity` | ✅ (needs revision to normalized model) |
 | `contactsLocationsModule.locations[*]` | Locations | `StudyLocationEntity` | ✅ (FIXED) |
-| `armsInterventionsModule.armGroups` | Arms | `StudyArmGroupEntity` | ❌ TODO |
-| `outcomesModule.primaryOutcomes` | Primary outcomes | `StudyOutcomeEntity` | ❌ TODO |
-| `outcomesModule.secondaryOutcomes` | Secondary outcomes | `StudyOutcomeEntity` | ❌ TODO |
-| `referencesModule.references[*].pmid` | PMID | `StudyReferenceEntity.Pmid` | ❌ TODO |
-| `referencesModule.references[*].citation` | Citation | `StudyReferenceEntity.Citation` | ❌ TODO |
-| `referencesModule.references[*].type` | Reference type | `StudyReferenceEntity.Type` | ❌ TODO |
+| `armsInterventionsModule.armGroups` | Arms | `StudyArmGroupEntity` | ✅ |
+| `outcomesModule.primaryOutcomes` | Primary outcomes | `StudyOutcomeEntity` | ✅ |
+| `outcomesModule.secondaryOutcomes` | Secondary outcomes | `StudyOutcomeEntity` | ✅ |
+| `referencesModule.references[*].pmid` | PMID | `StudyReferenceEntity.Pmid` | ✅ |
+| `referencesModule.references[*].citation` | Citation | `StudyReferenceEntity.Citation` | ✅ |
+| `referencesModule.references[*].type` | Reference type | `StudyReferenceEntity.Type` | ✅ |
 
 ### 6.2 Intentionally Ignored Fields
 

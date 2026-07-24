@@ -49,6 +49,12 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
                     _lastRunTime = DateTime.UtcNow;
                 }
 
+                // Update predicted next run time each loop iteration
+                var nextRun = _lastRunTime == DateTime.MinValue
+                    ? DateTime.UtcNow
+                    : _lastRunTime.AddMinutes(_scrapeIntervalMinutes);
+                await _dataSourceStateService.UpdateNextScheduledRunAsync(SourceName, nextRun, stoppingToken).ConfigureAwait(false);
+
                 // Sleep briefly to avoid busy-waiting
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
             }

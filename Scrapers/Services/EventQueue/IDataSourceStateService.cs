@@ -33,4 +33,9 @@ public interface IDataSourceStateService
     /// Initialize a new data source with default state.
     /// </summary>
     Task InitializeSourceAsync(string sourceName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Update the predicted next scheduled run time for a data source.
+    /// </summary>
+    Task UpdateNextScheduledRunAsync(string sourceName, DateTime? nextRun, CancellationToken ct = default);
 }
