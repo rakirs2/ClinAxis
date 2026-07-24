@@ -617,7 +617,8 @@ app.MapGet("/api/data-source-state", async () =>
         s.Status,
         s.ErrorMessage,
         s.UpdatedAt,
-        s.RejectedKeywordsTotal
+        s.RejectedKeywordsTotal,
+        s.NextScheduledRun
     }));
 });
 
