@@ -469,20 +469,6 @@ app.MapGet("/api/database/size", async () =>
     });
 });
 
-app.MapGet("/api/word-cloud/conditions", async () =>
-{
-    var repo = new StudyRepository(connectionString);
-    var words = await repo.GetConditionFrequenciesAsync();
-    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
-});
-
-app.MapGet("/api/word-cloud/keywords", async () =>
-{
-    var repo = new StudyRepository(connectionString);
-    var words = await repo.GetKeywordFrequenciesAsync();
-    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
-});
-
 app.MapGet("/api/stats/status-breakdown", async () =>
 {
     var repo = new StudyRepository(connectionString);

@@ -1944,31 +1944,6 @@ namespace Scrapers.Persistence
             };
         }
 
-        public async Task<IReadOnlyList<WordFrequency>> GetConditionFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            var items = await context.StudyConditions
-                .Include(c => c.MeshDescriptor)
-                .GroupBy(c => c.MeshDescriptor!.Name)
-                .Select(g => new { Text = g.Key, Weight = g.Count() })
-                .OrderByDescending(w => w.Weight)
-                .Take(limit)
-                .ToListAsync(cancellationToken);
-            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
-        }
-
-        public async Task<IReadOnlyList<WordFrequency>> GetKeywordFrequenciesAsync(int limit = 100, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            var items = await context.StudyKeywords
-                .GroupBy(k => k.Keyword)
-                .Select(g => new { Text = g.Key, Weight = g.Count() })
-                .OrderByDescending(w => w.Weight)
-                .Take(limit)
-                .ToListAsync(cancellationToken);
-            return items.Select(i => new WordFrequency(i.Text, i.Weight)).ToList();
-        }
-
         private int GetMeshDescriptorId(string cui)
         {
             if (_meshDescriptorIdCache.TryGetValue(cui, out var id))
@@ -1995,17 +1970,7 @@ namespace Scrapers.Persistence
         public long RowCount { get; set; }
     }
 
-    public class WordFrequency
-    {
-        public string Text { get; }
-        public int Weight { get; }
 
-        public WordFrequency(string text, int weight)
-        {
-            Text = text;
-            Weight = weight;
-        }
-    }
 
     public class CategoryTypeCount
     {

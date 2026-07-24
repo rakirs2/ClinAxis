@@ -170,6 +170,7 @@ public class DatabaseSeeder
         // Generate 120 realistic clinical trial records
         var (studies, persons) = GenerateStudies(120);
         
+        await context.MeshDescriptors.AddRangeAsync(SeededDescriptors, cancellationToken);
         await context.InvestigatorPersons.AddRangeAsync(persons, cancellationToken);
         await context.Studies.AddRangeAsync(studies, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
@@ -189,6 +190,7 @@ public class DatabaseSeeder
         optionsBuilder.ConfigureNpgsql(_connectionString);
         using ClinicalTrialsContext context = new(optionsBuilder.Options);
         var (studies, persons) = GenerateStudies(120);
+        await context.MeshDescriptors.AddRangeAsync(SeededDescriptors, cancellationToken);
         await context.InvestigatorPersons.AddRangeAsync(persons, cancellationToken);
         await context.Studies.AddRangeAsync(studies, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
