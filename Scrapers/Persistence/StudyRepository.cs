@@ -816,7 +816,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
                 }
             }
 
@@ -893,7 +893,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
                 }
             }
 
@@ -1082,7 +1082,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => tn.StartsWith(p, StringComparison.Ordinal)))));
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
                 }
             }
 
@@ -1247,6 +1247,17 @@ namespace Scrapers.Persistence
                 if (facilities.Count > 0)
                 {
                     query = query.Where(s => s.Locations!.Any(l => l.Facility != null && facilities.Contains(l.Facility)));
+                }
+            }
+
+            if (criteria.MeshTreePrefixes != null && criteria.MeshTreePrefixes.Count > 0)
+            {
+                var prefixes = criteria.MeshTreePrefixes.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (prefixes.Count > 0)
+                {
+                    query = query.Where(s => s.Conditions!.Any(c =>
+                        c.MeshDescriptor != null &&
+                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
                 }
             }
 

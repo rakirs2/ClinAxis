@@ -65,7 +65,7 @@
                         <details open>
                             <summary style="cursor:pointer;font-weight:500;">Diseases</summary>
                             <div style="margin-top:8px;">
-                                <MeshTreeBranch Nodes="meshTreeRoots" SelectedTreeNumbers="criteria.MeshTreePrefixes" OnToggle="HandleMeshToggle" />
+                                <MeshTreeBranch Nodes="meshTreeRoots" SelectedTreeNumbers="criteria.MeshTreePrefixes" OnToggle="HandleMeshToggle" ExpandedNodes="expandedNodes" OnToggleExpand="HandleExpandToggle" />
                             </div>
                         </details>
                     </div>
@@ -315,17 +315,29 @@ else if (searchExecuted && studies is not null)
         }).ToList();
     }
 
+    private HashSet<string> expandedNodes = [];
+
+    private void HandleExpandToggle(string treeNumber)
+    {
+        var set = new HashSet<string>(expandedNodes);
+        if (!set.Remove(treeNumber))
+            set.Add(treeNumber);
+        expandedNodes = set;
+    }
+
     private void HandleMeshToggle((MeshTreeNode node, bool isChecked) args)
     {
+        var list = new List<string>(criteria.MeshTreePrefixes);
         if (args.isChecked)
         {
-            if (!criteria.MeshTreePrefixes.Contains(args.node.TreeNumber))
-                criteria.MeshTreePrefixes.Add(args.node.TreeNumber);
+            if (!list.Contains(args.node.TreeNumber))
+                list.Add(args.node.TreeNumber);
         }
         else
         {
-            criteria.MeshTreePrefixes.Remove(args.node.TreeNumber);
+            list.Remove(args.node.TreeNumber);
         }
+        criteria.MeshTreePrefixes = list;
     }
 
     private async Task HandleCountryChange(ChangeEventArgs e)
@@ -636,7 +648,7 @@ else if (searchExecuted && studies is not null)
         public string? overallStatus { get; set; }
         public List<string>? conditions { get; set; }
         public List<string>? phases { get; set; }
-        public int enrollmentCount { get; set; }
+        public int? enrollmentCount { get; set; }
     }
 
     private class LocationsResponse
