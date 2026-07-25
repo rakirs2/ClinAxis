@@ -299,7 +299,7 @@ else if (searchExecuted && studies is not null)
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>("/api/mesh-tree?branch=C&minStudyCount=1&depth=2");
+            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>("/api/mesh-tree?branch=C&minStudyCount=1&depth=5");
             if (response?.Nodes is not null)
             {
                 meshTreeRoots = ConvertBranchNodes(response.Nodes);
