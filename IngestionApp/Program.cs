@@ -49,7 +49,14 @@ var host = Host.CreateDefaultBuilder(args)
         if (Directory.Exists(meshResourcesPath) && File.Exists(Path.Combine(meshResourcesPath, "model.onnx")))
         {
             Console.WriteLine($"  [MeSH] Loading matcher from {meshResourcesPath}");
-            meshMatcher = new MeSHMatcher(meshResourcesPath);
+            try
+            {
+                meshMatcher = new MeSHMatcher(meshResourcesPath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  [MeSH] Failed to load matcher: {ex.Message}");
+            }
         }
         else
         {

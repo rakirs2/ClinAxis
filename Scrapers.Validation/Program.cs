@@ -62,9 +62,7 @@ using (var ctx = new ClinicalTrialsContext(opts))
 
 // Load MeSHMatcher for condition matching
 var meshResourcesPath = Path.Combine(AppContext.BaseDirectory, "Resources", "mesh");
-using var meshMatcher = Directory.Exists(meshResourcesPath) && File.Exists(Path.Combine(meshResourcesPath, "model.onnx"))
-    ? new MeSHMatcher(meshResourcesPath)
-    : null;
+using var meshMatcher = LoadMeshMatcher(meshResourcesPath);
 
 if (meshMatcher != null)
 {
@@ -219,3 +217,18 @@ if (container != null)
 }
 
 return leaks.Count > 0 ? 1 : 0;
+
+static MeSHMatcher? LoadMeshMatcher(string resourcesPath)
+{
+    if (!Directory.Exists(resourcesPath) || !File.Exists(Path.Combine(resourcesPath, "model.onnx")))
+        return null;
+    try
+    {
+        return new MeSHMatcher(resourcesPath);
+    }
+    catch (Microsoft.ML.OnnxRuntime.OnnxRuntimeException ex)
+    {
+        Console.WriteLine($"  [MeSH] Failed to load matcher: {ex.Message}");
+        return null;
+    }
+}
