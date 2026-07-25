@@ -1,3 +1,21 @@
+<style>
+    .mesh-tree summary {
+        cursor: pointer;
+        list-style: none;
+    }
+    .mesh-tree summary::-webkit-details-marker {
+        display: none;
+    }
+    .mesh-tree summary::after {
+        content: "\25B6";
+        font-size: 0.7em;
+        padding-left: 0.4em;
+    }
+    .mesh-tree details[open] > summary::after {
+        content: "\25BC";
+    }
+</style>
+
 @foreach (var node in Nodes)
 {
     <div class="mesh-tree-node">
@@ -5,16 +23,14 @@
         {
             var tn = node.TreeNumber;
             <details>
-                <summary style="cursor:pointer;">
-                    <div style="display:flex;align-items:center;">
-                        <input type="checkbox" class="form-check-input me-1" id="mt_@tn"
-                               checked="@SelectedTreeNumbers.Contains(tn)"
-                               @onchange="@(() => ToggleSelection(tn))" />
-                        <label class="form-check-label" for="mt_@tn" style="font-size:0.9em;flex-grow:1;">
-                            @node.TreeNumber — @node.Name
-                            <span class="text-muted"> (@node.StudyCount)</span>
-                        </label>
-                    </div>
+                <summary style="display:flex;align-items:center;">
+                    <input type="checkbox" class="form-check-input me-1" id="mt_@tn"
+                           checked="@SelectedTreeNumbers.Contains(tn)"
+                           @onchange="@(() => ToggleSelection(tn))" />
+                    <label class="form-check-label" for="mt_@tn" style="font-size:0.9em;flex-grow:1;">
+                        @node.TreeNumber — @node.Name
+                        <span class="text-muted"> (@node.StudyCount)</span>
+                    </label>
                 </summary>
                 <div style="margin-left:24px;">
                     @if (node.Children is { Count: > 0 })

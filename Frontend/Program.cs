@@ -8,6 +8,10 @@ WebApplication CreateApp()
     builder.WebHost.UseUrls("http://0.0.0.0:5001");
 
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+    builder.Services.AddSignalR(options =>
+    {
+        options.MaximumReceiveMessageSize = 256 * 1024;
+    });
 
     var dataApiBaseUrl = builder.Configuration["DataApi:BaseUrl"] ?? "http://localhost:5003";
     builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri(dataApiBaseUrl));
