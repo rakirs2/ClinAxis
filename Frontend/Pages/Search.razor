@@ -54,22 +54,20 @@
 
         <div class="row mb-3">
             <div class="col-md-12">
-                <label class="form-label">Conditions</label>
-                @if (loadingDistinctValues)
+                <label class="form-label">Diseases (MeSH)</label>
+                @if (loadingMeshTree)
                 {
                     <p class="text-muted"><small>Loading conditions...</small></p>
                 }
                 else
                 {
-                    <div class="filter-checkboxes" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-                        @foreach (var condition in availableConditions)
-                        {
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="condition_@condition" 
-                                       @onchange="@((ChangeEventArgs e) => ToggleCondition(condition, (bool)e.Value!))" />
-                                <label class="form-check-label" for="condition_@condition">@condition</label>
+                        <div class="mesh-tree" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+                        <details open>
+                            <summary style="cursor:pointer;font-weight:500;">Diseases</summary>
+                            <div style="margin-top:8px;">
+                                <MeshTreeBranch Nodes="meshTreeRoots" SelectedTreeNumbers="criteria.MeshTreePrefixes" OnToggle="HandleMeshToggle" />
                             </div>
-                        }
+                        </details>
                     </div>
                 }
             </div>
@@ -78,7 +76,7 @@
         <div class="row mb-3">
             <div class="col-md-4">
                 <label class="form-label">Country</label>
-                @if (loadingDistinctValues)
+                @if (loadingMeshTree)
                 {
                     <p class="text-muted"><small>Loading locations...</small></p>
                 }
@@ -162,7 +160,7 @@
 
         <div class="row">
             <div class="col-md-12">
-                <button class="btn btn-primary" @onclick="SearchStudies" disabled="@(loading || loadingDistinctValues)">
+                <button class="btn btn-primary" @onclick="SearchStudies" disabled="@(loading || loadingMeshTree)">
                     @if (loading) { <span>Searching...</span> } else { <span>Search</span> }
                 </button>
                 <button class="btn btn-secondary ms-2" @onclick="ResetFilters">Reset</button>
@@ -254,14 +252,14 @@ else if (searchExecuted && studies is not null)
     private int total;
     private int totalPages;
     private bool loading;
-    private bool loadingDistinctValues;
+    private bool loadingMeshTree;
     private bool searchExecuted;
     private string? error;
 
     // Filter dropdown values
     private List<string> statuses = new() { "RECRUITING", "ACTIVE", "COMPLETED", "WITHDRAWN", "SUSPENDED", "TERMINATED", "UNKNOWN" };
     private List<string> phases = new() { "EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA" };
-    private List<string> availableConditions = new();
+    private List<MeshTreeNode> meshTreeRoots = new();
     private List<string> availableCountries = new();
     private List<string> availableStates = new();
     private List<string> availableCities = new();
@@ -278,36 +276,55 @@ else if (searchExecuted && studies is not null)
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadDistinctValues();
+        await LoadMeshTree();
     }
 
-    private async Task LoadDistinctValues()
+    private async Task LoadMeshTree()
     {
-        loadingDistinctValues = true;
+        loadingMeshTree = true;
         error = null;
 
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-
-            // Load distinct conditions
-            var conditionsResponse = await client.GetFromJsonAsync<List<string>>("/api/distinct-conditions");
-            availableConditions = conditionsResponse ?? new();
-
-            // Load distinct locations
-            var locationsResponse = await client.GetFromJsonAsync<LocationsResponse>("/api/distinct-locations");
-            if (locationsResponse is not null)
+            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>("/api/mesh-tree?branch=C&minStudyCount=1&depth=3");
+            if (response?.Nodes is not null)
             {
-                availableCountries = locationsResponse.countries ?? new();
+                meshTreeRoots = ConvertBranchNodes(response.Nodes);
             }
         }
         catch (Exception ex)
         {
-            error = $"Failed to load filter options: {ex.Message}";
+            error = $"Failed to load conditions: {ex.Message}";
         }
         finally
         {
-            loadingDistinctValues = false;
+            loadingMeshTree = false;
+        }
+    }
+
+    private static List<MeshTreeNode> ConvertBranchNodes(List<MeshTreeBranchNode> nodes)
+    {
+        return nodes.Select(n => new MeshTreeNode
+        {
+            TreeNumber = n.TreeNumber,
+            Name = n.Name,
+            StudyCount = n.StudyCount,
+            HasChildren = n.HasChildren,
+            Children = n.Children is { Count: > 0 } ? ConvertBranchNodes(n.Children) : null,
+        }).ToList();
+    }
+
+    private void HandleMeshToggle((MeshTreeNode node, bool isChecked) args)
+    {
+        if (args.isChecked)
+        {
+            if (!criteria.MeshTreePrefixes.Contains(args.node.TreeNumber))
+                criteria.MeshTreePrefixes.Add(args.node.TreeNumber);
+        }
+        else
+        {
+            criteria.MeshTreePrefixes.Remove(args.node.TreeNumber);
         }
     }
 
@@ -426,19 +443,6 @@ else if (searchExecuted && studies is not null)
         }
     }
 
-    private void ToggleCondition(string condition, bool isChecked)
-    {
-        if (isChecked)
-        {
-            if (!criteria.Conditions.Contains(condition))
-                criteria.Conditions.Add(condition);
-        }
-        else
-        {
-            criteria.Conditions.Remove(condition);
-        }
-    }
-
     private void ToggleFacility(string facility, bool isChecked)
     {
         if (isChecked)
@@ -492,9 +496,6 @@ else if (searchExecuted && studies is not null)
 
             if (criteria.Phases.Count > 0)
                 queryParams.Add($"phase={Uri.EscapeDataString(string.Join(",", criteria.Phases))}");
-
-            if (criteria.Conditions.Count > 0)
-                queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", criteria.Conditions))}");
 
             if (criteria.MeshTreePrefixes.Count > 0)
                 queryParams.Add($"meshTree={Uri.EscapeDataString(string.Join(",", criteria.MeshTreePrefixes))}");
@@ -608,7 +609,6 @@ else if (searchExecuted && studies is not null)
         public string? Keyword { get; set; }
         public List<string> Statuses { get; set; } = new();
         public List<string> Phases { get; set; } = new();
-        public List<string> Conditions { get; set; } = new();
         public List<string> MeshTreePrefixes { get; set; } = new();
         public string[] Countries { get; set; } = Array.Empty<string>();
         public string[] States { get; set; } = Array.Empty<string>();
@@ -646,4 +646,5 @@ else if (searchExecuted && studies is not null)
         public List<string>? cities { get; set; }
         public List<string>? facilities { get; set; }
     }
+
 }

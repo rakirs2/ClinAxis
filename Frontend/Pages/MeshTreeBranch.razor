@@ -1,0 +1,65 @@
+@foreach (var node in Nodes)
+{
+    <div class="mesh-tree-node">
+        @if (node.HasChildren && node.Children?.Count > 0)
+        {
+            var tn = node.TreeNumber;
+            <details>
+                <summary style="cursor:pointer;display:flex;align-items:center;">
+                    <input type="checkbox" class="form-check-input me-1" id="mt_@tn"
+                           checked="@SelectedTreeNumbers.Contains(tn)"
+                           @onchange="@(() => ToggleSelection(tn))" />
+                    <label class="form-check-label" for="mt_@tn" style="font-size:0.9em;flex-grow:1;">
+                        @node.TreeNumber — @node.Name
+                        <span class="text-muted"> (@node.StudyCount)</span>
+                    </label>
+                </summary>
+                <div style="margin-left:24px;">
+                    <MeshTreeBranch Nodes="node.Children" SelectedTreeNumbers="SelectedTreeNumbers" OnToggle="OnToggle" />
+                </div>
+            </details>
+        }
+        else
+        {
+            <div style="display:flex;align-items:center;margin-left:2px;">
+                <input type="checkbox" class="form-check-input me-1" id="mt_@node.TreeNumber"
+                       checked="@SelectedTreeNumbers.Contains(node.TreeNumber)"
+                       @onchange="@(() => ToggleSelection(node.TreeNumber))" />
+                <label class="form-check-label" for="mt_@node.TreeNumber" style="font-size:0.9em;">
+                    @node.TreeNumber — @node.Name
+                    <span class="text-muted"> (@node.StudyCount)</span>
+                </label>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<MeshTreeNode> Nodes { get; set; } = [];
+    [Parameter] public List<string> SelectedTreeNumbers { get; set; } = [];
+    [Parameter] public EventCallback<(MeshTreeNode, bool)> OnToggle { get; set; }
+
+    private void ToggleSelection(string treeNumber)
+    {
+        var isChecked = !SelectedTreeNumbers.Contains(treeNumber);
+        var node = FindNode(Nodes, treeNumber);
+        if (node is not null)
+            OnToggle.InvokeAsync((node, isChecked));
+    }
+
+    private static MeshTreeNode? FindNode(List<MeshTreeNode> list, string treeNumber)
+    {
+        foreach (var n in list)
+        {
+            if (n.TreeNumber == treeNumber)
+                return n;
+            if (n.Children is not null)
+            {
+                var found = FindNode(n.Children, treeNumber);
+                if (found is not null)
+                    return found;
+            }
+        }
+        return null;
+    }
+}

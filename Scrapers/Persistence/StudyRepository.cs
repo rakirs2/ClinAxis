@@ -1278,14 +1278,65 @@ namespace Scrapers.Persistence
         /// <summary>
         /// Get all distinct condition values for filter UI.
         /// </summary>
+        private static readonly System.Text.Json.JsonSerializerOptions s_jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+        public async Task SeedMeshDescriptorsAsync(string meshTermsJsonPath, CancellationToken cancellationToken = default)
+        {
+            if (!File.Exists(meshTermsJsonPath))
+            {
+                await Console.Out.WriteLineAsync($"  [MeSH] mesh_terms.json not found at {meshTermsJsonPath}, skipping seed");
+                return;
+            }
+
+            using ClinicalTrialsContext context = CreateContext();
+            if (await context.MeshDescriptors.AnyAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await Console.Out.WriteLineAsync("  [MeSH] Descriptors already seeded, skipping");
+                return;
+            }
+
+            var json = await File.ReadAllTextAsync(meshTermsJsonPath, cancellationToken).ConfigureAwait(false);
+            var data = System.Text.Json.JsonSerializer.Deserialize<MeshTermsFile>(json, s_jsonOptions);
+            if (data == null || data.Names == null || data.Names.Length == 0)
+            {
+                await Console.Out.WriteLineAsync("  [MeSH] mesh_terms.json is empty or invalid, skipping seed");
+                return;
+            }
+
+            var seenCuis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var descriptors = new List<MeshDescriptorEntity>(data.Names.Length);
+            for (int i = 0; i < data.Names.Length; i++)
+            {
+                var cui = data.Cuis != null && i < data.Cuis.Length ? data.Cuis[i] : "";
+                if (string.IsNullOrEmpty(cui) || !seenCuis.Add(cui))
+                    continue;
+                var tnArr = data.TreeNumbers != null && i < data.TreeNumbers.Length ? data.TreeNumbers[i] : null;
+                var cat = data.Categories != null && i < data.Categories.Length ? data.Categories[i] : "";
+                var treeNumbers = tnArr?.Where(t => !string.IsNullOrEmpty(t)).ToArray() ?? [];
+                descriptors.Add(new MeshDescriptorEntity
+                {
+                    Cui = cui,
+                    Name = data.Names[i] ?? "",
+                    TreeNumbers = treeNumbers,
+                    Category = cat ?? "",
+                });
+            }
+            context.MeshDescriptors.AddRange(descriptors);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await Console.Out.WriteLineAsync($"  [MeSH] Seeded {descriptors.Count} unique descriptors (from {data.Names.Length} total terms)");
+        }
+
         public async Task<List<string>> GetDistinctConditionsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
+            var studyConditionDescriptorIds = context.StudyConditions
+                .Select(sc => sc.MeshDescriptorId)
+                .Distinct();
             return await context.MeshDescriptors
+                .Where(m => studyConditionDescriptorIds.Contains(m.Id) && m.Name != null)
                 .Select(m => m.Name)
-                .Where(m => m != null)
                 .Distinct()
-                .OrderBy(m => m)
+                .OrderBy(name => name)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -1962,6 +2013,15 @@ namespace Scrapers.Persistence
         {
             return new(_options);
         }
+    }
+
+    internal class MeshTermsFile
+    {
+        public string[] Names { get; set; } = [];
+        public string[] Cuis { get; set; } = [];
+        [System.Text.Json.Serialization.JsonPropertyName("tree_numbers")]
+        public string[][] TreeNumbers { get; set; } = [];
+        public string[] Categories { get; set; } = [];
     }
 
     public class TableRowCount

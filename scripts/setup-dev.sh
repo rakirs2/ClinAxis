@@ -30,7 +30,7 @@ echo ""
 cd "$PROJECT_DIR"
 
 # 1. Check PostgreSQL is running
-echo "[1/5] Checking PostgreSQL..."
+echo "[1/7] Checking PostgreSQL..."
 if ! pg_isready -q 2>/dev/null; then
     echo "ERROR: PostgreSQL is not running. Start it with: brew services start postgresql"
     exit 1
@@ -39,7 +39,7 @@ echo "  PostgreSQL is accepting connections on localhost:5432"
 echo ""
 
 # 2. Build production projects (skip test projects to avoid stale coverage mapping files)
-echo "[2/5] Building production projects..."
+echo "[2/7] Building production projects..."
 find . -name '.msCoverageSourceRootsMapping_*' -delete 2>/dev/null || true
 for proj in DataApi Frontend Scrapers.Validation; do
     if ! dotnet build "$proj/" 2>&1 | grep -q "Build succeeded"; then
@@ -51,25 +51,40 @@ done
 echo "  Build succeeded"
 echo ""
 
-# 3. Export ONNX model if not already present
-if [ ! -f "mesh_service/model/model.onnx" ]; then
-    echo "[3/6] Exporting Sentence-BERT ONNX model..."
-    experiments/bert-condition-mapping/.venv/bin/python mesh_service/export_onnx.py 2>&1 | tail -5
-    echo "  ONNX model exported"
+# 3. Export ONNX model + pre-compute MeSH embeddings
+MESH_RESOURCES_OUT="Scrapers/Resources/mesh"
+if [ ! -d "$MESH_RESOURCES_OUT" ] || [ ! -f "$MESH_RESOURCES_OUT/mesh_embeddings.bin" ]; then
+    echo "[3/7] Exporting Sentence-BERT ONNX model and MeSH embeddings..."
+    experiments/bert-condition-mapping/.venv/bin/python \
+        experiments/bert-condition-mapping/export_sbert_onnx.py 2>&1 | tail -10
+    echo "  ONNX export and embeddings complete"
 else
-    echo "[3/6] ONNX model already exists, skipping export"
+    echo "[3/7] MeSH embeddings already exist, skipping export"
 fi
 echo ""
 
+# 4. Copy MeSH model files to all project output directories
+echo "[4/7] Copying MeSH model files to project output directories..."
+for proj in Scrapers.Validation DataApi; do
+    PROJ_OUTPUT_DIR="${proj}/bin/Debug/net10.0"
+    MESH_RESOURCES_DIR="${PROJ_OUTPUT_DIR}/Resources/mesh"
+    mkdir -p "$MESH_RESOURCES_DIR"
+    for f in "$MESH_RESOURCES_OUT"/*; do
+        [ -f "$f" ] && cp "$f" "$MESH_RESOURCES_DIR/"
+    done
+    echo "  Copied to $MESH_RESOURCES_DIR"
+done
+echo ""
+
 # 5. Reset database
-echo "[4/6] Resetting database..."
+echo "[5/7] Resetting database..."
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project DataApi/ -- --reset-db 2>&1 | tail -1
 echo "  Database reset complete"
 echo ""
 
 # 6. Start DataApi and Frontend
-echo "[5/6] Starting services..."
+echo "[6/7] Starting services..."
 echo "  DataApi:  http://localhost:5003"
 echo "  Frontend: http://localhost:5001"
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
@@ -93,8 +108,8 @@ done
 echo "  Frontend healthy."
 echo ""
 
-# 5. Ingest studies
-echo "[6/6] Ingesting ${STUDY_LIMIT} studies from ClinicalTrials.gov..."
+# 7. Ingest studies
+echo "[7/7] Ingesting ${STUDY_LIMIT} studies from ClinicalTrials.gov..."
 echo "  This will take several minutes..."
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project Scrapers.Validation/ -- "$STUDY_LIMIT" --truncate 2>&1 || true
