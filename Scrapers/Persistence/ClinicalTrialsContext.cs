@@ -37,6 +37,7 @@ namespace Scrapers.Persistence
         public DbSet<MedicareProcedureEntity> MedicareProcedures => Set<MedicareProcedureEntity>();
         public DbSet<OpenPaymentEntity> OpenPayments => Set<OpenPaymentEntity>();
         public DbSet<RejectedTermEntity> RejectedTerms => Set<RejectedTermEntity>();
+        public DbSet<MeshDescriptorEntity> MeshDescriptors => Set<MeshDescriptorEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -75,6 +76,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
+                entity.Property(e => e.RejectedConditions).HasColumnName("rejected_conditions").HasColumnType("jsonb");
 
                 entity.HasIndex(e => new { e.OverallStatus, e.StartDate });
                 entity.HasIndex(e => e.EnrollmentCount);
@@ -162,7 +164,7 @@ namespace Scrapers.Persistence
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
                 entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
-                entity.Property(e => e.Condition).HasColumnName("condition");
+                entity.Property(e => e.MeshDescriptorId).HasColumnName("mesh_descriptor_id");
 
                 entity.HasOne(e => e.Study)
                     .WithMany(s => s.Conditions)
@@ -170,7 +172,12 @@ namespace Scrapers.Persistence
                     .HasPrincipalKey(s => s.NctId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasIndex(e => e.Condition);
+                entity.HasOne(e => e.MeshDescriptor)
+                    .WithMany(m => m.StudyConditions)
+                    .HasForeignKey(e => e.MeshDescriptorId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.MeshDescriptorId);
             });
 
             modelBuilder.Entity<StudyLocationEntity>(entity =>
@@ -697,6 +704,21 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => e.InvestigatorPersonId);
                 entity.HasIndex(e => new { e.InvestigatorPersonId, e.DataYear, e.PaymentType, e.RecordId }).IsUnique();
+            });
+
+
+            modelBuilder.Entity<MeshDescriptorEntity>(entity =>
+            {
+                entity.ToTable("mesh_descriptors");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.Cui).HasColumnName("cui").HasMaxLength(20);
+                entity.Property(e => e.Name).HasColumnName("name");
+                entity.Property(e => e.TreeNumbers).HasColumnName("tree_numbers").HasColumnType("text[]");
+                entity.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
+
+                entity.HasIndex(e => e.Cui).IsUnique();
+                entity.HasIndex(e => e.TreeNumbers).HasMethod("GIN");
             });
 
             modelBuilder.Entity<RejectedTermEntity>(entity =>

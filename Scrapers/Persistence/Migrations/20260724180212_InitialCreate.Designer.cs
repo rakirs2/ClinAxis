@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260721170118_InitialCreate")]
+    [Migration("20260724180212_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -93,6 +93,10 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<DateTime?>("LastSyncTimestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_sync_timestamp");
+
+                    b.Property<DateTime?>("NextScheduledRun")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_scheduled_run");
 
                     b.Property<int>("RejectedKeywordsTotal")
                         .HasColumnType("integer")
@@ -633,6 +637,49 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("medicare_utilizations", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.MeshDescriptorEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Cui")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("cui");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.PrimitiveCollection<string[]>("TreeNumbers")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tree_numbers");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Cui")
+                        .IsUnique();
+
+                    b.HasIndex("TreeNumbers");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TreeNumbers"), "GIN");
+
+                    b.ToTable("mesh_descriptors", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.OpenPaymentEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -1116,6 +1163,88 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("rejected_investigator_names", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.RejectedTermEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("accepted");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("RejectionReason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<bool>("SideAValid")
+                        .HasColumnType("boolean")
+                        .HasColumnName("side_a_valid");
+
+                    b.Property<string>("SideBCategory")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("unmapped")
+                        .HasColumnName("side_b_category");
+
+                    b.Property<bool>("SideBMatched")
+                        .HasColumnType("boolean")
+                        .HasColumnName("side_b_matched");
+
+                    b.Property<string>("SideBMeshCui")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("side_b_mesh_cui");
+
+                    b.Property<string>("SideBMeshTerm")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("side_b_mesh_term");
+
+                    b.Property<float>("SideBSimilarity")
+                        .HasColumnType("real")
+                        .HasColumnName("side_b_similarity");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("condition")
+                        .HasColumnName("source");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Accepted");
+
+                    b.HasIndex("SideBCategory");
+
+                    b.HasIndex("StudyNctId");
+
+                    b.ToTable("rejected_terms", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1319,10 +1448,9 @@ namespace Scrapers.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Condition")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("condition");
+                    b.Property<int>("MeshDescriptorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("mesh_descriptor_id");
 
                     b.Property<string>("StudyNctId")
                         .IsRequired()
@@ -1332,7 +1460,7 @@ namespace Scrapers.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Condition");
+                    b.HasIndex("MeshDescriptorId");
 
                     b.HasIndex("StudyNctId");
 
@@ -1421,6 +1549,10 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<string>("PrimaryPurpose")
                         .HasColumnType("text")
                         .HasColumnName("primary_purpose");
+
+                    b.Property<string>("RejectedConditions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("rejected_conditions");
 
                     b.Property<string>("Sex")
                         .HasColumnType("text")
@@ -1805,11 +1937,19 @@ namespace Scrapers.Persistence.Migrations
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyConditionEntity", b =>
                 {
+                    b.HasOne("Scrapers.Persistence.Entities.MeshDescriptorEntity", "MeshDescriptor")
+                        .WithMany("StudyConditions")
+                        .HasForeignKey("MeshDescriptorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("Conditions")
                         .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("MeshDescriptor");
 
                     b.Navigation("Study");
                 });
@@ -1924,6 +2064,11 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Procedures");
 
                     b.Navigation("StudyInvestigators");
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.MeshDescriptorEntity", b =>
+                {
+                    b.Navigation("StudyConditions");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedPaperEntity", b =>

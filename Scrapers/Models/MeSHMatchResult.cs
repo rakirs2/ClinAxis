@@ -11,14 +11,13 @@ public class MeSHMatchResult
     public string MeshCui { get; init; } = "";
     public string Category { get; init; } = "unmapped";
     public float Similarity { get; init; }
-    public bool Accepted => SideBMatched && Category == "disease";
+    public bool Accepted => SideBMatched;
     public string RejectionReason
     {
         get
         {
             if (Accepted) return "";
             if (!SideBMatched) return $"below_threshold (sim={Similarity:F4})";
-            if (Category != "disease") return $"non_disease_category ({Category})";
             return "unknown";
         }
     }

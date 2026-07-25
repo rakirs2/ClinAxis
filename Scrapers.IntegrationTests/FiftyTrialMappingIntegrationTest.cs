@@ -54,7 +54,7 @@ public class FiftyTrialMappingIntegrationTest : DbTestBase
                 Console.WriteLine($"  FirstPost:     {s.StudyFirstPostDate}");
                 Console.WriteLine($"  Sex:           {s.Sex}");
                 Console.WriteLine($"  MinAge:        {s.MinimumAge}");
-                Console.WriteLine($"  Conditions:    {string.Join("; ", s.Conditions?.Select(c => c.Condition).Take(3) ?? [])}{(s.Conditions?.Count > 3 ? "..." : "")}");
+                Console.WriteLine($"  Conditions:    {string.Join("; ", s.Conditions?.Select(c => c.MeshDescriptor?.Name).Take(3) ?? [])}{(s.Conditions?.Count > 3 ? "..." : "")}");
                 Console.WriteLine($"  Keywords:      {string.Join("; ", s.Keywords?.Select(k => k.Keyword).Take(5) ?? [])}{(s.Keywords?.Count > 5 ? "..." : "")}");
                 Console.WriteLine();
             }

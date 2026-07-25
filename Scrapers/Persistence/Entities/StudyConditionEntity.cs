@@ -8,7 +8,11 @@ namespace Scrapers.Persistence.Entities
         [Key]
         public int Id { get; set; }
         public string StudyNctId { get; set; } = string.Empty;
-        public string Condition { get; set; } = string.Empty;
+
+        public int MeshDescriptorId { get; set; }
+
+        [ForeignKey(nameof(MeshDescriptorId))]
+        public MeshDescriptorEntity? MeshDescriptor { get; set; }
 
         [ForeignKey(nameof(StudyNctId))]
         public StudyEntity? Study { get; set; }

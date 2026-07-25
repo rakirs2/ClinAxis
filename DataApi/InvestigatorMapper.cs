@@ -45,8 +45,8 @@ internal static class InvestigatorMapper
             {
                 foreach (var cond in study.Conditions)
                 {
-                    if (cond.Condition != null)
-                        conditions.Add(cond.Condition);
+                    if (cond.MeshDescriptor?.Name != null)
+                        conditions.Add(cond.MeshDescriptor.Name);
                 }
             }
         }

@@ -70,16 +70,19 @@ public sealed class TrainingDataExportIntegrationTests : DbTestBase
     [TestMethod]
     public async Task TrainingConditionsExport_CombinesAcceptedAndRejected()
     {
+        Context.MeshDescriptors.AddRange(
+            new MeshDescriptorEntity { Id = 9001, Cui = "D003924", Name = "Diabetes Mellitus", TreeNumbers = ["C19.246"], Category = "disease" },
+            new MeshDescriptorEntity { Id = 9002, Cui = "D006973", Name = "Hypertension", TreeNumbers = ["C14.907"], Category = "disease" });
         Context.Studies.Add(new StudyEntity { NctId = "NCT0003", BriefTitle = "Study 3", OverallStatus = "RECRUITING" });
-        Context.StudyConditions.Add(new StudyConditionEntity { StudyNctId = "NCT0003", Condition = "Diabetes Mellitus" });
-        Context.StudyConditions.Add(new StudyConditionEntity { StudyNctId = "NCT0003", Condition = "Hypertension" });
+        Context.StudyConditions.Add(new StudyConditionEntity { StudyNctId = "NCT0003", MeshDescriptorId = 9001 });
+        Context.StudyConditions.Add(new StudyConditionEntity { StudyNctId = "NCT0003", MeshDescriptorId = 9002 });
         Context.RejectedEntities.Add(new RejectedEntityEntity { EntityType = "condition", Value = "misc", StudyNctId = "NCT0003", RejectedAt = System.DateTime.UtcNow });
         Context.RejectedEntities.Add(new RejectedEntityEntity { EntityType = "condition", Value = "xyz disorder", StudyNctId = "NCT0003", RejectedAt = System.DateTime.UtcNow });
         Context.RejectedEntities.Add(new RejectedEntityEntity { EntityType = "condition", Value = "test condition", StudyNctId = "NCT0003", RejectedAt = System.DateTime.UtcNow });
         await Context.SaveChangesAsync();
 
         var accepted = await Context.StudyConditions
-            .Select(c => new { Value = c.Condition, Label = 1, c.StudyNctId })
+            .Include(c => c.MeshDescriptor).Select(c => new { Value = c.MeshDescriptor!.Name, Label = 1, c.StudyNctId })
             .ToListAsync();
         var rejected = await Context.RejectedEntities
             .Where(r => r.EntityType == "condition")
@@ -185,7 +188,7 @@ public sealed class TrainingDataExportIntegrationTests : DbTestBase
                 (p, si) => new { p.FullName })
             .ToListAsync();
         var acceptedConditions = await Context.StudyConditions
-            .Select(c => new { c.Condition })
+            .Include(c => c.MeshDescriptor).Select(c => new { MeshDescriptor = c.MeshDescriptor!.Name })
             .ToListAsync();
         var acceptedAffiliations = await Context.InvestigatorAffiliations
             .Join(Context.StudyInvestigators,

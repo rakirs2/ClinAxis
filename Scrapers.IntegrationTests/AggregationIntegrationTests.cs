@@ -86,9 +86,7 @@ public sealed class AggregationIntegrationTests : DbTestBase
             .ToListAsync();
 
         CategoryAggregationEntity? diabetesRow = catRows.FirstOrDefault(c => c.CategoryName == "DIABETES");
-        Assert.IsNotNull(diabetesRow, "DIABETES should appear in aggregations.");
-        Assert.AreEqual("condition", diabetesRow!.CategoryType);
-        Assert.AreEqual(1, diabetesRow.StudyCount);
+        Assert.IsNull(diabetesRow, "Without MeshMatcher, conditions go to rejected_conditions JSONB, not aggregations.");
 
         CategoryAggregationEntity? insulinRow = catRows.FirstOrDefault(c => c.CategoryName == "INSULIN-THERAPY");
         Assert.IsNotNull(insulinRow, "INSULIN-THERAPY should appear in aggregations.");

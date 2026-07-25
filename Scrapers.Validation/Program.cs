@@ -60,7 +60,29 @@ using (var ctx = new ClinicalTrialsContext(opts))
     await ctx.Database.MigrateAsync();
 }
 
-var studyRepo = new StudyRepository(connectionString!);
+// Load MeSHMatcher for condition matching
+var meshResourcesPath = Path.Combine(AppContext.BaseDirectory, "Resources", "mesh");
+using var meshMatcher = Directory.Exists(meshResourcesPath) && File.Exists(Path.Combine(meshResourcesPath, "model.onnx"))
+    ? new MeSHMatcher(meshResourcesPath)
+    : null;
+
+if (meshMatcher != null)
+{
+    await Console.Out.WriteLineAsync($"  [MeSH] Loaded matcher from {meshResourcesPath}");
+}
+else
+{
+    await Console.Out.WriteLineAsync("  [MeSH] Resources not found, conditions will be rejected");
+}
+
+var studyRepo = meshMatcher != null
+    ? new StudyRepository(connectionString!, meshMatcher)
+    : new StudyRepository(connectionString!);
+
+// Seed MeSH descriptors into database
+var meshTermsJson = Path.Combine(meshResourcesPath, "mesh_terms.json");
+var seedRepo = new StudyRepository(connectionString!);
+await seedRepo.SeedMeshDescriptorsAsync(meshTermsJson, CancellationToken.None);
 var clinicalTrialsClient = new ClinicalTrialsGov();
 var clinicalTrialsIngestionService = new ClinicalTrialsIngestionService(clinicalTrialsClient, studyRepo);
 

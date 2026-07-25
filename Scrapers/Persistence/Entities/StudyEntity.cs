@@ -32,6 +32,7 @@ namespace Scrapers.Persistence.Entities
         public string Source { get; set; } = "ClinicalTrials.gov/v2";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsIncomplete { get; set; }
+        public string? RejectedConditions { get; set; }
 
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
         public ICollection<StudyPaperEntity>? StudyPapers { get; set; }

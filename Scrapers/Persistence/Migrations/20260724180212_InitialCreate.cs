@@ -42,7 +42,8 @@ namespace Scrapers.Persistence.Migrations
                     status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     error_message = table.Column<string>(type: "text", nullable: true),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    rejected_keywords_total = table.Column<int>(type: "integer", nullable: false)
+                    rejected_keywords_total = table.Column<int>(type: "integer", nullable: false),
+                    next_scheduled_run = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -91,6 +92,22 @@ namespace Scrapers.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_investigator_persons", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "mesh_descriptors",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    cui = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    name = table.Column<string>(type: "text", nullable: false),
+                    tree_numbers = table.Column<string[]>(type: "text[]", nullable: false),
+                    category = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_mesh_descriptors", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -213,6 +230,30 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "rejected_terms",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    study_nct_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    value = table.Column<string>(type: "text", nullable: false),
+                    source = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "condition"),
+                    side_a_valid = table.Column<bool>(type: "boolean", nullable: false),
+                    side_b_matched = table.Column<bool>(type: "boolean", nullable: false),
+                    side_b_mesh_term = table.Column<string>(type: "text", nullable: false),
+                    side_b_mesh_cui = table.Column<string>(type: "text", nullable: false),
+                    side_b_category = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "unmapped"),
+                    side_b_similarity = table.Column<float>(type: "real", nullable: false),
+                    accepted = table.Column<bool>(type: "boolean", nullable: false),
+                    rejection_reason = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_rejected_terms", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "scraper_pivots",
                 columns: table => new
                 {
@@ -277,7 +318,8 @@ namespace Scrapers.Persistence.Migrations
                     study_first_post_date = table.Column<DateOnly>(type: "date", nullable: true),
                     source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    is_incomplete = table.Column<bool>(type: "boolean", nullable: false)
+                    is_incomplete = table.Column<bool>(type: "boolean", nullable: false),
+                    rejected_conditions = table.Column<string>(type: "jsonb", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -562,11 +604,17 @@ namespace Scrapers.Persistence.Migrations
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     study_nct_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    condition = table.Column<string>(type: "text", nullable: false)
+                    mesh_descriptor_id = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_study_conditions", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_study_conditions_mesh_descriptors_mesh_descriptor_id",
+                        column: x => x.mesh_descriptor_id,
+                        principalTable: "mesh_descriptors",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_study_conditions_studies_study_nct_id",
                         column: x => x.study_nct_id,
@@ -844,6 +892,18 @@ namespace Scrapers.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_mesh_descriptors_cui",
+                table: "mesh_descriptors",
+                column: "cui",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_mesh_descriptors_tree_numbers",
+                table: "mesh_descriptors",
+                column: "tree_numbers")
+                .Annotation("Npgsql:IndexMethod", "GIN");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_open_payments_investigator_person_id",
                 table: "open_payments",
                 column: "investigator_person_id");
@@ -907,6 +967,21 @@ namespace Scrapers.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_rejected_terms_accepted",
+                table: "rejected_terms",
+                column: "accepted");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_rejected_terms_side_b_category",
+                table: "rejected_terms",
+                column: "side_b_category");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_rejected_terms_study_nct_id",
+                table: "rejected_terms",
+                column: "study_nct_id");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_scrape_events_event_type",
                 table: "scrape_events",
                 column: "event_type");
@@ -959,9 +1034,9 @@ namespace Scrapers.Persistence.Migrations
                 column: "study_nct_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_study_conditions_condition",
+                name: "IX_study_conditions_mesh_descriptor_id",
                 table: "study_conditions",
-                column: "condition");
+                column: "mesh_descriptor_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_study_conditions_study_nct_id",
@@ -1085,6 +1160,9 @@ namespace Scrapers.Persistence.Migrations
                 name: "rejected_investigator_names");
 
             migrationBuilder.DropTable(
+                name: "rejected_terms");
+
+            migrationBuilder.DropTable(
                 name: "scrape_events");
 
             migrationBuilder.DropTable(
@@ -1122,6 +1200,9 @@ namespace Scrapers.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "pipeline_runs");
+
+            migrationBuilder.DropTable(
+                name: "mesh_descriptors");
 
             migrationBuilder.DropTable(
                 name: "investigator_persons");

@@ -28,9 +28,12 @@ public sealed class SearchPageTests
             cities = EmptyArray,
             facilities = EmptyArray
         }));
+        mockHttp.When("/api/mesh-tree*").Respond("application/json", "[]");
         var client = mockHttp.ToHttpClient();
         client.BaseAddress = new Uri("http://localhost:5003");
         ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        ctx.JSInterop.SetupVoid("meshTree.render", _ => true);
 
         IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
 
@@ -51,9 +54,12 @@ public sealed class SearchPageTests
             cities = EmptyArray,
             facilities = EmptyArray
         }));
+        mockHttp.When("/api/mesh-tree*").Respond("application/json", "[]");
         var client = mockHttp.ToHttpClient();
         client.BaseAddress = new Uri("http://localhost:5003");
         ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        ctx.JSInterop.SetupVoid("meshTree.render", _ => true);
 
         IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
 
@@ -76,6 +82,7 @@ public sealed class SearchPageTests
             cities = EmptyArray,
             facilities = EmptyArray
         }));
+        mockHttp.When("/api/mesh-tree*").Respond("application/json", "[]");
         mockHttp.When("/api/studies*").Respond("application/json", JsonSerializer.Serialize(new
         {
             data = new[]
@@ -98,6 +105,9 @@ public sealed class SearchPageTests
         var client = mockHttp.ToHttpClient();
         client.BaseAddress = new Uri("http://localhost:5003");
         ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        ctx.JSInterop.SetupVoid("meshTree.render", _ => true);
+        ctx.JSInterop.Setup<string[]>("meshTree.getSelected", _ => true).SetResult([]);
 
         IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
         

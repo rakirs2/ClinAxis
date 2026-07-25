@@ -17,6 +17,9 @@ namespace Scrapers.Persistence
         public IReadOnlyList<string>? Phases { get; set; }         // e.g., ["PHASE1", "PHASE2"]
         public IReadOnlyList<string>? Conditions { get; set; }     // e.g., ["Diabetes", "Hypertension"]
 
+        // MeSH tree prefix filter
+        public IReadOnlyList<string>? MeshTreePrefixes { get; set; } // e.g., ["C19.246", "C08.127"]
+
         // Location filters (uses StudyLocationEntity from PR 1)
         public IReadOnlyList<string>? Countries { get; set; }      // e.g., ["USA", "Canada"]
         public IReadOnlyList<string>? States { get; set; }         // e.g., ["CA", "NY"]

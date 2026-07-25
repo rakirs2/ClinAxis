@@ -22,6 +22,7 @@ if (args.Contains("--reset-db"))
 {
     await startupRepo.ResetDatabaseAsync();
     await Console.Out.WriteLineAsync("Database reset complete.");
+    await SeedMeshDescriptors(startupRepo);
     return;
 }
 
@@ -40,6 +41,8 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
         await Task.Delay(retryDelay);
     }
 }
+
+await SeedMeshDescriptors(startupRepo);
 
 builder.Services.AddHealthChecks()
     .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
@@ -99,11 +102,140 @@ app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country
     return Results.Ok(result);
 });
 
+// MeSH tree browser endpoint
+app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch, int minStudyCount = 0, int depth = 1) =>
+{
+    var cacheKey = $"mesh_tree_v3_{branch ?? "__root__"}_{minStudyCount}_{depth}";
+    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
+        return Results.Ok(cached);
+
+    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+        .ConfigureNpgsql(connectionString).Options);
+
+    var allDescriptors = await ctx.MeshDescriptors
+        .Select(m => new
+        {
+            m.Name,
+            m.TreeNumbers,
+            StudyCount = m.StudyConditions!.Count,
+        })
+        .ToListAsync();
+
+    object result;
+
+    if (string.IsNullOrEmpty(branch))
+    {
+        var categories = new (string Prefix, string Name)[]
+        {
+            ("A", "Anatomy"),
+            ("B", "Organisms"),
+            ("C", "Diseases"),
+            ("D", "Chemicals and Drugs"),
+            ("E", "Analytical, Diagnostic and Therapeutic Techniques and Equipment"),
+            ("F", "Psychiatry and Psychology"),
+            ("G", "Phenomena and Processes"),
+            ("H", "Disciplines and Occupations"),
+            ("I", "Anthropology, Education, Sociology and Social Phenomena"),
+            ("J", "Technology, Industry, Agriculture"),
+            ("K", "Humanities"),
+            ("L", "Information Science"),
+            ("M", "Named Groups"),
+            ("N", "Health Care"),
+            ("V", "Publication Characteristics"),
+            ("Z", "Geographicals"),
+        };
+
+        var rootNodes = categories
+            .Select(c =>
+            {
+                var studyCount = allDescriptors
+                    .Where(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.Ordinal)))
+                    .Sum(d => d.StudyCount);
+                var hasChildren = allDescriptors
+                    .Any(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.OrdinalIgnoreCase) && tn.Length > 1));
+                var children = depth > 1 && hasChildren ? GetBranchNodes(c.Prefix, depth - 1).ToArray() : null;
+                return new
+                {
+                    treeNumber = c.Prefix,
+                    name = c.Name,
+                    studyCount,
+                    hasChildren,
+                    children,
+                };
+            })
+            .Where(n => n.studyCount >= minStudyCount)
+            .ToList();
+
+        result = new { branch = "__root__", nodes = rootNodes };
+    }
+    else
+    {
+        var nodes = GetBranchNodes(branch!, depth);
+        result = new { branch, nodes };
+    }
+
+    var ttl = TimeSpan.FromMinutes(10);
+    cache.Set(cacheKey, result, ttl);
+    return Results.Ok(result);
+
+    List<object> GetBranchNodes(string currentBranch, int remainingDepth)
+    {
+        var isTopLevel = currentBranch.Length == 1;
+        var prefix = isTopLevel ? currentBranch : currentBranch + ".";
+        var childBranches = allDescriptors
+            .SelectMany(d => d.TreeNumbers)
+            .Where(tn => tn.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(tn =>
+            {
+                var remainder = tn[prefix.Length..];
+                var dotIdx = remainder.IndexOf('.', StringComparison.Ordinal);
+                return dotIdx > 0 ? tn[..(prefix.Length + dotIdx)] : tn;
+            })
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x)
+            .ToList();
+
+        var results = new List<object>();
+        foreach (var childTn in childBranches)
+        {
+            var matchingDescriptors = allDescriptors
+                .Where(d => d.TreeNumbers.Any(tn =>
+                    tn.Equals(childTn, StringComparison.Ordinal) ||
+                    tn.StartsWith(childTn + ".", StringComparison.Ordinal)))
+                .ToList();
+
+            var studyCount = matchingDescriptors.Sum(d => d.StudyCount);
+            if (studyCount < minStudyCount)
+                continue;
+
+            var desc = matchingDescriptors.OrderByDescending(d => d.StudyCount).FirstOrDefault();
+            var hasChildren = allDescriptors.Any(d => d.TreeNumbers.Any(tn =>
+                tn.StartsWith(childTn + ".", StringComparison.Ordinal) && d.StudyCount > 0));
+
+            object[]? children = null;
+            if (remainingDepth > 1 && hasChildren)
+            {
+                children = GetBranchNodes(childTn, remainingDepth - 1).ToArray();
+            }
+
+            results.Add(new
+            {
+                treeNumber = childTn,
+                name = desc?.Name ?? childTn,
+                studyCount,
+                hasChildren,
+                children,
+            });
+        }
+        return results;
+    }
+});
+
 app.MapGet("/api/studies", async (
     int? page, int? pageSize,
     string? keyword,
     string? status, string? phase,
-    string? condition,
+    string? condition, string? meshTree,
     string? country, string? state, string? city, string? facility,
     int? enrollmentMin, int? enrollmentMax,
     DateTime? startDateFrom, DateTime? startDateTo) =>
@@ -119,6 +251,7 @@ app.MapGet("/api/studies", async (
         Statuses = ParseCsvParam(status),
         Phases = ParseCsvParam(phase),
         Conditions = ParseCsvParam(condition),
+        MeshTreePrefixes = ParseCsvParam(meshTree),
         Countries = ParseCsvParam(country),
         States = ParseCsvParam(state),
         Cities = ParseCsvParam(city),
@@ -419,20 +552,6 @@ app.MapGet("/api/database/size", async () =>
     });
 });
 
-app.MapGet("/api/word-cloud/conditions", async () =>
-{
-    var repo = new StudyRepository(connectionString);
-    var words = await repo.GetConditionFrequenciesAsync();
-    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
-});
-
-app.MapGet("/api/word-cloud/keywords", async () =>
-{
-    var repo = new StudyRepository(connectionString);
-    var words = await repo.GetKeywordFrequenciesAsync();
-    return Results.Ok(words.Select(w => new { w.Text, w.Weight }));
-});
-
 app.MapGet("/api/stats/status-breakdown", async () =>
 {
     var repo = new StudyRepository(connectionString);
@@ -695,7 +814,8 @@ app.MapGet("/api/export/training/conditions", async (HttpResponse response) =>
     await response.WriteAsync("value,label,study_nct_id\n");
 
     await foreach (var c in ctx.StudyConditions
-        .Select(c => new { Value = c.Condition, Label = 1, c.StudyNctId })
+        .Include(c => c.MeshDescriptor)
+        .Select(c => new { Value = c.MeshDescriptor != null ? c.MeshDescriptor.Name : "", Label = 1, c.StudyNctId })
         .OrderBy(c => c.StudyNctId)
         .AsAsyncEnumerable())
     {
@@ -746,81 +866,29 @@ app.MapGet("/api/export/training/affiliations", async (HttpResponse response) =>
     }
 });
 
-app.MapGet("/api/ab-test/stats", async () =>
-{
-    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
-        .ConfigureNpgsql(connectionString).Options);
-
-    var total = await ctx.RejectedTerms.CountAsync();
-    var accepted = await ctx.RejectedTerms.CountAsync(t => t.Accepted);
-    var sideAValid = await ctx.RejectedTerms.CountAsync(t => t.SideAValid);
-    var sideBMatched = await ctx.RejectedTerms.CountAsync(t => t.SideBMatched);
-    var conditions = await ctx.RejectedTerms.CountAsync(t => t.Source == "condition");
-    var keywords = await ctx.RejectedTerms.CountAsync(t => t.Source == "keyword");
-    var categories = await ctx.RejectedTerms
-        .GroupBy(t => t.SideBCategory)
-        .Select(g => new { Category = g.Key, Count = g.Count() })
-        .ToListAsync();
-    var rejectionReasons = await ctx.RejectedTerms
-        .Where(t => !t.Accepted)
-        .GroupBy(t => t.RejectionReason)
-        .Select(g => new { Reason = g.Key, Count = g.Count() })
-        .ToListAsync();
-
-    return Results.Ok(new
-    {
-        total,
-        accepted,
-        rejected = total - accepted,
-        sideAValid,
-        sideBMatched,
-        conditions,
-        keywords,
-        categories,
-        rejectionReasons,
-    });
-});
-
-app.MapGet("/api/ab-test/terms", async (int? limit, string? source, string? category, bool? accepted) =>
-{
-    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
-        .ConfigureNpgsql(connectionString).Options);
-
-    IQueryable<RejectedTermEntity> query = ctx.RejectedTerms;
-
-    if (!string.IsNullOrEmpty(source))
-        query = query.Where(t => t.Source == source);
-    if (!string.IsNullOrEmpty(category))
-        query = query.Where(t => t.SideBCategory == category);
-    if (accepted.HasValue)
-        query = query.Where(t => t.Accepted == accepted.Value);
-
-    query = query.OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Value);
-
-    if (limit.HasValue && limit.Value > 0)
-        query = query.Take(limit.Value);
-
-    var results = await query.Select(t => new
-    {
-        t.Id,
-        t.StudyNctId,
-        t.Value,
-        t.Source,
-        t.SideAValid,
-        t.SideBMatched,
-        t.SideBMeshTerm,
-        t.SideBMeshCui,
-        t.SideBCategory,
-        t.SideBSimilarity,
-        t.Accepted,
-        t.RejectionReason,
-        t.CreatedAt,
-    }).ToListAsync();
-
-    return Results.Ok(results);
-});
-
 await app.RunAsync();
+
+static async Task SeedMeshDescriptors(StudyRepository repo)
+{
+    var baseDir = AppContext.BaseDirectory;
+    var possiblePaths = new[]
+    {
+        Path.Combine(baseDir, "Resources", "mesh", "mesh_terms.json"),
+        Path.Combine(baseDir, "..", "..", "..", "..", "Scrapers", "Resources", "mesh", "mesh_terms.json"),
+        Path.Combine(baseDir, "..", "..", "..", "..", "..", "Scrapers", "Resources", "mesh", "mesh_terms.json"),
+    };
+
+    foreach (var path in possiblePaths)
+    {
+        var full = Path.GetFullPath(path);
+        if (File.Exists(full))
+        {
+            await repo.SeedMeshDescriptorsAsync(full, CancellationToken.None);
+            return;
+        }
+    }
+    await Console.Out.WriteLineAsync("  [MeSH] mesh_terms.json not found, skipping descriptor seed");
+}
 
 /// <summary>
 /// Parse comma-separated query parameter into list of values.
