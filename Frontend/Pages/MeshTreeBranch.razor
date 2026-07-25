@@ -1,7 +1,7 @@
 @foreach (var node in Nodes)
 {
     <div class="mesh-tree-node">
-        @if (node.HasChildren && node.Children?.Count > 0)
+        @if (node.HasChildren)
         {
             var tn = node.TreeNumber;
             <details>
@@ -15,7 +15,14 @@
                     </label>
                 </summary>
                 <div style="margin-left:24px;">
-                    <MeshTreeBranch Nodes="node.Children" SelectedTreeNumbers="SelectedTreeNumbers" OnToggle="OnToggle" />
+                    @if (node.Children is { Count: > 0 })
+                    {
+                        <MeshTreeBranch Nodes="node.Children" SelectedTreeNumbers="SelectedTreeNumbers" OnToggle="OnToggle" />
+                    }
+                    else
+                    {
+                        <p class="text-muted" style="font-size:0.85em;"><em>No subcategories</em></p>
+                    }
                 </div>
             </details>
         }
