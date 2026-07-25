@@ -1,7 +1,9 @@
 @page "/"
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
 @inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JS
 
 <h1>Advanced Study Search</h1>
 
@@ -61,14 +63,13 @@
                 }
                 else
                 {
-                        <div class="mesh-tree" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-                        <details open>
-                            <summary style="cursor:pointer;font-weight:500;">Diseases</summary>
-                            <div style="margin-top:8px;">
-                                <MeshTreeBranch Nodes="meshTreeRoots" SelectedTreeNumbers="criteria.MeshTreePrefixes" OnToggle="HandleMeshToggle" ExpandedNodes="expandedNodes" OnToggleExpand="HandleExpandToggle" />
-                            </div>
-                        </details>
+                    <div class="mesh-tree" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+                        <div id="meshTreeContainer"></div>
                     </div>
+                    @if (error is not null)
+                    {
+                        <div class="alert alert-danger mt-2">@error</div>
+                    }
                 }
             </div>
         </div>
@@ -274,6 +275,17 @@ else if (searchExecuted && studies is not null)
     private DateTime? startDateFrom;
     private DateTime? startDateTo;
 
+    private bool _treeRendered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (meshTreeRoots.Count > 0 && !_treeRendered)
+        {
+            _treeRendered = true;
+            await JS.InvokeVoidAsync("meshTree.render", "meshTreeContainer", meshTreeRoots, criteria.MeshTreePrefixes);
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadMeshTree();
@@ -313,31 +325,6 @@ else if (searchExecuted && studies is not null)
             HasChildren = n.HasChildren,
             Children = n.Children is { Count: > 0 } ? ConvertBranchNodes(n.Children) : null,
         }).ToList();
-    }
-
-    private HashSet<string> expandedNodes = [];
-
-    private void HandleExpandToggle(string treeNumber)
-    {
-        var set = new HashSet<string>(expandedNodes);
-        if (!set.Remove(treeNumber))
-            set.Add(treeNumber);
-        expandedNodes = set;
-    }
-
-    private void HandleMeshToggle((MeshTreeNode node, bool isChecked) args)
-    {
-        var list = new List<string>(criteria.MeshTreePrefixes);
-        if (args.isChecked)
-        {
-            if (!list.Contains(args.node.TreeNumber))
-                list.Add(args.node.TreeNumber);
-        }
-        else
-        {
-            list.Remove(args.node.TreeNumber);
-        }
-        criteria.MeshTreePrefixes = list;
     }
 
     private async Task HandleCountryChange(ChangeEventArgs e)
@@ -470,7 +457,9 @@ else if (searchExecuted && studies is not null)
 
     private async Task SearchStudies()
     {
-        // Update date range from DateTime inputs
+        var selected = await JS.InvokeAsync<string[]>("meshTree.getSelected", "meshTreeContainer");
+        criteria.MeshTreePrefixes = selected?.ToList() ?? [];
+
         criteria.StartDateFrom = startDateFrom;
         criteria.StartDateTo = startDateTo;
 
