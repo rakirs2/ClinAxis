@@ -161,7 +161,7 @@ StudyReferenceEntity (table: study_references)
 
 Stores the `References[]` array from the ClinicalTrials.gov batch response. Eliminates the need for the PubMed scraper to make per-study HTTP calls to re-fetch PMIDs.
 
-### 3.8 Study Outcomes (TODO — Data Loss Fix)
+### 3.8 Study Outcomes
 
 ```
 StudyOutcomeEntity (table: study_outcomes)
@@ -173,7 +173,7 @@ StudyOutcomeEntity (table: study_outcomes)
 └── TimeFrame (string?)
 ```
 
-### 3.9 Study Arm Groups (TODO — Data Loss Fix)
+### 3.9 Study Arm Groups
 
 ```
 StudyArmGroupEntity (table: study_arm_groups)
@@ -346,7 +346,7 @@ All fields returned by the ClinicalTrials.gov API v2 studies endpoint, their per
 | `identificationModule.nctId` | NCT ID | `StudyEntity.NctId` | ✅ |
 | `identificationModule.briefTitle` | Brief title | `StudyEntity.BriefTitle` | ✅ |
 | `identificationModule.officialTitle` | Official title | `StudyEntity.OfficialTitle` | ✅ |
-| `identificationModule.orgStudyIdInfo.id` | Org study ID | `StudyEntity.OrgStudyId` | ❌ TODO |
+| `identificationModule.orgStudyIdInfo.id` | Org study ID | `StudyEntity.OrgStudyId` | ✅ |
 | `statusModule.overallStatus` | Status | `StudyEntity.OverallStatus` | ✅ |
 | `statusModule.startDateStruct` | Start date | `StudyEntity.StartDate` | ✅ |
 | `statusModule.completionDateStruct` | Completion date | `StudyEntity.CompletionDate` | ✅ |
