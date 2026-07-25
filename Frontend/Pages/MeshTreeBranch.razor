@@ -5,14 +5,16 @@
         {
             var tn = node.TreeNumber;
             <details>
-                <summary style="cursor:pointer;display:flex;align-items:center;">
-                    <input type="checkbox" class="form-check-input me-1" id="mt_@tn"
-                           checked="@SelectedTreeNumbers.Contains(tn)"
-                           @onchange="@(() => ToggleSelection(tn))" />
-                    <label class="form-check-label" for="mt_@tn" style="font-size:0.9em;flex-grow:1;">
-                        @node.TreeNumber — @node.Name
-                        <span class="text-muted"> (@node.StudyCount)</span>
-                    </label>
+                <summary style="cursor:pointer;">
+                    <div style="display:flex;align-items:center;">
+                        <input type="checkbox" class="form-check-input me-1" id="mt_@tn"
+                               checked="@SelectedTreeNumbers.Contains(tn)"
+                               @onchange="@(() => ToggleSelection(tn))" />
+                        <label class="form-check-label" for="mt_@tn" style="font-size:0.9em;flex-grow:1;">
+                            @node.TreeNumber — @node.Name
+                            <span class="text-muted"> (@node.StudyCount)</span>
+                        </label>
+                    </div>
                 </summary>
                 <div style="margin-left:24px;">
                     @if (node.Children is { Count: > 0 })
