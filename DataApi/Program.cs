@@ -47,6 +47,8 @@ await SeedMeshDescriptors(startupRepo);
 builder.Services.AddHealthChecks()
     .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<MeshTreeCacheRefreshService>();
+builder.Services.AddHostedService<MeshTreeCacheRefreshService>();
 
 WebApplication app = builder.Build();
 
