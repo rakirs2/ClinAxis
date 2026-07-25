@@ -26,8 +26,6 @@ if (args.Contains("--reset-db"))
     return;
 }
 
-await SeedMeshDescriptors(startupRepo);
-
 var maxRetries = 5;
 var retryDelay = TimeSpan.FromSeconds(3);
 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -43,6 +41,8 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
         await Task.Delay(retryDelay);
     }
 }
+
+await SeedMeshDescriptors(startupRepo);
 
 builder.Services.AddHealthChecks()
     .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
