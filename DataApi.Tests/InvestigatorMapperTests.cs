@@ -3,7 +3,7 @@ using DataApi;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Persistence.Entities;
 
-namespace Scrapers.Tests.DataApiTests;
+namespace DataApi.Tests;
 
 [TestClass]
 public sealed class InvestigatorMapperTests

@@ -16,6 +16,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
-    <InternalsVisibleTo Include="Scrapers.Tests" />
+    <InternalsVisibleTo Include="DataApi.Tests" />
   </ItemGroup>
 </Project>

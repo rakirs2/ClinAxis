@@ -1,7 +1,7 @@
 using DataApi.Endpoints;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Scrapers.Tests.DataApiTests;
+namespace DataApi.Tests;
 
 [TestClass]
 public sealed class EndpointHelpersTests

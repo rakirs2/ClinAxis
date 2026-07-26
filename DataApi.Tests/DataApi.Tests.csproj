@@ -5,7 +5,8 @@
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1051;CA1001;CA1820;CA1308;CA1031;CA2000;CA1861;CA1303;CA1848;CA2007</NoWarn>
+    <RootNamespace>DataApi.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,13 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Data\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <ProjectReference Include="..\DataApi\DataApi.csproj" />
   </ItemGroup>
 
 </Project>
