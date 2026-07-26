@@ -51,7 +51,6 @@ jobs:
           --no-build --filter "TestCategory!=HttpLive"
 
   live-http-tests:
-    needs: unit-and-db-tests
     runs-on: ubuntu-latest
     services:
       postgres:
