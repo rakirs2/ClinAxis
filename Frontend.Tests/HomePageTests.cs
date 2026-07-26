@@ -121,6 +121,34 @@ public sealed class SearchPageTests
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
     }
 
+    [TestMethod]
+    public void SearchPageRendersBranchSelectorAndConditionAutocomplete()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        mockHttp.When("/api/distinct-conditions").Respond("application/json", JsonSerializer.Serialize(ConditionTestData));
+        mockHttp.When("/api/distinct-locations").Respond("application/json", JsonSerializer.Serialize(new
+        {
+            countries = CountryTestData,
+            states = EmptyArray,
+            cities = EmptyArray,
+            facilities = EmptyArray
+        }));
+        mockHttp.When("/api/mesh-tree*").Respond("application/json", "[]");
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        ctx.Services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(client));
+
+        ctx.JSInterop.SetupVoid("meshTree.render", _ => true);
+
+        IRenderedComponent<Frontend.Pages.Search> cut = ctx.Render<Frontend.Pages.Search>();
+
+        Assert.IsNotNull(cut.Find("select"));
+        Assert.IsNotNull(cut.Find("input[placeholder='Search condition name...']"));
+        Assert.IsTrue(cut.FindAll("option").Any(o => o.TextContent.Contains("Diseases", StringComparison.Ordinal)));
+        Assert.IsTrue(cut.FindAll("option").Any(o => o.TextContent.Contains("Anatomy", StringComparison.Ordinal)));
+    }
+
     private sealed class FakeHttpClientFactory : IHttpClientFactory
     {
         private readonly HttpClient _client;
