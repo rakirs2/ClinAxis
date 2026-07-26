@@ -444,6 +444,15 @@ public sealed class StudyRepositoryTests : DbTestBase
         Assert.IsTrue(keywords.Contains("HIV"));
         Assert.IsTrue(keywords.Contains("PARKINSON'S DISEASE"));
         Assert.IsTrue(keywords.Contains("EXERCISE"));
+
+        var rejectedKeywords = await Context.RejectedEntities
+            .Where(r => r.StudyNctId == "NCT00000903" && r.EntityType == "keyword")
+            .Select(r => r.Value)
+            .ToListAsync();
+
+        Assert.IsFalse(rejectedKeywords.Contains("CANCER"), "Condition-duplicate keyword should not appear in rejected_entities");
+        Assert.IsTrue(rejectedKeywords.Contains("TREATMENT"), "Blocklisted keyword should appear in rejected_entities");
+        Assert.IsTrue(rejectedKeywords.Contains("SAFETY"), "Blocklisted keyword should appear in rejected_entities");
     }
 
     [TestMethod]
