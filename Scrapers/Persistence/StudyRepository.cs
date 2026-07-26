@@ -285,6 +285,8 @@ namespace Scrapers.Persistence
                             .ToList();
 
                         var rejected = originalKeywords.Except(cleanedKeywords, StringComparer.OrdinalIgnoreCase).ToList();
+                        if (conditions != null)
+                            rejected = rejected.Where(k => !conditions.Contains(k)).ToList();
                         rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         foreach (var kw in cleanedKeywords)
