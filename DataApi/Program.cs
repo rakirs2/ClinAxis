@@ -47,8 +47,12 @@ await SeedMeshDescriptors(startupRepo);
 builder.Services.AddHealthChecks()
     .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
 builder.Services.AddMemoryCache();
-builder.Services.AddHttpClient<MeshTreeCacheRefreshService>();
-builder.Services.AddHostedService<MeshTreeCacheRefreshService>();
+
+var meshTreeStore = new MeshTreeStore(connectionString);
+await meshTreeStore.InitializeAsync();
+builder.Services.AddSingleton(meshTreeStore);
+
+builder.Services.AddHostedService<MeshTreeCountRefreshService>();
 
 WebApplication app = builder.Build();
 
@@ -104,24 +108,10 @@ app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country
     return Results.Ok(result);
 });
 
-// MeSH tree browser endpoint
-app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch, int minStudyCount = 0, int depth = 1) =>
+// MeSH tree browser endpoint — built from in-memory MeshTreeStore, no DB hit at request time
+app.MapGet("/api/mesh-tree", (string? branch, int minStudyCount = 0, int depth = 1) =>
 {
-    var cacheKey = $"mesh_tree_v3_{branch ?? "__root__"}_{minStudyCount}_{depth}";
-    if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
-        return Results.Ok(cached);
-
-    using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
-        .ConfigureNpgsql(connectionString).Options);
-
-    var allDescriptors = await ctx.MeshDescriptors
-        .Select(m => new
-        {
-            m.Name,
-            m.TreeNumbers,
-            StudyCount = m.StudyConditions!.Count,
-        })
-        .ToListAsync();
+    var (descriptors, counts) = meshTreeStore.Snapshot();
 
     object result;
 
@@ -150,11 +140,11 @@ app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch, int minS
         var rootNodes = categories
             .Select(c =>
             {
-                var studyCount = allDescriptors
+                var studyCount = descriptors
                     .Where(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.Ordinal)))
-                    .Sum(d => d.StudyCount);
-                var hasChildren = allDescriptors
-                    .Any(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.OrdinalIgnoreCase) && tn.Length > 1));
+                    .Sum(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0);
+                var hasChildren = descriptors
+                    .Any(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.Ordinal) && tn.Length > 1));
                 var children = depth > 1 && hasChildren ? GetBranchNodes(c.Prefix, depth - 1).ToArray() : null;
                 return new
                 {
@@ -176,15 +166,13 @@ app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch, int minS
         result = new { branch, nodes };
     }
 
-    var ttl = TimeSpan.FromMinutes(10);
-    cache.Set(cacheKey, result, ttl);
     return Results.Ok(result);
 
     List<object> GetBranchNodes(string currentBranch, int remainingDepth)
     {
         var isTopLevel = currentBranch.Length == 1;
         var prefix = isTopLevel ? currentBranch : currentBranch + ".";
-        var childBranches = allDescriptors
+        var childBranches = descriptors
             .SelectMany(d => d.TreeNumbers)
             .Where(tn => tn.StartsWith(prefix, StringComparison.Ordinal))
             .Select(tn =>
@@ -200,19 +188,19 @@ app.MapGet("/api/mesh-tree", async (IMemoryCache cache, string? branch, int minS
         var results = new List<object>();
         foreach (var childTn in childBranches)
         {
-            var matchingDescriptors = allDescriptors
+            var matchingDescriptors = descriptors
                 .Where(d => d.TreeNumbers.Any(tn =>
                     tn.Equals(childTn, StringComparison.Ordinal) ||
                     tn.StartsWith(childTn + ".", StringComparison.Ordinal)))
                 .ToList();
 
-            var studyCount = matchingDescriptors.Sum(d => d.StudyCount);
+            var studyCount = matchingDescriptors.Sum(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0);
             if (studyCount < minStudyCount)
                 continue;
 
-            var desc = matchingDescriptors.OrderByDescending(d => d.StudyCount).FirstOrDefault();
-            var hasChildren = allDescriptors.Any(d => d.TreeNumbers.Any(tn =>
-                tn.StartsWith(childTn + ".", StringComparison.Ordinal) && d.StudyCount > 0));
+            var desc = matchingDescriptors.OrderByDescending(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0).FirstOrDefault();
+            var hasChildren = descriptors.Any(d => d.TreeNumbers.Any(tn =>
+                tn.StartsWith(childTn + ".", StringComparison.Ordinal) && (counts.TryGetValue(d.Id, out var cnt) ? cnt : 0) > 0));
 
             object[]? children = null;
             if (remainingDepth > 1 && hasChildren)

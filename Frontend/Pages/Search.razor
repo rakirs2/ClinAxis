@@ -56,7 +56,45 @@
 
         <div class="row mb-3">
             <div class="col-md-12">
-                <label class="form-label">Diseases (MeSH)</label>
+                <label class="form-label">Conditions (MeSH)</label>
+                <div class="row mb-2">
+                    <div class="col-md-6">
+                        <select class="form-select" @onchange="HandleBranchChange">
+                            <option value="">-- All Categories --</option>
+                            @foreach (var b in availableBranches)
+                            {
+                                <option value="@b.Prefix" selected="@(selectedBranch == b.Prefix)">@b.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" placeholder="Search condition name..."
+                               value="@conditionSearchText"
+                               @oninput="OnConditionSearchInput" />
+                        @if (filteredConditions.Count > 0 && conditionSearchText.Length > 0)
+                        {
+                            <ul class="list-group position-absolute" style="z-index: 1000; max-height: 200px; overflow-y: auto; width: calc(50% - 30px);">
+                                @foreach (var c in filteredConditions.Take(20))
+                                {
+                                    <li class="list-group-item list-group-item-action" @onclick="() => AddCondition(c)" style="cursor: pointer; font-size: 0.9em;">
+                                        @c
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+                @if (criteria.Conditions.Count > 0)
+                {
+                    <div class="mb-2">
+                        @foreach (var c in criteria.Conditions)
+                        {
+                            <span class="badge bg-info me-1" style="font-size: 0.85em;">
+                                @c <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.6em;" @onclick="() => RemoveCondition(c)"></button>
+                            </span>
+                        }
+                    </div>
+                }
                 @if (loadingMeshTree)
                 {
                     <p class="text-muted"><small>Loading conditions...</small></p>
@@ -275,6 +313,34 @@ else if (searchExecuted && studies is not null)
     private DateTime? startDateFrom;
     private DateTime? startDateTo;
 
+    // MeSH branch selection
+    private string? selectedBranch;
+    private static readonly List<BranchInfo> availableBranches = new()
+    {
+        new("A", "Anatomy"),
+        new("B", "Organisms"),
+        new("C", "Diseases"),
+        new("D", "Chemicals and Drugs"),
+        new("E", "Techniques and Equipment"),
+        new("F", "Psychiatry and Psychology"),
+        new("G", "Phenomena and Processes"),
+        new("H", "Disciplines and Occupations"),
+        new("I", "Anthropology and Sociology"),
+        new("J", "Technology and Industry"),
+        new("K", "Humanities"),
+        new("L", "Information Science"),
+        new("M", "Named Groups"),
+        new("N", "Health Care"),
+        new("V", "Publication Characteristics"),
+        new("Z", "Geographicals"),
+    };
+
+    // Condition name autocomplete
+    private List<string> allConditions = new();
+    private string conditionSearchText = "";
+    private List<string> filteredConditions = new();
+    private bool _conditionsLoaded;
+
     private bool _treeRendered;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -288,18 +354,38 @@ else if (searchExecuted && studies is not null)
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadMeshTree();
+        await Task.WhenAll(LoadMeshTree(null), LoadAllConditions());
     }
 
-    private async Task LoadMeshTree()
+    private async Task LoadAllConditions()
+    {
+        if (_conditionsLoaded) return;
+        try
+        {
+            HttpClient client = HttpClientFactory.CreateClient("DataApi");
+            allConditions = await client.GetFromJsonAsync<List<string>>("/api/distinct-conditions") ?? new();
+            _conditionsLoaded = true;
+        }
+        catch
+        {
+            // Non-critical; autocomplete will just be unavailable
+        }
+    }
+
+    private async Task LoadMeshTree(string? branch)
     {
         loadingMeshTree = true;
         error = null;
+        _treeRendered = false;
 
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>("/api/mesh-tree?branch=C&minStudyCount=1&depth=5");
+            var branchParam = branch ?? "";
+            var url = string.IsNullOrEmpty(branchParam)
+                ? "/api/mesh-tree?minStudyCount=1&depth=5"
+                : $"/api/mesh-tree?branch={branchParam}&minStudyCount=1&depth=5";
+            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>(url);
             if (response?.Nodes is not null)
             {
                 meshTreeRoots = ConvertBranchNodes(response.Nodes);
@@ -325,6 +411,45 @@ else if (searchExecuted && studies is not null)
             HasChildren = n.HasChildren,
             Children = n.Children is { Count: > 0 } ? ConvertBranchNodes(n.Children) : null,
         }).ToList();
+    }
+
+    private async Task HandleBranchChange(ChangeEventArgs e)
+    {
+        selectedBranch = e.Value?.ToString();
+        criteria.MeshTreePrefixes.Clear();
+        await JS.InvokeVoidAsync("meshTree.clear", "meshTreeContainer");
+        await LoadMeshTree(selectedBranch);
+    }
+
+    private void OnConditionSearchInput(ChangeEventArgs e)
+    {
+        conditionSearchText = e.Value?.ToString() ?? "";
+        if (conditionSearchText.Length > 0)
+        {
+            filteredConditions = allConditions
+                .Where(c => c.Contains(conditionSearchText, StringComparison.OrdinalIgnoreCase))
+                .Take(20)
+                .ToList();
+        }
+        else
+        {
+            filteredConditions.Clear();
+        }
+    }
+
+    private void AddCondition(string condition)
+    {
+        if (!criteria.Conditions.Contains(condition))
+        {
+            criteria.Conditions.Add(condition);
+        }
+        conditionSearchText = "";
+        filteredConditions.Clear();
+    }
+
+    private void RemoveCondition(string condition)
+    {
+        criteria.Conditions.Remove(condition);
     }
 
     private async Task HandleCountryChange(ChangeEventArgs e)
@@ -501,6 +626,9 @@ else if (searchExecuted && studies is not null)
             if (criteria.MeshTreePrefixes.Count > 0)
                 queryParams.Add($"meshTree={Uri.EscapeDataString(string.Join(",", criteria.MeshTreePrefixes))}");
 
+            if (criteria.Conditions.Count > 0)
+                queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", criteria.Conditions))}");
+
             if (criteria.Countries.Length > 0 && !string.IsNullOrEmpty(criteria.Countries[0]))
                 queryParams.Add($"country={Uri.EscapeDataString(criteria.Countries[0])}");
 
@@ -546,12 +674,15 @@ else if (searchExecuted && studies is not null)
         }
     }
 
-    private void ResetFilters()
+    private async Task ResetFilters()
     {
         criteria = new();
         selectedCountry = null;
         selectedState = null;
         selectedCity = null;
+        selectedBranch = null;
+        conditionSearchText = "";
+        filteredConditions.Clear();
         startDateFrom = null;
         startDateTo = null;
         availableStates.Clear();
@@ -560,6 +691,8 @@ else if (searchExecuted && studies is not null)
         studies = null;
         searchExecuted = false;
         error = null;
+        await JS.InvokeVoidAsync("meshTree.clear", "meshTreeContainer");
+        await LoadMeshTree(null);
     }
 
     private static List<int?> GetPaginationRange(int current, int total, int maxVisible = 10)
@@ -610,6 +743,7 @@ else if (searchExecuted && studies is not null)
         public string? Keyword { get; set; }
         public List<string> Statuses { get; set; } = new();
         public List<string> Phases { get; set; } = new();
+        public List<string> Conditions { get; set; } = new();
         public List<string> MeshTreePrefixes { get; set; } = new();
         public string[] Countries { get; set; } = Array.Empty<string>();
         public string[] States { get; set; } = Array.Empty<string>();
@@ -648,4 +782,5 @@ else if (searchExecuted && studies is not null)
         public List<string>? facilities { get; set; }
     }
 
+    private record BranchInfo(string Prefix, string Name);
 }

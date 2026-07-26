@@ -66,6 +66,11 @@ window.meshTree = {
     }
   },
 
+  clear(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) container.innerHTML = '';
+  },
+
   _esc(s) {
     if (!s) return '';
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
