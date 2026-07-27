@@ -77,6 +77,7 @@ app.MapStatsEndpoints(connectionString);
 app.MapPipelineEndpoints(connectionString);
 app.MapTrainingExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
+app.MapInvestigatorFinderEndpoints(connectionString);
 
 await app.RunAsync();
 

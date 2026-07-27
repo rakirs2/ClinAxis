@@ -1,0 +1,136 @@
+@implements IDisposable
+
+<div class="mb-2">
+    <label class="form-label">@Label</label>
+    <div style="position:relative">
+        <input type="text" class="form-control" placeholder="@Placeholder"
+               value="@_searchText"
+               @oninput="OnSearchInput" />
+        @if (_loading)
+        {
+            <div class="spinner-border spinner-border-sm text-muted position-absolute" style="top:8px;right:8px" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        }
+        @if (_results.Count > 0 && _searchText.Length >= 2)
+        {
+            <ul class="list-group position-absolute" style="z-index:1000;max-height:200px;overflow-y:auto;width:100%">
+                @foreach (var r in _results)
+                {
+                    <li class="list-group-item list-group-item-action" @onclick="() => SelectResult(r)" style="cursor:pointer;font-size:0.9em">
+                        <strong>@r.name</strong> <span class="text-muted">(@r.treeNumber)</span>
+                        <span class="badge bg-secondary float-end">@r.studyCount</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+    @if (_selected.Count > 0)
+    {
+        <div class="mt-2">
+            @foreach (var s in _selected)
+            {
+                <span class="badge bg-info me-1" style="font-size:0.85em">
+                    @s.name <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.6em" @onclick="() => RemoveResult(s)"></button>
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Branch { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "";
+
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ILogger<SearchableTagSelector> Logger { get; set; } = null!;
+
+    private string _searchText = "";
+    private List<MeshSearchResult> _results = new();
+    private List<MeshSearchResult> _selected = new();
+    private bool _loading;
+    private CancellationTokenSource? _cts;
+
+    public List<string> GetSelectedTreeNumbers()
+    {
+        return _selected.Select(s => s.treeNumber).ToList();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrWhiteSpace(Branch))
+            Logger.LogWarning("SearchableTagSelector: Branch parameter is empty");
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchText = e.Value?.ToString() ?? "";
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        if (string.IsNullOrWhiteSpace(_searchText) || _searchText.Length < 2)
+        {
+            _results.Clear();
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            await Task.Delay(200, token);
+            if (token.IsCancellationRequested) return;
+
+            var client = HttpClientFactory.CreateClient("DataApi");
+            var results = await client.GetFromJsonAsync<List<MeshSearchResult>>(
+                $"/api/mesh-tree/search?q={Uri.EscapeDataString(_searchText)}&branch={Branch}&maxResults=20", token);
+
+            if (!token.IsCancellationRequested)
+            {
+                _results = results ?? new();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "SearchableTagSelector: search failed for query={Query}, branch={Branch}", _searchText, Branch);
+            _results = new();
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested) _loading = false;
+        }
+    }
+
+    private void SelectResult(MeshSearchResult item)
+    {
+        if (!_selected.Any(s => s.descriptorId == item.descriptorId))
+        {
+            _selected.Add(item);
+        }
+        _searchText = "";
+        _results.Clear();
+    }
+
+    private void RemoveResult(MeshSearchResult item)
+    {
+        _selected.Remove(item);
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private class MeshSearchResult
+    {
+        public int descriptorId { get; set; }
+        public string name { get; set; } = "";
+        public string treeNumber { get; set; } = "";
+        public int studyCount { get; set; }
+    }
+}

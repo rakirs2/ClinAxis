@@ -167,12 +167,27 @@ namespace Scrapers.Models.ClinicalTrialsGov
         {
             [JsonPropertyName("armGroups")]
             public List<ArmGroup>? ArmGroups { get; set; }
+
+            [JsonPropertyName("interventions")]
+            public List<Intervention>? Interventions { get; set; }
         }
 
         public class ArmGroup
         {
             [JsonPropertyName("label")]
             public string? Label { get; set; }
+
+            [JsonPropertyName("type")]
+            public string? Type { get; set; }
+
+            [JsonPropertyName("description")]
+            public string? Description { get; set; }
+        }
+
+        public class Intervention
+        {
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
 
             [JsonPropertyName("type")]
             public string? Type { get; set; }
@@ -373,6 +388,12 @@ namespace Scrapers.Models.ClinicalTrialsGov
                         Label = a.Label,
                         Type = a.Type,
                         Description = a.Description
+                    }).ToList(),
+                    Interventions = ps.ArmsInterventionsModule?.Interventions?.Select(i => new ClinicalTrialRecord.Intervention
+                    {
+                        Name = i.Name,
+                        Type = i.Type,
+                        Description = i.Description
                     }).ToList()
                 };
         }

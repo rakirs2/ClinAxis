@@ -36,6 +36,7 @@ namespace Scrapers.Models.ClinicalTrialsGov
         public List<Outcome>? PrimaryOutcomes { get; set; }
         public List<Outcome>? SecondaryOutcomes { get; set; }
         public List<ArmGroup>? ArmGroups { get; set; }
+        public List<Intervention>? Interventions { get; set; }
 
         public class Reference
         {
@@ -54,6 +55,13 @@ namespace Scrapers.Models.ClinicalTrialsGov
         public class ArmGroup
         {
             public string? Label { get; set; }
+            public string? Type { get; set; }
+            public string? Description { get; set; }
+        }
+
+        public class Intervention
+        {
+            public string? Name { get; set; }
             public string? Type { get; set; }
             public string? Description { get; set; }
         }

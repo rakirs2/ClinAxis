@@ -1,0 +1,232 @@
+@page "/investigator-finder"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Web
+@using Frontend.Components
+@inject IHttpClientFactory HttpClientFactory
+@inject ILogger<InvestigatorFinder> Logger
+
+<h1>Investigator Finder</h1>
+
+<div class="card mb-4">
+    <div class="card-header"><h5>Filter by Dimensions</h5></div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Condition (MeSH C)</label>
+                <SearchableTagSelector @ref="_conditionSelector" Branch="C" Label="Condition" Placeholder="Search conditions..." />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Drug / Agent Type (MeSH D)</label>
+                <SearchableTagSelector @ref="_drugSelector" Branch="D" Label="Drug/Agent" Placeholder="Search drugs..." />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Therapy Type (MeSH E)</label>
+                <SearchableTagSelector @ref="_therapySelector" Branch="E" Label="Therapy" Placeholder="Search therapies..." />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <button class="btn btn-primary" @onclick="FindInvestigators" disabled="@(_loading)">
+                    @if (_loading) { <span>Searching...</span> } else { <span>Find Investigators</span> }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_result is not null)
+{
+    <p class="text-muted">Found @_result.totalCandidates candidates, showing top @_result.investigators.Count</p>
+
+    @if (_result.investigators.Count == 0)
+    {
+        <p class="text-muted">No investigators matched your filters.</p>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var inv in _result.investigators)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <h5 class="card-title">
+                                    <a href="/investigators/@inv.uuid">@inv.name</a>
+                                </h5>
+                                <span class="badge bg-primary fs-6">@(inv.score.ToString("F2"))</span>
+                            </div>
+                            <p class="card-text text-muted">@inv.primaryAffiliation</p>
+
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small">
+                                    <span>Relevance</span><span>@inv.factors.relevance.ToString("F2")</span>
+                                </div>
+                                <div class="progress mb-1" style="height:6px;">
+                                    <div class="progress-bar bg-success" style="width: @(inv.factors.relevance * 100)%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Experience</span><span>@inv.factors.experience.ToString("F2")</span>
+                                </div>
+                                <div class="progress mb-1" style="height:6px;">
+                                    <div class="progress-bar bg-info" style="width: @(inv.factors.experience * 100)%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Publication</span><span>@inv.factors.publication.ToString("F2")</span>
+                                </div>
+                                <div class="progress mb-1" style="height:6px;">
+                                    <div class="progress-bar bg-warning" style="width: @(inv.factors.publication * 100)%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Network</span><span>@inv.factors.network.ToString("F2")</span>
+                                </div>
+                                <div class="progress mb-1" style="height:6px;">
+                                    <div class="progress-bar bg-secondary" style="width: @(inv.factors.network * 100)%"></div>
+                                </div>
+                            </div>
+
+                            <div class="small text-muted">
+                                @inv.details.studyCount studies · @inv.details.completedStudies completed
+                                @if (inv.details.hIndex.HasValue) { <span>· h-index @inv.details.hIndex</span> }
+                                @if (inv.details.paperCount.HasValue) { <span>· @inv.details.paperCount papers</span> }
+                                @if (inv.details.enrollmentTotal.HasValue) { <span>· @inv.details.enrollmentTotal enrolled</span> }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private SearchableTagSelector? _conditionSelector;
+    private SearchableTagSelector? _drugSelector;
+    private SearchableTagSelector? _therapySelector;
+    private bool _loading;
+    private string? _error;
+    private FinderResponse? _result;
+
+    protected override void OnInitialized()
+    {
+        Logger.LogInformation("InvestigatorFinder initialized");
+    }
+
+    private async Task FindInvestigators()
+    {
+        Logger.LogInformation("FindInvestigators called");
+        if (_loading) return;
+        _loading = true;
+        _error = null;
+        _result = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("DataApi");
+            var conditionPrefixes = _conditionSelector?.GetSelectedTreeNumbers();
+            var drugPrefixes = _drugSelector?.GetSelectedTreeNumbers();
+            var therapyPrefixes = _therapySelector?.GetSelectedTreeNumbers();
+
+            Logger.LogInformation("Selections: cond={Cond}, drug={Drug}, therapy={Therapy}",
+                conditionPrefixes is null ? "null" : string.Join(",", conditionPrefixes),
+                drugPrefixes is null ? "null" : string.Join(",", drugPrefixes),
+                therapyPrefixes is null ? "null" : string.Join(",", therapyPrefixes));
+
+            if ((conditionPrefixes == null || conditionPrefixes.Count == 0) &&
+                (drugPrefixes == null || drugPrefixes.Count == 0) &&
+                (therapyPrefixes == null || therapyPrefixes.Count == 0))
+            {
+                _error = "Please select at least one filter from any dimension.";
+                _loading = false;
+                return;
+            }
+
+            var request = new
+            {
+                conditionTreePrefixes = conditionPrefixes,
+                drugTreePrefixes = drugPrefixes,
+                therapyTreePrefixes = therapyPrefixes,
+                topN = 20
+            };
+
+            Logger.LogInformation("Sending POST to /api/investigator-finder");
+            var response = await client.PostAsJsonAsync("/api/investigator-finder", request);
+            Logger.LogInformation("Response status: {Status}", response.StatusCode);
+            if (response.IsSuccessStatusCode)
+            {
+                _result = await response.Content.ReadFromJsonAsync<FinderResponse>();
+                Logger.LogInformation("Deserialized result: {Result} (investigators={Count})",
+                    _result is null ? "null" : "ok",
+                    _result?.investigators?.Count ?? -1);
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Non-success response: {Status}, body={Body}", response.StatusCode, body);
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                _error = err?.error ?? $"Request failed: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "FindInvestigators exception");
+            _error = $"Failed to find investigators: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+
+    private class FinderResponse
+    {
+        public List<InvestigatorRank> investigators { get; set; } = new();
+        public int totalCandidates { get; set; }
+    }
+
+    private class InvestigatorRank
+    {
+        public Guid uuid { get; set; }
+        public string? name { get; set; }
+        public string? primaryAffiliation { get; set; }
+        public double score { get; set; }
+        public ScoreFactors factors { get; set; } = new();
+        public InvestigatorDetails details { get; set; } = new();
+    }
+
+    private class ScoreFactors
+    {
+        public double relevance { get; set; }
+        public double experience { get; set; }
+        public double publication { get; set; }
+        public double network { get; set; }
+    }
+
+    private class InvestigatorDetails
+    {
+        public int studyCount { get; set; }
+        public int completedStudies { get; set; }
+        public int? enrollmentTotal { get; set; }
+        public int? hIndex { get; set; }
+        public int? paperCount { get; set; }
+    }
+
+    private class ErrorResponse
+    {
+        public string? error { get; set; }
+    }
+}
