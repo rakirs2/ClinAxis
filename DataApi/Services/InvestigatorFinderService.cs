@@ -19,9 +19,9 @@ internal class InvestigatorFinderService
         var repo = new StudyRepository(_connectionString);
 
         var candidates = await repo.GetInvestigatorFinderCandidatesAsync(
-            request.ConditionTreePrefix,
-            request.DrugTreePrefix,
-            request.TherapyTreePrefix,
+            request.ConditionTreePrefixes,
+            request.DrugTreePrefixes,
+            request.TherapyTreePrefixes,
             request.TopN);
 
         var ranked = candidates

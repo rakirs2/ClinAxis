@@ -2038,21 +2038,32 @@ namespace Scrapers.Persistence
         }
 
         public async Task<List<InvestigatorFinderCandidate>> GetInvestigatorFinderCandidatesAsync(
-            string? conditionTreePrefix,
-            string? drugTreePrefix,
-            string? therapyTreePrefix,
+            IReadOnlyList<string>? conditionTreePrefixes,
+            IReadOnlyList<string>? drugTreePrefixes,
+            IReadOnlyList<string>? therapyTreePrefixes,
             int topN,
             CancellationToken cancellationToken = default)
         {
             using var ctx = CreateContext();
 
+            var allPrefixes = new List<string>();
+            if (conditionTreePrefixes?.Count > 0) allPrefixes.AddRange(conditionTreePrefixes);
+            if (drugTreePrefixes?.Count > 0) allPrefixes.AddRange(drugTreePrefixes);
+            if (therapyTreePrefixes?.Count > 0) allPrefixes.AddRange(therapyTreePrefixes);
+
+            if (allPrefixes.Count == 0)
+                return [];
+
+            var expandedPrefixes = allPrefixes
+                .SelectMany(ExpandPrefix)
+                .Distinct()
+                .ToList();
+
             var query = ctx.InvestigatorPersons
                 .Where(ip => ip.StudyInvestigators!.Any(si =>
                     si.Study!.Conditions!.Any(c => c.MeshDescriptor != null &&
                         c.MeshDescriptor.TreeNumberPaths!.Any(tnp =>
-                            (conditionTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, conditionTreePrefix + "%")) ||
-                            (drugTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, drugTreePrefix + "%")) ||
-                            (therapyTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, therapyTreePrefix + "%"))
+                            expandedPrefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%"))
                         ))
                 ));
 
@@ -2081,6 +2092,24 @@ namespace Scrapers.Persistence
                 .ConfigureAwait(false);
 
             return candidates;
+        }
+
+        private static IEnumerable<string> ExpandPrefix(string treeNumber)
+        {
+            yield return treeNumber;
+            var parts = treeNumber.Split('.');
+            if (parts.Length > 1)
+            {
+                yield return parts[0];
+                for (int i = 2; i < parts.Length; i++)
+                {
+                    yield return string.Join('.', parts, 0, i);
+                }
+            }
+            else if (treeNumber.Length == 1)
+            {
+                yield break;
+            }
         }
 
         private int GetMeshDescriptorId(string cui)
