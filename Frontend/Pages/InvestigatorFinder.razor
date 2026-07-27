@@ -1,11 +1,9 @@
 @page "/investigator-finder"
 @using System.Net.Http.Json
-@using Frontend.Pages
-@using System.Text.Json.Serialization
+@using Microsoft.AspNetCore.Components.Web
 @using Frontend.Components
 @inject IHttpClientFactory HttpClientFactory
 @inject ILogger<InvestigatorFinder> Logger
-@implements IAsyncDisposable
 
 <h1>Investigator Finder</h1>
 
@@ -29,7 +27,7 @@
 
         <div class="row">
             <div class="col-md-12">
-                <button class="btn btn-primary" disabled="@_loading" @onclick="FindInvestigators">
+                <button class="btn btn-primary" @onclick="FindInvestigators" disabled="@(_loading)">
                     @if (_loading) { <span>Searching...</span> } else { <span>Find Investigators</span> }
                 </button>
             </div>
@@ -37,9 +35,7 @@
     </div>
 </div>
 
-<div class="mt-3">
-    <p class="text-muted">Debug: _loading=@_loading _error=@(_error??"null") _result=@(_result is null ? "null" : "ok")</p>
-</div>
+
 
 @if (_loading)
 {
@@ -53,60 +49,60 @@ else if (_error is not null)
 }
 else if (_result is not null)
 {
-    <p class="text-muted">Found @_result.TotalCandidates candidates, showing top @_result.Investigators.Count</p>
+    <p class="text-muted">Found @_result.totalCandidates candidates, showing top @_result.investigators.Count</p>
 
-    @if (_result.Investigators.Count == 0)
+    @if (_result.investigators.Count == 0)
     {
         <p class="text-muted">No investigators matched your filters.</p>
     }
     else
     {
         <div class="row">
-            @foreach (var inv in _result.Investigators)
+            @foreach (var inv in _result.investigators)
             {
                 <div class="col-md-6 mb-3">
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <h5 class="card-title">
-                                    <a href="/investigators/@inv.Uuid">@inv.Name</a>
+                                    <a href="/investigators/@inv.uuid">@inv.name</a>
                                 </h5>
-                                <span class="badge bg-primary fs-6">@(inv.Score.ToString("F2"))</span>
+                                <span class="badge bg-primary fs-6">@(inv.score.ToString("F2"))</span>
                             </div>
-                            <p class="card-text text-muted">@inv.PrimaryAffiliation</p>
+                            <p class="card-text text-muted">@inv.primaryAffiliation</p>
 
                             <div class="mb-2">
                                 <div class="d-flex justify-content-between small">
-                                    <span>Relevance</span><span>@inv.Factors.Relevance.ToString("F2")</span>
+                                    <span>Relevance</span><span>@inv.factors.relevance.ToString("F2")</span>
                                 </div>
                                 <div class="progress mb-1" style="height:6px;">
-                                    <div class="progress-bar bg-success" style="width: @(inv.Factors.Relevance * 100)%"></div>
+                                    <div class="progress-bar bg-success" style="width: @(inv.factors.relevance * 100)%"></div>
                                 </div>
                                 <div class="d-flex justify-content-between small">
-                                    <span>Experience</span><span>@inv.Factors.Experience.ToString("F2")</span>
+                                    <span>Experience</span><span>@inv.factors.experience.ToString("F2")</span>
                                 </div>
                                 <div class="progress mb-1" style="height:6px;">
-                                    <div class="progress-bar bg-info" style="width: @(inv.Factors.Experience * 100)%"></div>
+                                    <div class="progress-bar bg-info" style="width: @(inv.factors.experience * 100)%"></div>
                                 </div>
                                 <div class="d-flex justify-content-between small">
-                                    <span>Publication</span><span>@inv.Factors.Publication.ToString("F2")</span>
+                                    <span>Publication</span><span>@inv.factors.publication.ToString("F2")</span>
                                 </div>
                                 <div class="progress mb-1" style="height:6px;">
-                                    <div class="progress-bar bg-warning" style="width: @(inv.Factors.Publication * 100)%"></div>
+                                    <div class="progress-bar bg-warning" style="width: @(inv.factors.publication * 100)%"></div>
                                 </div>
                                 <div class="d-flex justify-content-between small">
-                                    <span>Network</span><span>@inv.Factors.Network.ToString("F2")</span>
+                                    <span>Network</span><span>@inv.factors.network.ToString("F2")</span>
                                 </div>
                                 <div class="progress mb-1" style="height:6px;">
-                                    <div class="progress-bar bg-secondary" style="width: @(inv.Factors.Network * 100)%"></div>
+                                    <div class="progress-bar bg-secondary" style="width: @(inv.factors.network * 100)%"></div>
                                 </div>
                             </div>
 
                             <div class="small text-muted">
-                                @inv.Details.StudyCount studies · @inv.Details.CompletedStudies completed
-                                @if (inv.Details.HIndex.HasValue) { <span>· h-index @inv.Details.HIndex</span> }
-                                @if (inv.Details.PaperCount.HasValue) { <span>· @inv.Details.PaperCount papers</span> }
-                                @if (inv.Details.EnrollmentTotal.HasValue) { <span>· @inv.Details.EnrollmentTotal enrolled</span> }
+                                @inv.details.studyCount studies · @inv.details.completedStudies completed
+                                @if (inv.details.hIndex.HasValue) { <span>· h-index @inv.details.hIndex</span> }
+                                @if (inv.details.paperCount.HasValue) { <span>· @inv.details.paperCount papers</span> }
+                                @if (inv.details.enrollmentTotal.HasValue) { <span>· @inv.details.enrollmentTotal enrolled</span> }
                             </div>
                         </div>
                     </div>
@@ -132,6 +128,7 @@ else if (_result is not null)
     private async Task FindInvestigators()
     {
         Logger.LogInformation("FindInvestigators called");
+        if (_loading) return;
         _loading = true;
         _error = null;
         _result = null;
@@ -173,7 +170,7 @@ else if (_result is not null)
                 _result = await response.Content.ReadFromJsonAsync<FinderResponse>();
                 Logger.LogInformation("Deserialized result: {Result} (investigators={Count})",
                     _result is null ? "null" : "ok",
-                    _result?.Investigators?.Count ?? -1);
+                    _result?.investigators?.Count ?? -1);
             }
             else
             {
@@ -194,43 +191,38 @@ else if (_result is not null)
         }
     }
 
-    public ValueTask DisposeAsync()
-    {
-        Logger.LogInformation("InvestigatorFinder disposed");
-        return ValueTask.CompletedTask;
-    }
 
     private class FinderResponse
     {
-        public List<InvestigatorRank> Investigators { get; set; } = new();
-        public int TotalCandidates { get; set; }
+        public List<InvestigatorRank> investigators { get; set; } = new();
+        public int totalCandidates { get; set; }
     }
 
     private class InvestigatorRank
     {
-        public Guid Uuid { get; set; }
-        public string? Name { get; set; }
-        public string? PrimaryAffiliation { get; set; }
-        public double Score { get; set; }
-        public ScoreFactors Factors { get; set; } = new();
-        public InvestigatorDetails Details { get; set; } = new();
+        public Guid uuid { get; set; }
+        public string? name { get; set; }
+        public string? primaryAffiliation { get; set; }
+        public double score { get; set; }
+        public ScoreFactors factors { get; set; } = new();
+        public InvestigatorDetails details { get; set; } = new();
     }
 
     private class ScoreFactors
     {
-        public double Relevance { get; set; }
-        public double Experience { get; set; }
-        public double Publication { get; set; }
-        public double Network { get; set; }
+        public double relevance { get; set; }
+        public double experience { get; set; }
+        public double publication { get; set; }
+        public double network { get; set; }
     }
 
     private class InvestigatorDetails
     {
-        public int StudyCount { get; set; }
-        public int CompletedStudies { get; set; }
-        public int? EnrollmentTotal { get; set; }
-        public int? HIndex { get; set; }
-        public int? PaperCount { get; set; }
+        public int studyCount { get; set; }
+        public int completedStudies { get; set; }
+        public int? enrollmentTotal { get; set; }
+        public int? hIndex { get; set; }
+        public int? paperCount { get; set; }
     }
 
     private class ErrorResponse
