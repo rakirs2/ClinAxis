@@ -1,6 +1,7 @@
 using System.Reflection;
 using DataApi;
 using DataApi.Endpoints;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scrapers;
 using Scrapers.Persistence;
@@ -78,6 +79,12 @@ app.MapPipelineEndpoints(connectionString);
 app.MapTrainingExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
 app.MapInvestigatorFinderEndpoints(connectionString);
+
+// Pre-warm the mesh-tree cache so the first user doesn't hit cold compute
+var warmupCache = app.Services.GetRequiredService<IMemoryCache>();
+var (warmupDesc, warmupCounts) = meshTreeStore.Snapshot();
+var warmupResult = DataApi.Endpoints.StudiesEndpoints.ComputeMeshTree(warmupDesc, warmupCounts, null, 1, 5);
+warmupCache.Set("mesh-tree|__root__|1|5", warmupResult, TimeSpan.FromMinutes(2));
 
 await app.RunAsync();
 
