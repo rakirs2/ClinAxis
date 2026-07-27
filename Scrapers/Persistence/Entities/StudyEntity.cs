@@ -43,5 +43,6 @@ namespace Scrapers.Persistence.Entities
         public ICollection<StudyReferenceEntity>? References { get; set; }
         public ICollection<StudyOutcomeEntity>? Outcomes { get; set; }
         public ICollection<StudyArmGroupEntity>? ArmGroups { get; set; }
+        public ICollection<StudyInterventionEntity>? Interventions { get; set; }
     }
 }

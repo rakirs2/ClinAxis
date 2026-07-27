@@ -377,6 +377,35 @@ namespace Scrapers.Persistence
                     }
                 }
 
+                if (record.Interventions != null)
+                {
+                    entity.Interventions ??= new List<StudyInterventionEntity>();
+                    foreach (var intervention in record.Interventions)
+                    {
+                        if (string.IsNullOrWhiteSpace(intervention.Name)) continue;
+                        var trimmed = intervention.Name.Trim();
+                        int? descId = null;
+                        if (_meshMatcher != null)
+                        {
+                            var match = _meshMatcher.Match(trimmed, "intervention", record.NctId!);
+                            meshMatchResults.Add(match);
+                            if (match.Accepted)
+                            {
+                                var foundId = GetMeshDescriptorId(match.MeshCui);
+                                if (foundId > 0) descId = foundId;
+                            }
+                        }
+                        entity.Interventions.Add(new StudyInterventionEntity
+                        {
+                            StudyNctId = record.NctId!,
+                            InterventionName = trimmed,
+                            InterventionType = intervention.Type,
+                            Description = intervention.Description,
+                            MeshDescriptorId = descId
+                        });
+                    }
+                }
+
                 // Populate references from API response (fix data loss + eliminate redundant CT.gov per-study call)
                 entity.References!.Clear();
                 if (record.References != null && record.References.Count > 0)
@@ -818,7 +847,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
+                        c.MeshDescriptor.TreeNumberPaths != null && c.MeshDescriptor.TreeNumberPaths.Any(tnp => prefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%")))));
                 }
             }
 
@@ -895,7 +924,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
+                        c.MeshDescriptor.TreeNumberPaths != null && c.MeshDescriptor.TreeNumberPaths.Any(tnp => prefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%")))));
                 }
             }
 
@@ -1084,7 +1113,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
+                        c.MeshDescriptor.TreeNumberPaths != null && c.MeshDescriptor.TreeNumberPaths.Any(tnp => prefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%")))));
                 }
             }
 
@@ -1259,7 +1288,7 @@ namespace Scrapers.Persistence
                 {
                     query = query.Where(s => s.Conditions!.Any(c =>
                         c.MeshDescriptor != null &&
-                        c.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
+                        c.MeshDescriptor.TreeNumberPaths != null && c.MeshDescriptor.TreeNumberPaths.Any(tnp => prefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%")))));
                 }
             }
 
@@ -2008,6 +2037,52 @@ namespace Scrapers.Persistence
             };
         }
 
+        public async Task<List<InvestigatorFinderCandidate>> GetInvestigatorFinderCandidatesAsync(
+            string? conditionTreePrefix,
+            string? drugTreePrefix,
+            string? therapyTreePrefix,
+            int topN,
+            CancellationToken cancellationToken = default)
+        {
+            using var ctx = CreateContext();
+
+            var query = ctx.InvestigatorPersons
+                .Where(ip => ip.StudyInvestigators!.Any(si =>
+                    si.Study!.Conditions!.Any(c => c.MeshDescriptor != null &&
+                        c.MeshDescriptor.TreeNumberPaths!.Any(tnp =>
+                            (conditionTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, conditionTreePrefix + "%")) ||
+                            (drugTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, drugTreePrefix + "%")) ||
+                            (therapyTreePrefix != null && EF.Functions.Like(tnp.TreeNumber, therapyTreePrefix + "%"))
+                        ))
+                ));
+
+            var candidates = await query
+                .Select(ip => new InvestigatorFinderCandidate
+                {
+                    Uuid = ip.Id,
+                    Name = ip.FullName,
+                    PrimaryAffiliation = ip.Affiliations!
+                        .Where(a => a.IsPrimary)
+                        .Select(a => a.InstitutionName)
+                        .FirstOrDefault(),
+                    StudyCount = ip.StudyInvestigators!.Count,
+                    CompletedStudies = ip.StudyInvestigators!
+                        .Count(si => si.Study!.OverallStatus == "COMPLETED"),
+                    EnrollmentTotal = ip.StudyInvestigators!
+                        .Sum(si => (int?)si.Study!.EnrollmentCount),
+                    HIndex = ip.Metrics!
+                        .Where(m => m.Source == "SemanticScholar")
+                        .Select(m => (int?)m.HIndex)
+                        .FirstOrDefault(),
+                    PaperCount = ip.InvestigatorPapers!.Count,
+                })
+                .Take(topN * 3)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return candidates;
+        }
+
         private int GetMeshDescriptorId(string cui)
         {
             if (_meshDescriptorIdCache.TryGetValue(cui, out var id))
@@ -2067,5 +2142,17 @@ namespace Scrapers.Persistence
         public string? PrimaryAffiliation { get; set; }
         public int StudyCount { get; set; }
         public int PaperCount { get; set; }
+    }
+
+    public class InvestigatorFinderCandidate
+    {
+        public Guid Uuid { get; set; }
+        public string? Name { get; set; }
+        public string? PrimaryAffiliation { get; set; }
+        public int StudyCount { get; set; }
+        public int CompletedStudies { get; set; }
+        public int? EnrollmentTotal { get; set; }
+        public int? HIndex { get; set; }
+        public int? PaperCount { get; set; }
     }
 }

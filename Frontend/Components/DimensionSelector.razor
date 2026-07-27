@@ -1,0 +1,181 @@
+@using System.Net.Http.Json
+@using Frontend.Pages
+@inject IHttpClientFactory HttpClientFactory
+
+<div>
+    <select class="form-select mb-2" @onchange="HandleCategoryChange">
+        <option value="">-- Select Category --</option>
+        @foreach (var b in _branches)
+        {
+            <option value="@b.Prefix" selected="@(_selectedCategory == b.Prefix)">@b.Name</option>
+        }
+    </select>
+
+    @if (_isLoading)
+    {
+        <div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>
+    }
+    else if (_nodes.Count > 0)
+    {
+        <select class="form-select mb-2" @onchange="HandleNodeChange">
+            <option value="">-- Select --</option>
+            @foreach (var n in _nodes)
+            {
+                <option value="@n.TreeNumber" selected="@(_selectedNode == n.TreeNumber)">@n.Name (@n.TreeNumber)</option>
+            }
+        </select>
+    }
+
+    @if (_children.Count > 0)
+    {
+        <select class="form-select mb-2" @onchange="HandleChildChange">
+            <option value="">-- Sub-select --</option>
+            @foreach (var n in _children)
+            {
+                <option value="@n.TreeNumber" selected="@(_selectedChild == n.TreeNumber)">@n.Name (@n.TreeNumber)</option>
+            }
+        </select>
+    }
+
+    @if (!string.IsNullOrEmpty(_selectedPrefix))
+    {
+        <div class="small text-muted mt-1">
+            Selected: <strong>@_selectedPrefix</strong>
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="Clear">Clear</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Branch { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+
+    private static readonly List<(string Prefix, string Name)> _branches = new()
+    {
+        ("A", "Anatomy"),
+        ("B", "Organisms"),
+        ("C", "Diseases"),
+        ("D", "Chemicals and Drugs"),
+        ("E", "Techniques and Equipment"),
+        ("F", "Psychiatry and Psychology"),
+        ("G", "Phenomena and Processes"),
+        ("H", "Disciplines and Occupations"),
+        ("I", "Anthropology and Sociology"),
+        ("J", "Technology and Industry"),
+        ("K", "Humanities"),
+        ("L", "Information Science"),
+        ("M", "Named Groups"),
+        ("N", "Health Care"),
+        ("V", "Publication Characteristics"),
+        ("Z", "Geographicals"),
+    };
+
+    private string? _selectedCategory;
+    private string? _selectedNode;
+    private string? _selectedChild;
+    private string? _selectedPrefix;
+    private bool _isLoading;
+    private List<MeshTreeBranchNode> _nodes = new();
+    private List<MeshTreeBranchNode> _children = new();
+    private string? _lastFetchedBranch;
+
+    public string? GetSelectedPrefix() => _selectedPrefix;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Branch))
+        {
+            _selectedCategory = Branch;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_selectedCategory != null && _lastFetchedBranch != _selectedCategory)
+        {
+            _lastFetchedBranch = _selectedCategory;
+            await LoadNodes(_selectedCategory);
+        }
+    }
+
+    private async Task HandleCategoryChange(ChangeEventArgs e)
+    {
+        _selectedCategory = e.Value?.ToString();
+        _selectedNode = null;
+        _selectedChild = null;
+        _selectedPrefix = null;
+        _nodes.Clear();
+        _children.Clear();
+        _lastFetchedBranch = null;
+    }
+
+    private async Task HandleNodeChange(ChangeEventArgs e)
+    {
+        _selectedNode = e.Value?.ToString();
+        _selectedChild = null;
+        _selectedPrefix = _selectedNode;
+        if (_selectedNode != null)
+        {
+            await LoadChildren(_selectedNode);
+        }
+    }
+
+    private async Task HandleChildChange(ChangeEventArgs e)
+    {
+        _selectedChild = e.Value?.ToString();
+        _selectedPrefix = _selectedChild;
+        if (_selectedChild != null)
+        {
+            await LoadChildren(_selectedChild);
+        }
+    }
+
+    private void Clear()
+    {
+        _selectedNode = null;
+        _selectedChild = null;
+        _selectedPrefix = null;
+        _nodes.Clear();
+        _children.Clear();
+    }
+
+    private async Task LoadNodes(string branch)
+    {
+        _isLoading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("DataApi");
+            var url = $"/api/mesh-tree?branch={branch}&depth=1&minStudyCount=0";
+            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>(url);
+            _nodes = response?.Nodes ?? new();
+        }
+        catch
+        {
+            _nodes = new();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadChildren(string prefix)
+    {
+        _isLoading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("DataApi");
+            var url = $"/api/mesh-tree?branch={prefix}&depth=1&minStudyCount=0";
+            var response = await client.GetFromJsonAsync<MeshTreeBranchResponse>(url);
+            _children = response?.Nodes ?? new();
+        }
+        catch
+        {
+            _children = new();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

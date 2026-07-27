@@ -13,5 +13,7 @@ namespace Scrapers.Persistence.Entities
         public string Category { get; set; } = string.Empty;
 
         public ICollection<StudyConditionEntity>? StudyConditions { get; set; }
+        public ICollection<StudyInterventionEntity>? StudyInterventions { get; set; }
+        public ICollection<MeshTreePathEntity>? TreeNumberPaths { get; set; }
     }
 }
