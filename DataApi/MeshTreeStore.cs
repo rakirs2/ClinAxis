@@ -17,11 +17,14 @@ internal sealed class MeshTreeStore
     private record TreeCacheEntry(object Result, DateTime CachedAt);
     private readonly ConcurrentDictionary<string, TreeCacheEntry> _treeCache = new();
     private readonly ConcurrentDictionary<string, byte> _refreshInProgress = new();
-    private static readonly TimeSpan TreeCacheTtl = TimeSpan.FromMinutes(10);
+    private readonly TimeSpan _cacheTtl;
 
-    public MeshTreeStore(string connectionString)
+    public MeshTreeStore(string connectionString) : this(connectionString, TimeSpan.FromMinutes(10)) { }
+
+    internal MeshTreeStore(string connectionString, TimeSpan cacheTtl)
     {
         _connectionString = connectionString;
+        _cacheTtl = cacheTtl;
     }
 
     public async Task InitializeAsync()
@@ -53,11 +56,20 @@ internal sealed class MeshTreeStore
         }
     }
 
+    internal void SetTestData(List<DescriptorInfo> descriptors, Dictionary<int, int> studyCounts)
+    {
+        lock (_lock)
+        {
+            _descriptors = descriptors;
+            _studyCounts = studyCounts;
+        }
+    }
+
     public object GetOrBuildTree(string key, Func<object> builder)
     {
         if (_treeCache.TryGetValue(key, out var entry))
         {
-            if (DateTime.UtcNow - entry.CachedAt < TreeCacheTtl)
+            if (DateTime.UtcNow - entry.CachedAt < _cacheTtl)
                 return entry.Result;
 
             if (_refreshInProgress.TryAdd(key, 0))
