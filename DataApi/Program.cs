@@ -18,6 +18,7 @@ if (args.Contains("--reset-db"))
     await startupRepo.ResetDatabaseAsync();
     await Console.Out.WriteLineAsync("Database reset complete.");
     await SeedMeshDescriptors(startupRepo);
+    await startupRepo.BackfillTreePathsAsync();
     return;
 }
 
@@ -28,7 +29,8 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
     try
     {
         await startupRepo.MigrateSchemaAsync();
-        break;
+    await startupRepo.BackfillTreePathsAsync();
+    break;
     }
     catch (Exception ex) when (attempt < maxRetries)
     {
@@ -45,6 +47,11 @@ builder.Services.AddMemoryCache();
 
 var meshTreeStore = new MeshTreeStore(connectionString);
 await meshTreeStore.InitializeAsync();
+
+var meshJsonPath = ResolveMeshJsonPath();
+if (meshJsonPath != null)
+    await meshTreeStore.LoadSynonymsAsync(meshJsonPath);
+
 builder.Services.AddSingleton(meshTreeStore);
 
 _ = Task.Run(async () =>
@@ -88,7 +95,7 @@ app.MapInvestigatorFinderEndpoints(connectionString);
 
 await app.RunAsync();
 
-static async Task SeedMeshDescriptors(StudyRepository repo)
+static string? ResolveMeshJsonPath()
 {
     var baseDir = AppContext.BaseDirectory;
     var possiblePaths = new[]
@@ -102,12 +109,18 @@ static async Task SeedMeshDescriptors(StudyRepository repo)
     {
         var full = Path.GetFullPath(path);
         if (File.Exists(full))
-        {
-            await repo.SeedMeshDescriptorsAsync(full, CancellationToken.None);
-            return;
-        }
+            return full;
     }
-    await Console.Out.WriteLineAsync("  [MeSH] mesh_terms.json not found, skipping descriptor seed");
+    return null;
+}
+
+static async Task SeedMeshDescriptors(StudyRepository repo)
+{
+    var full = ResolveMeshJsonPath();
+    if (full != null)
+        await repo.SeedMeshDescriptorsAsync(full, CancellationToken.None);
+    else
+        await Console.Out.WriteLineAsync("  [MeSH] mesh_terms.json not found, skipping descriptor seed");
 }
 
 namespace DataApi
