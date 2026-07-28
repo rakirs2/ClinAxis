@@ -47,6 +47,12 @@ var meshTreeStore = new MeshTreeStore(connectionString);
 await meshTreeStore.InitializeAsync();
 builder.Services.AddSingleton(meshTreeStore);
 
+_ = Task.Run(async () =>
+{
+    await Task.Delay(TimeSpan.FromSeconds(15));
+    meshTreeStore.GetOrBuildTree("mesh||1|5", () => meshTreeStore.BuildTree(null, 1, 5));
+});
+
 builder.Services.AddHostedService<MeshTreeCountRefreshService>();
 
 WebApplication app = builder.Build();
@@ -79,12 +85,6 @@ app.MapPipelineEndpoints(connectionString);
 app.MapTrainingExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
 app.MapInvestigatorFinderEndpoints(connectionString);
-
-// Pre-warm the mesh-tree cache so the first user doesn't hit cold compute
-var warmupCache = app.Services.GetRequiredService<IMemoryCache>();
-var (warmupDesc, warmupCounts) = meshTreeStore.Snapshot();
-var warmupResult = DataApi.Endpoints.StudiesEndpoints.ComputeMeshTree(warmupDesc, warmupCounts, null, 1, 5);
-warmupCache.Set("mesh-tree|__root__|1|5", warmupResult, TimeSpan.FromMinutes(2));
 
 await app.RunAsync();
 
