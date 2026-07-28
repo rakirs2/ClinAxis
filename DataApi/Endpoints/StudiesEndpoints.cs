@@ -42,15 +42,10 @@ internal static class StudiesEndpoints
             return Results.Ok(result);
         });
 
-        app.MapGet("/api/mesh-tree", (IMemoryCache cache, string? branch, int minStudyCount = 0, int depth = 1) =>
+        app.MapGet("/api/mesh-tree", (string? branch, int minStudyCount = 0, int depth = 1) =>
         {
-            var cacheKey = $"mesh-tree|{branch ?? "__root__"}|{minStudyCount}|{depth}";
-            if (cache.TryGetValue(cacheKey, out object? cached))
-                return Results.Ok(cached);
-
-            var (descriptors, counts) = meshTreeStore.Snapshot();
-            var result = ComputeMeshTree(descriptors, counts, branch, minStudyCount, depth);
-            cache.Set(cacheKey, result, TimeSpan.FromMinutes(2));
+            var key = $"mesh|{branch ?? ""}|{minStudyCount}|{depth}";
+            var result = meshTreeStore.GetOrBuildTree(key, () => meshTreeStore.BuildTree(branch, minStudyCount, depth));
             return Results.Ok(result);
         });
 
@@ -145,116 +140,5 @@ internal static class StudiesEndpoints
         if (queryWord.Length > 4 && queryWord.EndsWith("es", StringComparison.OrdinalIgnoreCase))
             return nameWord.StartsWith(queryWord[..^2], StringComparison.OrdinalIgnoreCase);
         return false;
-    }
-
-    internal static object ComputeMeshTree(
-        IReadOnlyList<MeshTreeStore.DescriptorInfo> descriptors,
-        IReadOnlyDictionary<int, int> counts,
-        string? branch,
-        int minStudyCount,
-        int depth)
-    {
-        if (string.IsNullOrEmpty(branch))
-        {
-            var categories = new (string Prefix, string Name)[]
-            {
-                ("A", "Anatomy"),
-                ("B", "Organisms"),
-                ("C", "Diseases"),
-                ("D", "Chemicals and Drugs"),
-                ("E", "Analytical, Diagnostic and Therapeutic Techniques and Equipment"),
-                ("F", "Psychiatry and Psychology"),
-                ("G", "Phenomena and Processes"),
-                ("H", "Disciplines and Occupations"),
-                ("I", "Anthropology, Education, Sociology and Social Phenomena"),
-                ("J", "Technology, Industry, Agriculture"),
-                ("K", "Humanities"),
-                ("L", "Information Science"),
-                ("M", "Named Groups"),
-                ("N", "Health Care"),
-                ("V", "Publication Characteristics"),
-                ("Z", "Geographicals"),
-            };
-
-            var rootNodes = categories
-                .Select(c =>
-                {
-                    var studyCount = descriptors
-                        .Where(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.Ordinal)))
-                        .Sum(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0);
-                    var hasChildren = descriptors
-                        .Any(d => d.TreeNumbers.Any(tn => tn.StartsWith(c.Prefix, StringComparison.Ordinal) && tn.Length > 1));
-                    var children = depth > 1 && hasChildren ? GetBranchNodes(c.Prefix, depth - 1).ToArray() : null;
-                    return new
-                    {
-                        treeNumber = c.Prefix,
-                        name = c.Name,
-                        studyCount,
-                        hasChildren,
-                        children,
-                    };
-                })
-                .Where(n => n.studyCount >= minStudyCount)
-                .ToList();
-
-            return new { branch = "__root__", nodes = rootNodes };
-        }
-        else
-        {
-            var nodes = GetBranchNodes(branch!, depth);
-            return new { branch, nodes };
-        }
-
-        List<object> GetBranchNodes(string currentBranch, int remainingDepth)
-        {
-            var isTopLevel = currentBranch.Length == 1;
-            var prefix = isTopLevel ? currentBranch : currentBranch + ".";
-            var childBranches = descriptors
-                .SelectMany(d => d.TreeNumbers)
-                .Where(tn => tn.StartsWith(prefix, StringComparison.Ordinal))
-                .Select(tn =>
-                {
-                    var remainder = tn[prefix.Length..];
-                    var dotIdx = remainder.IndexOf('.', StringComparison.Ordinal);
-                    return dotIdx > 0 ? tn[..(prefix.Length + dotIdx)] : tn;
-                })
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(x => x)
-                .ToList();
-
-            var results = new List<object>();
-            foreach (var childTn in childBranches)
-            {
-                var matchingDescriptors = descriptors
-                    .Where(d => d.TreeNumbers.Any(tn =>
-                        tn.Equals(childTn, StringComparison.Ordinal) ||
-                        tn.StartsWith(childTn + ".", StringComparison.Ordinal)))
-                    .ToList();
-
-                var studyCount = matchingDescriptors.Sum(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0);
-                if (studyCount < minStudyCount)
-                    continue;
-
-                var desc = matchingDescriptors.OrderByDescending(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0).FirstOrDefault();
-                var hasChildren = descriptors.Any(d => d.TreeNumbers.Any(tn =>
-                    tn.StartsWith(childTn + ".", StringComparison.Ordinal) && (counts.TryGetValue(d.Id, out var cnt) ? cnt : 0) > 0));
-
-                object[]? children = null;
-                if (remainingDepth > 1 && hasChildren)
-                {
-                    children = GetBranchNodes(childTn, remainingDepth - 1).ToArray();
-                }
-
-                results.Add(new
-                {
-                    treeNumber = childTn,
-                    name = desc?.Name ?? childTn,
-                    studyCount,
-                    hasChildren,
-                    children,
-                });
-            }
-            return results;
-        }
     }
 }
