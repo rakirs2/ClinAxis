@@ -49,26 +49,9 @@ internal static class StudiesEndpoints
             return Results.Ok(result);
         });
 
-        app.MapGet("/api/mesh-tree/search", (string q, string? branch, int maxResults = 20) =>
+        app.MapGet("/api/mesh-tree/search", (string q, string? branch, int maxResults = 200) =>
         {
-            var (descriptors, counts) = meshTreeStore.Snapshot();
-
-            var queryWords = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var results = descriptors
-                .Where(d => d.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || WordMatch(d.Name, queryWords))
-                .Where(d => string.IsNullOrEmpty(branch) || d.TreeNumbers.Any(tn => tn.StartsWith(branch, StringComparison.Ordinal)))
-                .OrderByDescending(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0)
-                .ThenBy(d => d.Name)
-                .Take(maxResults)
-                .Select(d => new
-                {
-                    descriptorId = d.Id,
-                    name = d.Name,
-                    treeNumber = d.TreeNumbers.FirstOrDefault() ?? "",
-                    studyCount = counts.TryGetValue(d.Id, out var cnt) ? cnt : 0,
-                })
-                .ToList();
-
+            var results = meshTreeStore.SearchDescriptors(q, branch, maxResults);
             return Results.Ok(results);
         });
 
@@ -125,20 +108,4 @@ internal static class StudiesEndpoints
         });
     }
 
-    private static bool WordMatch(string name, string[] queryWords)
-    {
-        var nameWords = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return queryWords.All(qw => nameWords.Any(nw => WordMatches(qw, nw)));
-    }
-
-    private static bool WordMatches(string queryWord, string nameWord)
-    {
-        if (nameWord.StartsWith(queryWord, StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (queryWord.Length > 3 && queryWord.EndsWith('s'))
-            return nameWord.StartsWith(queryWord[..^1], StringComparison.OrdinalIgnoreCase);
-        if (queryWord.Length > 4 && queryWord.EndsWith("es", StringComparison.OrdinalIgnoreCase))
-            return nameWord.StartsWith(queryWord[..^2], StringComparison.OrdinalIgnoreCase);
-        return false;
-    }
 }

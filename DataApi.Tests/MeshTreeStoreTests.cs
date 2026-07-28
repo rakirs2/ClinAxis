@@ -223,4 +223,135 @@ public sealed class MeshTreeStoreTests
         Assert.AreEqual("v2", fresh);
         Assert.AreEqual(2, callCount);
     }
+
+    [TestMethod]
+    public void SearchDescriptors_SynonymMatch_ReturnsCanonicalDescriptor()
+    {
+        var store = CreateStore();
+        store.SetTestData(new List<MeshTreeStore.DescriptorInfo>
+        {
+            new(10, "Neoplasms", ["C04"], "C"),
+            new(11, "Breast Neoplasms", ["C04.588.180"], "C"),
+            new(12, "Lung Neoplasms", ["C04.588.894.797.520"], "C"),
+            new(13, "Anatomy", ["A"], "A"),
+        }, new Dictionary<int, int>
+        {
+            { 10, 100 }, { 11, 50 }, { 12, 30 }, { 13, 0 },
+        });
+
+        store.SetTestSynonyms(new Dictionary<string, List<int>>
+        {
+            ["neoplasms"] = [10],
+            ["breast neoplasms"] = [11],
+            ["lung neoplasms"] = [12],
+            ["cancer"] = [10, 11, 12],
+            ["breast cancer"] = [11],
+            ["lung cancer"] = [12],
+            ["malignant neoplasm"] = [10],
+        });
+
+        var results = store.SearchDescriptors("Cancer", branch: null, maxResults: 20);
+
+        Assert.IsTrue(results.Any(r => r.DescriptorId == 10));
+        Assert.IsTrue(results.Any(r => r.DescriptorId == 11));
+        Assert.IsTrue(results.Any(r => r.DescriptorId == 12));
+    }
+
+    [TestMethod]
+    public void SearchDescriptors_SynonymMatch_DoesNotReplaceExactMatch()
+    {
+        var store = CreateStore();
+        store.SetTestData(new List<MeshTreeStore.DescriptorInfo>
+        {
+            new(10, "Neoplasms", ["C04"], "C"),
+            new(11, "Breast Neoplasms", ["C04.588.180"], "C"),
+        }, new Dictionary<int, int>
+        {
+            { 10, 100 }, { 11, 50 },
+        });
+
+        store.SetTestSynonyms(new Dictionary<string, List<int>>
+        {
+            ["neoplasms"] = [10],
+            ["cancer"] = [10, 11],
+        });
+
+        var results = store.SearchDescriptors("Neoplasms", branch: null, maxResults: 20);
+
+        Assert.IsTrue(results.Any(r => r.DescriptorId == 10));
+    }
+
+    [TestMethod]
+    public void SearchDescriptors_SynonymWithBranchFilter_RespectsBranch()
+    {
+        var store = CreateStore();
+        store.SetTestData(new List<MeshTreeStore.DescriptorInfo>
+        {
+            new(10, "Neoplasms", ["C04"], "C"),
+            new(20, "Anatomy", ["A"], "A"),
+        }, new Dictionary<int, int>
+        {
+            { 10, 100 }, { 20, 50 },
+        });
+
+        store.SetTestSynonyms(new Dictionary<string, List<int>>
+        {
+            ["neoplasms"] = [10],
+            ["cancer"] = [10],
+            ["anatomy"] = [20],
+        });
+
+        var results = store.SearchDescriptors("Cancer", branch: "C", maxResults: 20);
+
+        Assert.IsTrue(results.Any(r => r.DescriptorId == 10));
+        Assert.IsFalse(results.Any(r => r.DescriptorId == 20));
+    }
+
+    [TestMethod]
+    public void SearchDescriptors_SynonymNoMatch_ReturnsEmpty()
+    {
+        var store = CreateStore();
+        store.SetTestData(new List<MeshTreeStore.DescriptorInfo>
+        {
+            new(10, "Neoplasms", ["C04"], "C"),
+        }, new Dictionary<int, int>
+        {
+            { 10, 100 },
+        });
+
+        store.SetTestSynonyms(new Dictionary<string, List<int>>
+        {
+            ["neoplasms"] = [10],
+        });
+
+        var results = store.SearchDescriptors("NonexistentTermXYZ", branch: null, maxResults: 20);
+
+        Assert.AreEqual(0, results.Count);
+    }
+
+    [TestMethod]
+    public void SearchDescriptors_RespectsMaxResults()
+    {
+        var store = CreateStore();
+        store.SetTestData(new List<MeshTreeStore.DescriptorInfo>
+        {
+            new(10, "Neoplasms", ["C04"], "C"),
+            new(11, "Breast Neoplasms", ["C04.588.180"], "C"),
+            new(12, "Lung Neoplasms", ["C04.588.894.797.520"], "C"),
+            new(13, "Cancer Pain", ["C23"], "C"),
+        }, new Dictionary<int, int>
+        {
+            { 10, 100 }, { 11, 50 }, { 12, 30 }, { 13, 20 },
+        });
+
+        store.SetTestSynonyms(new Dictionary<string, List<int>>
+        {
+            ["cancer"] = [10, 11, 12],
+            ["cancer pain"] = [13],
+        });
+
+        var results = store.SearchDescriptors("Cancer", branch: null, maxResults: 2);
+
+        Assert.AreEqual(2, results.Count);
+    }
 }

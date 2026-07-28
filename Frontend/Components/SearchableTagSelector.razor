@@ -84,7 +84,7 @@
 
             var client = HttpClientFactory.CreateClient("DataApi");
             var results = await client.GetFromJsonAsync<List<MeshSearchResult>>(
-                $"/api/mesh-tree/search?q={Uri.EscapeDataString(_searchText)}&branch={Branch}&maxResults=20", token);
+                $"/api/mesh-tree/search?q={Uri.EscapeDataString(_searchText)}&branch={Branch}&maxResults=200", token);
 
             if (!token.IsCancellationRequested)
             {

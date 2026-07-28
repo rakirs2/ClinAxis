@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Scrapers;
 using Scrapers.Persistence;
@@ -10,6 +11,7 @@ internal sealed class MeshTreeStore
     private readonly string _connectionString;
     private List<DescriptorInfo> _descriptors = [];
     private Dictionary<int, int> _studyCounts = [];
+    private Dictionary<string, List<int>> _synonymLookup = new();
     private readonly object _lock = new();
 
     internal record DescriptorInfo(int Id, string Name, string[] TreeNumbers, string Category);
@@ -37,6 +39,174 @@ internal sealed class MeshTreeStore
         lock (_lock) { _descriptors = list; }
     }
 
+    public async Task LoadSynonymsAsync(string meshTermsJsonPath)
+    {
+        if (!File.Exists(meshTermsJsonPath))
+        {
+            await Console.Out.WriteLineAsync("  [MeSH] mesh_terms.json not found, skipping synonym load");
+            return;
+        }
+
+        var json = await File.ReadAllTextAsync(meshTermsJsonPath).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        var names = doc.RootElement.GetProperty("names").EnumerateArray().Select(e => e.GetString() ?? "").ToArray();
+        var cuis = doc.RootElement.GetProperty("cuis").EnumerateArray().Select(e => e.GetString() ?? "").ToArray();
+
+        var seenCuis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cuiToId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        lock (_lock)
+        {
+            foreach (var d in _descriptors)
+            {
+                var key = d.Name.Trim().ToUpperInvariant();
+                if (!_synonymLookup.ContainsKey(key))
+                    _synonymLookup[key] = [];
+                _synonymLookup[key].Add(d.Id);
+            }
+        }
+
+        var canonicalCuis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        lock (_lock)
+        {
+            foreach (var d in _descriptors)
+                canonicalCuis.Add(d.Name.Trim());
+        }
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            var cui = i < cuis.Length ? cuis[i] : "";
+            if (string.IsNullOrEmpty(cui)) continue;
+            if (!seenCuis.Add(cui)) continue;
+            var canonicalName = names[i].Trim();
+            var canonicalKey = canonicalName.ToUpperInvariant();
+            if (_synonymLookup.TryGetValue(canonicalKey, out var ids) && ids.Count > 0)
+            {
+                if (!cuiToId.ContainsKey(cui))
+                    cuiToId[cui] = ids[0];
+            }
+        }
+
+        seenCuis.Clear();
+        for (int i = 0; i < names.Length; i++)
+        {
+            var cui = i < cuis.Length ? cuis[i] : "";
+            if (string.IsNullOrEmpty(cui)) continue;
+            if (!seenCuis.Add(cui)) continue;
+
+            if (!cuiToId.TryGetValue(cui, out var descriptorId)) continue;
+
+            lock (_lock)
+            {
+                var synonymKey = names[i].Trim().ToUpperInvariant();
+                if (!_synonymLookup.ContainsKey(synonymKey))
+                    _synonymLookup[synonymKey] = [];
+                if (!_synonymLookup[synonymKey].Contains(descriptorId))
+                    _synonymLookup[synonymKey].Add(descriptorId);
+            }
+        }
+
+        await Console.Out.WriteLineAsync($"  [MeSH] Loaded {_synonymLookup.Count} synonym entries for {cuiToId.Count} descriptors");
+    }
+
+    public List<SearchResult> SearchDescriptors(string q, string? branch, int maxResults)
+    {
+        var (descriptors, counts) = Snapshot();
+
+        var queryWords = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var matchedIds = new HashSet<int>();
+
+        foreach (var d in descriptors)
+        {
+            if (branch != null && !d.TreeNumbers.Any(tn => tn.StartsWith(branch, StringComparison.Ordinal)))
+                continue;
+
+            if (d.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            {
+                matchedIds.Add(d.Id);
+                continue;
+            }
+
+            if (WordMatch(d.Name, queryWords))
+            {
+                matchedIds.Add(d.Id);
+                continue;
+            }
+
+            var key = d.Name.Trim().ToUpperInvariant();
+            if (_synonymLookup.TryGetValue(key, out var synonymIds) && synonymIds.Contains(d.Id))
+            {
+                if (SynonymMatch(key, queryWords, q))
+                    matchedIds.Add(d.Id);
+            }
+        }
+
+        foreach (var (synonymKey, descriptorIds) in _synonymLookup)
+        {
+            if (!synonymKey.Contains(q, StringComparison.OrdinalIgnoreCase) && !WordMatch(synonymKey, queryWords))
+                continue;
+
+            foreach (var descId in descriptorIds)
+            {
+                var desc = descriptors.FirstOrDefault(d => d.Id == descId);
+                if (desc == null) continue;
+
+                if (branch != null && !desc.TreeNumbers.Any(tn => tn.StartsWith(branch, StringComparison.Ordinal)))
+                    continue;
+
+                matchedIds.Add(descId);
+            }
+        }
+
+        var results = descriptors
+            .Where(d => matchedIds.Contains(d.Id))
+            .OrderByDescending(d => counts.TryGetValue(d.Id, out var cnt) ? cnt : 0)
+            .ThenBy(d => d.Name)
+            .Take(maxResults)
+            .Select(d => new SearchResult
+            {
+                DescriptorId = d.Id,
+                Name = d.Name,
+                TreeNumber = d.TreeNumbers.FirstOrDefault() ?? "",
+                StudyCount = counts.TryGetValue(d.Id, out var cnt) ? cnt : 0,
+            })
+            .ToList();
+
+        return results;
+    }
+
+    internal sealed class SearchResult
+    {
+        public int DescriptorId { get; set; }
+        public string Name { get; set; } = "";
+        public string TreeNumber { get; set; } = "";
+        public int StudyCount { get; set; }
+    }
+
+    private static bool WordMatch(string name, string[] queryWords)
+    {
+        var nameWords = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return queryWords.All(qw => nameWords.Any(nw => WordMatches(qw, nw)));
+    }
+
+    private static bool WordMatches(string queryWord, string nameWord)
+    {
+        if (nameWord.StartsWith(queryWord, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (queryWord.Length > 3 && queryWord.EndsWith('s'))
+            return nameWord.StartsWith(queryWord[..^1], StringComparison.OrdinalIgnoreCase);
+        if (queryWord.Length > 4 && queryWord.EndsWith("es", StringComparison.OrdinalIgnoreCase))
+            return nameWord.StartsWith(queryWord[..^2], StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
+
+    private static bool SynonymMatch(string synonymKey, string[] queryWords, string rawQuery)
+    {
+        if (synonymKey.Contains(rawQuery, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return WordMatch(synonymKey, queryWords);
+    }
+
     public async Task RefreshCountsAsync()
     {
         using var ctx = CreateContext();
@@ -62,6 +232,15 @@ internal sealed class MeshTreeStore
         {
             _descriptors = descriptors;
             _studyCounts = studyCounts;
+            _synonymLookup = new Dictionary<string, List<int>>();
+        }
+    }
+
+    internal void SetTestSynonyms(Dictionary<string, List<int>> synonyms)
+    {
+        lock (_lock)
+        {
+            _synonymLookup = synonyms;
         }
     }
 

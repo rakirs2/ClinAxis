@@ -1365,7 +1365,61 @@ namespace Scrapers.Persistence
             }
             context.MeshDescriptors.AddRange(descriptors);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await Console.Out.WriteLineAsync($"  [MeSH] Seeded {descriptors.Count} unique descriptors (from {data.Names.Length} total terms)");
+
+            var saved = await context.MeshDescriptors
+                .Where(d => d.TreeNumbers != null && d.TreeNumbers.Count > 0)
+                .Select(d => new { d.Id, d.TreeNumbers })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var treePaths = new List<MeshTreePathEntity>();
+            foreach (var d in saved)
+            {
+                treePaths.AddRange(d.TreeNumbers.Select(tn => new MeshTreePathEntity
+                {
+                    MeshDescriptorId = d.Id,
+                    TreeNumber = tn
+                }));
+            }
+            context.Set<MeshTreePathEntity>().AddRange(treePaths);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await Console.Out.WriteLineAsync($"  [MeSH] Seeded {descriptors.Count} unique descriptors with {treePaths.Count} tree paths (from {data.Names.Length} total terms)");
+        }
+
+        public async Task BackfillTreePathsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            if (await context.Set<MeshTreePathEntity>().AnyAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await Console.Out.WriteLineAsync("  [MeSH] Tree paths already exist, skipping backfill");
+                return;
+            }
+
+            var descs = await context.MeshDescriptors
+                .Where(d => d.TreeNumbers != null && d.TreeNumbers.Count > 0)
+                .Select(d => new { d.Id, d.TreeNumbers })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var treePaths = new List<MeshTreePathEntity>();
+            foreach (var d in descs)
+            {
+                treePaths.AddRange(d.TreeNumbers.Select(tn => new MeshTreePathEntity
+                {
+                    MeshDescriptorId = d.Id,
+                    TreeNumber = tn
+                }));
+            }
+
+            if (treePaths.Count > 0)
+            {
+                context.Set<MeshTreePathEntity>().AddRange(treePaths);
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await Console.Out.WriteLineAsync($"  [MeSH] Backfilled {treePaths.Count} tree paths for {descs.Count} descriptors");
+            }
+            else
+            {
+                await Console.Out.WriteLineAsync("  [MeSH] No descriptors with tree numbers found, nothing to backfill");
+            }
         }
 
         public async Task<List<string>> GetDistinctConditionsAsync(CancellationToken cancellationToken = default)

@@ -7,18 +7,18 @@ internal static class SeedData
 {
     internal static readonly List<MeshDescriptorEntity> TestDescriptors =
     [
-        new MeshDescriptorEntity { Id = 1001, Cui = "D009765", Name = "Neuropathic Pain", TreeNumbers = ["C10.500"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1002, Cui = "D002318", Name = "Cardiovascular Diseases", TreeNumbers = ["C14.280"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1003, Cui = "D006333", Name = "Heart Disease", TreeNumbers = ["C14.280"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1004, Cui = "D001249", Name = "Asthma", TreeNumbers = ["C08.127"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1005, Cui = "D008545", Name = "Melanoma", TreeNumbers = ["C04.557"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1006, Cui = "D003924", Name = "Diabetes Mellitus, Type 2", TreeNumbers = ["C19.246"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1007, Cui = "D003865", Name = "Depressive Disorder, Major", TreeNumbers = ["F03.600"], Category = "psychiatry" },
-        new MeshDescriptorEntity { Id = 1008, Cui = "D000544", Name = "Alzheimer Disease", TreeNumbers = ["C10.228"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1009, Cui = "D003072", Name = "Cognitive Impairment", TreeNumbers = ["F01.058"], Category = "psychiatry" },
-        new MeshDescriptorEntity { Id = 1010, Cui = "D006973", Name = "Hypertension", TreeNumbers = ["C14.907"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1011, Cui = "D030342", Name = "Genetic Diseases, Inborn", TreeNumbers = ["C16.320"], Category = "disease" },
-        new MeshDescriptorEntity { Id = 1012, Cui = "D015415", Name = "Biomarkers, Pharmacological", TreeNumbers = ["D23.101"], Category = "chemical" },
+        new MeshDescriptorEntity { Id = 1001, Cui = "D009765", Name = "Neuropathic Pain", TreeNumbers = ["C10.500"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1001, TreeNumber = "C10.500" }] },
+        new MeshDescriptorEntity { Id = 1002, Cui = "D002318", Name = "Cardiovascular Diseases", TreeNumbers = ["C14.280"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1002, TreeNumber = "C14.280" }] },
+        new MeshDescriptorEntity { Id = 1003, Cui = "D006333", Name = "Heart Disease", TreeNumbers = ["C14.280"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1003, TreeNumber = "C14.280" }] },
+        new MeshDescriptorEntity { Id = 1004, Cui = "D001249", Name = "Asthma", TreeNumbers = ["C08.127"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1004, TreeNumber = "C08.127" }] },
+        new MeshDescriptorEntity { Id = 1005, Cui = "D008545", Name = "Melanoma", TreeNumbers = ["C04.557"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1005, TreeNumber = "C04.557" }] },
+        new MeshDescriptorEntity { Id = 1006, Cui = "D003924", Name = "Diabetes Mellitus, Type 2", TreeNumbers = ["C19.246"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1006, TreeNumber = "C19.246" }] },
+        new MeshDescriptorEntity { Id = 1007, Cui = "D003865", Name = "Depressive Disorder, Major", TreeNumbers = ["F03.600"], Category = "psychiatry", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1007, TreeNumber = "F03.600" }] },
+        new MeshDescriptorEntity { Id = 1008, Cui = "D000544", Name = "Alzheimer Disease", TreeNumbers = ["C10.228"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1008, TreeNumber = "C10.228" }] },
+        new MeshDescriptorEntity { Id = 1009, Cui = "D003072", Name = "Cognitive Impairment", TreeNumbers = ["F01.058"], Category = "psychiatry", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1009, TreeNumber = "F01.058" }] },
+        new MeshDescriptorEntity { Id = 1010, Cui = "D006973", Name = "Hypertension", TreeNumbers = ["C14.907"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1010, TreeNumber = "C14.907" }] },
+        new MeshDescriptorEntity { Id = 1011, Cui = "D030342", Name = "Genetic Diseases, Inborn", TreeNumbers = ["C16.320"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1011, TreeNumber = "C16.320" }] },
+        new MeshDescriptorEntity { Id = 1012, Cui = "D015415", Name = "Biomarkers, Pharmacological", TreeNumbers = ["D23.101"], Category = "chemical", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1012, TreeNumber = "D23.101" }] },
     ];
 
     internal static readonly StudyEntity Study1 = new()
