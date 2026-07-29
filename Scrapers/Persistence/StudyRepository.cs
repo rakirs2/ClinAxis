@@ -18,15 +18,17 @@ namespace Scrapers.Persistence
     {
         private readonly DbContextOptions<ClinicalTrialsContext> _options;
         private readonly MeSHMatcher? _meshMatcher;
+        private readonly LocationMeshMatcher? _locationMatcher;
         private readonly Dictionary<string, int> _meshDescriptorIdCache = new();
 
-        public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null)
+        public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null, LocationMeshMatcher? locationMatcher = null)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
             }
             _meshMatcher = meshMatcher;
+            _locationMatcher = locationMatcher;
 
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
             builder.ConfigureNpgsql(connectionString);
@@ -364,13 +366,15 @@ namespace Scrapers.Persistence
                         {
                             if (location != null)
                             {
+                                var locDescriptorId = _locationMatcher?.Match(location.Country, location.State);
                                 entity.Locations.Add(new StudyLocationEntity
                                 {
                                     StudyNctId = record.NctId!,
                                     Facility = location.Facility,
                                     City = location.City,
                                     State = location.State,
-                                    Country = location.Country
+                                    Country = location.Country,
+                                    MeshDescriptorId = locDescriptorId
                                 });
                             }
                         }
@@ -1151,6 +1155,18 @@ namespace Scrapers.Persistence
                 if (facilities.Count > 0)
                 {
                     query = query.Where(s => s.Locations!.Any(l => l.Facility != null && facilities.Contains(l.Facility)));
+                }
+            }
+
+            // 5b. Location MeSH tree prefix filter (hierarchical via Z-Geographicals)
+            if (criteria.LocationMeshTreePrefixes != null && criteria.LocationMeshTreePrefixes.Count > 0)
+            {
+                var prefixes = criteria.LocationMeshTreePrefixes.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                if (prefixes.Count > 0)
+                {
+                    query = query.Where(s => s.Locations!.Any(l =>
+                        l.MeshDescriptor != null &&
+                        l.MeshDescriptor.TreeNumbers.Any(tn => prefixes.Any(p => EF.Functions.Like(tn, p + "%")))));
                 }
             }
 
@@ -2092,18 +2108,14 @@ namespace Scrapers.Persistence
         }
 
         public async Task<List<InvestigatorFinderCandidate>> GetInvestigatorFinderCandidatesAsync(
-            IReadOnlyList<string>? conditionTreePrefixes,
-            IReadOnlyList<string>? drugTreePrefixes,
-            IReadOnlyList<string>? therapyTreePrefixes,
+            IReadOnlyList<string>? treePrefixes,
             int topN,
             CancellationToken cancellationToken = default)
         {
             using var ctx = CreateContext();
 
             var allPrefixes = new List<string>();
-            if (conditionTreePrefixes?.Count > 0) allPrefixes.AddRange(conditionTreePrefixes);
-            if (drugTreePrefixes?.Count > 0) allPrefixes.AddRange(drugTreePrefixes);
-            if (therapyTreePrefixes?.Count > 0) allPrefixes.AddRange(therapyTreePrefixes);
+            if (treePrefixes?.Count > 0) allPrefixes.AddRange(treePrefixes);
 
             if (allPrefixes.Count == 0)
                 return [];

@@ -61,6 +61,7 @@ internal static class StudiesEndpoints
             string? status, string? phase,
             string? condition, string? meshTree,
             string? country, string? state, string? city, string? facility,
+            string? locationMeshTree,
             int? enrollmentMin, int? enrollmentMax,
             DateTime? startDateFrom, DateTime? startDateTo) =>
         {
@@ -75,6 +76,7 @@ internal static class StudiesEndpoints
                 Phases = ParseCsvParam(phase),
                 Conditions = ParseCsvParam(condition),
                 MeshTreePrefixes = ParseCsvParam(meshTree),
+                LocationMeshTreePrefixes = ParseCsvParam(locationMeshTree),
                 Countries = ParseCsvParam(country),
                 States = ParseCsvParam(state),
                 Cities = ParseCsvParam(city),

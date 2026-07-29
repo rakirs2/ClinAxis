@@ -14,6 +14,7 @@ namespace Scrapers.Persistence.Entities
 
         public ICollection<StudyConditionEntity>? StudyConditions { get; set; }
         public ICollection<StudyInterventionEntity>? StudyInterventions { get; set; }
+        public ICollection<StudyLocationEntity>? StudyLocations { get; set; }
         public ICollection<MeshTreePathEntity>? TreeNumberPaths { get; set; }
     }
 }

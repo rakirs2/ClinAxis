@@ -10,20 +10,18 @@
 <div class="card mb-4">
     <div class="card-header"><h5>Filter by Dimensions</h5></div>
     <div class="card-body">
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Condition (MeSH C)</label>
-                <SearchableTagSelector @ref="_conditionSelector" Branch="C" Label="Condition" Placeholder="Search conditions..." />
+        @for (int i = 0; i < _branches.Count; i += 4)
+        {
+            <div class="row mb-3">
+                @for (int j = i; j < i + 4 && j < _branches.Count; j++)
+                {
+                    var b = _branches[j];
+                    <div class="col-md-3">
+                        <SearchableTagSelector @ref="_selectors[j]" Branch="@b.Prefix" Label="@($"MeSH {b.Prefix}: {b.Name}")" Placeholder="@($"Search {b.Name}...")" />
+                    </div>
+                }
             </div>
-            <div class="col-md-4">
-                <label class="form-label">Drug / Agent Type (MeSH D)</label>
-                <SearchableTagSelector @ref="_drugSelector" Branch="D" Label="Drug/Agent" Placeholder="Search drugs..." />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Therapy Type (MeSH E)</label>
-                <SearchableTagSelector @ref="_therapySelector" Branch="E" Label="Therapy" Placeholder="Search therapies..." />
-            </div>
-        </div>
+        }
 
         <div class="row">
             <div class="col-md-12">
@@ -113,9 +111,27 @@ else if (_result is not null)
 }
 
 @code {
-    private SearchableTagSelector? _conditionSelector;
-    private SearchableTagSelector? _drugSelector;
-    private SearchableTagSelector? _therapySelector;
+    private static readonly List<BranchInfo> _branches = new()
+    {
+        new("A", "Anatomy"),
+        new("B", "Organisms"),
+        new("C", "Diseases"),
+        new("D", "Chemicals and Drugs"),
+        new("E", "Techniques and Equipment"),
+        new("F", "Psychiatry and Psychology"),
+        new("G", "Phenomena and Processes"),
+        new("H", "Disciplines and Occupations"),
+        new("I", "Anthropology and Sociology"),
+        new("J", "Technology and Industry"),
+        new("K", "Humanities"),
+        new("L", "Information Science"),
+        new("M", "Named Groups"),
+        new("N", "Health Care"),
+        new("V", "Publication Characteristics"),
+        new("Z", "Geographicals"),
+    };
+
+    private SearchableTagSelector[] _selectors = new SearchableTagSelector[16];
     private bool _loading;
     private string? _error;
     private FinderResponse? _result;
@@ -136,18 +152,18 @@ else if (_result is not null)
         try
         {
             var client = HttpClientFactory.CreateClient("DataApi");
-            var conditionPrefixes = _conditionSelector?.GetSelectedTreeNumbers();
-            var drugPrefixes = _drugSelector?.GetSelectedTreeNumbers();
-            var therapyPrefixes = _therapySelector?.GetSelectedTreeNumbers();
 
-            Logger.LogInformation("Selections: cond={Cond}, drug={Drug}, therapy={Therapy}",
-                conditionPrefixes is null ? "null" : string.Join(",", conditionPrefixes),
-                drugPrefixes is null ? "null" : string.Join(",", drugPrefixes),
-                therapyPrefixes is null ? "null" : string.Join(",", therapyPrefixes));
+            var allPrefixes = new List<string>();
+            for (int i = 0; i < _branches.Count; i++)
+            {
+                var prefixes = _selectors[i]?.GetSelectedTreeNumbers();
+                if (prefixes is { Count: > 0 })
+                    allPrefixes.AddRange(prefixes);
+            }
 
-            if ((conditionPrefixes == null || conditionPrefixes.Count == 0) &&
-                (drugPrefixes == null || drugPrefixes.Count == 0) &&
-                (therapyPrefixes == null || therapyPrefixes.Count == 0))
+            Logger.LogInformation("Selections: {Prefixes}", allPrefixes.Count > 0 ? string.Join(",", allPrefixes) : "none");
+
+            if (allPrefixes.Count == 0)
             {
                 _error = "Please select at least one filter from any dimension.";
                 _loading = false;
@@ -156,9 +172,7 @@ else if (_result is not null)
 
             var request = new
             {
-                conditionTreePrefixes = conditionPrefixes,
-                drugTreePrefixes = drugPrefixes,
-                therapyTreePrefixes = therapyPrefixes,
+                treePrefixes = allPrefixes,
                 topN = 20
             };
 
@@ -229,4 +243,6 @@ else if (_result is not null)
     {
         public string? error { get; set; }
     }
+
+    private record BranchInfo(string Prefix, string Name);
 }

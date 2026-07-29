@@ -9,9 +9,7 @@ internal static class InvestigatorFinderEndpoints
     {
         app.MapPost("/api/investigator-finder", async (FinderRequest request) =>
         {
-            if ((request.ConditionTreePrefixes == null || request.ConditionTreePrefixes.Count == 0) &&
-                (request.DrugTreePrefixes == null || request.DrugTreePrefixes.Count == 0) &&
-                (request.TherapyTreePrefixes == null || request.TherapyTreePrefixes.Count == 0))
+            if (request.GetAllPrefixes().Count == 0)
             {
                 return Results.BadRequest(new { error = "At least one tree prefix is required" });
             }

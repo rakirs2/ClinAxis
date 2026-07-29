@@ -199,6 +199,12 @@ namespace Scrapers.Persistence
                     .HasPrincipalKey(s => s.NctId)
                     .OnDelete(DeleteBehavior.Cascade);
 
+                entity.HasOne(e => e.MeshDescriptor)
+                    .WithMany(m => m.StudyLocations)
+                    .HasForeignKey(e => e.MeshDescriptorId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(e => e.MeshDescriptorId);
                 entity.HasIndex(e => e.Country);
                 entity.HasIndex(e => e.State);
                 entity.HasIndex(e => e.City);
