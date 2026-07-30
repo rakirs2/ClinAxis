@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using Scrapers.Models;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
@@ -1922,11 +1921,9 @@ namespace Scrapers.Persistence
                     await ScrubSinglePmidAsync(context, person, pmid, cancellationToken).ConfigureAwait(false);
                     personModified = true;
                 }
-                catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx
-                    && pgEx.SqlState == "23505")
+                catch (DbUpdateException)
                 {
-                    // Unique constraint violation — data already exists from concurrent processing.
-                    // This is harmless; continue to next PMID.
+                    // Data already exists (duplicate PMID or paper link) — continue.
                 }
             }
 

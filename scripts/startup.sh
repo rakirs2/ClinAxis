@@ -34,22 +34,32 @@ cd "$PROJECT_DIR"
 # ──────────────────────────────────────────────
 # 1. Check PostgreSQL
 # ──────────────────────────────────────────────
-echo "[1/9] Checking PostgreSQL..."
+echo "[1/7] Checking PostgreSQL..."
 if ! pg_isready -q 2>/dev/null; then
     echo "ERROR: PostgreSQL is not running. Start it with: brew services start postgresql"
     exit 1
 fi
-echo "  PostgreSQL is accepting connections on localhost:5432"
+echo "  OK"
 echo ""
 
 # ──────────────────────────────────────────────
-# 2. Build all production projects
+# 2. Kill any existing services on our ports
 # ──────────────────────────────────────────────
-echo "[2/9] Building production projects..."
+echo "[2/7] Stopping any existing services..."
+lsof -ti:5003 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+lsof -ti:5001 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+ps aux | grep '/IngestionApp' | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
+echo "  Ports 5001, 5003 cleared; stale IngestionApp processes killed"
+echo ""
+
+# ──────────────────────────────────────────────
+# 3. Build all production projects
+# ──────────────────────────────────────────────
+echo "[3/7] Building production projects..."
 find . -name '.msCoverageSourceRootsMapping_*' -delete 2>/dev/null || true
 for proj in DataApi Frontend Scrapers.Validation IngestionApp; do
     if ! dotnet build "$proj/" 2>&1 | grep -q "Build succeeded"; then
-        echo "  Build of $proj failed — see errors above"
+        echo "  Build of $proj failed"
         exit 1
     fi
 done
@@ -57,54 +67,19 @@ echo "  Build succeeded"
 echo ""
 
 # ──────────────────────────────────────────────
-# 3. Verify schema compatibility
-# ──────────────────────────────────────────────
-echo "[3/9] Verifying schema compatibility..."
-MISSING=$(psql -d clinical_trial_data -t -c "
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name='study_conditions' AND column_name='condition'
-" 2>/dev/null | xargs)
-if [ "$MISSING" = "condition" ]; then
-    echo "  WARNING: Old 'condition' column still exists in study_conditions."
-    echo "  The current code expects the migrated schema (mesh_descriptor_id FK)."
-    echo "  Run 'bash scripts/reset-db.sh' to migrate before continuing."
-fi
-echo "  Schema check complete"
-echo ""
-
-# ──────────────────────────────────────────────
-# 4. Kill stale IngestionApp processes from other repos
-# ──────────────────────────────────────────────
-echo "[4/9] Checking for stale IngestionApp processes..."
-STALE_PIDS=$(ps aux | grep '/IngestionApp' | grep -v grep | grep -v "$PROJECT_DIR" | awk '{print $2}' || true)
-if [ -n "$STALE_PIDS" ]; then
-    STALE_COUNT=$(echo "$STALE_PIDS" | wc -l | xargs)
-    echo "  Found $STALE_COUNT stale IngestionApp process(es) from other repos. Killing..."
-    echo "$STALE_PIDS" | xargs -r kill -9 2>/dev/null
-    echo "  Killed."
-else
-    echo "  No stale processes found."
-fi
-echo ""
-
-# ──────────────────────────────────────────────
-# 5. Export ONNX model + MeSH embeddings (if needed)
+# 4. Export MeSH embeddings (if needed) and copy to output dirs
 # ──────────────────────────────────────────────
 MESH_RESOURCES_OUT="Scrapers/Resources/mesh"
 if [ ! -d "$MESH_RESOURCES_OUT" ] || [ ! -f "$MESH_RESOURCES_OUT/mesh_embeddings.bin" ]; then
-    echo "[5/9] Exporting Sentence-BERT ONNX model and MeSH embeddings..."
+    echo "[4/7] Exporting Sentence-BERT ONNX model and MeSH embeddings..."
     experiments/bert-condition-mapping/.venv/bin/python \
         experiments/bert-condition-mapping/export_sbert_onnx.py 2>&1 | tail -10
     echo "  ONNX export and embeddings complete"
 else
-    echo "[5/9] MeSH embeddings already exist, skipping export"
+    echo "[4/7] MeSH embeddings already exist, skipping export"
 fi
-echo ""
 
-# ──────────────────────────────────────────────
-# 6. Copy MeSH model files to output directories
-# ──────────────────────────────────────────────
-echo "[6/9] Copying MeSH model files to project output directories..."
+echo "  Copying MeSH model files to output directories..."
 for proj in Scrapers.Validation DataApi IngestionApp; do
     PROJ_OUTPUT_DIR="${proj}/bin/Debug/net10.0"
     MESH_RESOURCES_DIR="${PROJ_OUTPUT_DIR}/Resources/mesh"
@@ -112,39 +87,36 @@ for proj in Scrapers.Validation DataApi IngestionApp; do
     for f in "$MESH_RESOURCES_OUT"/*; do
         [ -f "$f" ] && cp "$f" "$MESH_RESOURCES_DIR/"
     done
-    echo "  Copied to $MESH_RESOURCES_DIR"
 done
+echo "  Done"
 echo ""
 
 # ──────────────────────────────────────────────
-# 7. Reset database and seed
+# 5. Reset database and seed
 # ──────────────────────────────────────────────
-echo "[7/9] Resetting database..."
+echo "[5/7] Resetting database..."
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project DataApi/ -- --reset-db 2>&1 | tail -1
 echo "  Database reset complete"
 echo ""
 
 # ──────────────────────────────────────────────
-# 8. Start all services
+# 6. Start all services
 # ──────────────────────────────────────────────
-echo "[8/9] Starting services..."
+echo "[6/7] Starting services..."
 echo "  DataApi:  http://localhost:5003"
 echo "  Frontend: http://localhost:5001"
 
-# DataApi
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project DataApi/ &> /tmp/data-api.log &
 DATA_API_PID=$!
 
-# Wait for DataApi health
 for i in $(seq 1 30); do
     if curl -sf http://localhost:5003/health > /dev/null 2>&1; then break; fi
     sleep 2
 done
 echo "  DataApi healthy"
 
-# Frontend
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project Frontend/ &> /tmp/frontend.log &
 FRONTEND_PID=$!
@@ -155,35 +127,25 @@ for i in $(seq 1 30); do
 done
 echo "  Frontend healthy"
 
-# IngestionApp — starts background services that process the event queue
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     INGESTION_STUDY_LIMIT="$STUDY_LIMIT" \
     dotnet run --project IngestionApp/ &> /tmp/ingestion.log &
 INGESTION_PID=$!
-echo "  IngestionApp started (PID $INGESTION_PID)"
+echo "  IngestionApp started"
 echo ""
 
 # ──────────────────────────────────────────────
-# 9. Ingest studies (one-shot via Scrapers.Validation)
+# 7. Ingest studies
 # ──────────────────────────────────────────────
-echo "[9/9] Ingesting ${STUDY_LIMIT} studies from ClinicalTrials.gov..."
-echo "  This will take several minutes..."
+echo "[7/7] Ingesting ${STUDY_LIMIT} studies from ClinicalTrials.gov..."
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
     dotnet run --project Scrapers.Validation/ -- "$STUDY_LIMIT" 2>&1 || true
 echo ""
 
-# ──────────────────────────────────────────────
-# Clear any DLQ events that may have accumulated during ingestion
-# ──────────────────────────────────────────────
-echo "Clearing any stale DLQ events from event pipeline..."
+# Clear any DLQ events that accumulated during ingestion
 psql -d clinical_trial_data -c "DELETE FROM pipeline_events WHERE status = 'dead-letter';" 2>&1 | tail -1
-echo ""
-
-# Verify DLQ is clear
 DLQ_COUNT=$(psql -d clinical_trial_data -t -c "SELECT COUNT(*) FROM pipeline_events WHERE status = 'dead-letter';" 2>/dev/null | xargs)
-echo "  DLQ events remaining: $DLQ_COUNT"
 
-# ──────────────────────────────────────────────
 echo "============================================"
 echo " Startup complete!"
 echo ""
