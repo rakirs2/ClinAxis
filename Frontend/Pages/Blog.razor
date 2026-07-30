@@ -1,0 +1,103 @@
+@page "/blog"
+@inject BlogService BlogService
+@attribute [StreamRendering]
+
+<h1>Blog — Lessons Learned</h1>
+
+@if (posts is null)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (posts.Count == 0)
+{
+    <p class="text-muted mt-4">No posts yet. Drop a <code>.md</code> file in <code>blog/</code> to get started.</p>
+}
+else
+{
+    @if (pinnedPost is not null)
+    {
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><strong>Featured</strong> &mdash; @pinnedPost.Title</span>
+                <span class="badge bg-light text-dark">@pinnedPost.Date.ToString("yyyy-MM-dd")</span>
+            </div>
+            <div class="card-body">
+                <div class="blog-content">
+                    @((MarkupString)pinnedPost.BodyHtml)
+                </div>
+                <a href="/blog/@pinnedPost.Slug" class="btn btn-outline-primary btn-sm mt-2">Read full post &rarr;</a>
+            </div>
+        </div>
+    }
+
+    <div class="mb-3">
+        <div class="btn-group btn-group-sm flex-wrap" role="group">
+            <button class="btn btn-outline-secondary @(selectedTag is null ? "active" : "")" @onclick="ClearTag">All</button>
+            @foreach (var tag in allTags)
+            {
+                <button class="btn btn-outline-secondary @(selectedTag == tag ? "active" : "")" @onclick="() => SetTag(tag)">@tag</button>
+            }
+        </div>
+    </div>
+
+    <h5 class="text-muted mb-3">Other posts</h5>
+
+    <div class="list-group">
+        @foreach (var post in otherPosts)
+        {
+            <a class="list-group-item list-group-item-action" href="/blog/@post.Slug">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">@post.Title</h5>
+                    <small class="text-muted">@post.Date.ToString("yyyy-MM-dd")</small>
+                </div>
+                <small class="text-muted">@post.Category</small>
+                <div class="mt-1">
+                    @foreach (var tag in post.Tags)
+                    {
+                        <span class="badge bg-secondary me-1">@tag</span>
+                    }
+                </div>
+            </a>
+        }
+    </div>
+}
+
+@code {
+    private List<BlogPostInfo>? posts;
+    private string? selectedTag;
+
+    private BlogPostInfo? pinnedPost =>
+        posts?.FirstOrDefault(p => p.IsPinned);
+
+    private List<BlogPostInfo> otherPosts
+    {
+        get
+        {
+            if (posts is null) return [];
+            var other = posts.Where(p => !p.IsPinned).ToList();
+            return selectedTag is null
+                ? other
+                : other.Where(p => p.Tags.Contains(selectedTag)).ToList();
+        }
+    }
+
+    private List<string> allTags =>
+        posts?.SelectMany(p => p.Tags).Distinct().OrderBy(t => t).ToList() ?? [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        posts = await BlogService.GetAllPostsAsync();
+    }
+
+    private void ClearTag()
+    {
+        selectedTag = null;
+    }
+
+    private void SetTag(string tag)
+    {
+        selectedTag = tag;
+    }
+}

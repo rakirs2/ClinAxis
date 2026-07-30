@@ -17,6 +17,7 @@ WebApplication CreateApp()
     builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri(dataApiBaseUrl));
     builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(dataApiBaseUrl) });
 
+    builder.Services.AddSingleton<BlogService>();
     builder.Services.AddHealthChecks();
 
     WebApplication app = builder.Build();
