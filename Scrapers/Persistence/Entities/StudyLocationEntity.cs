@@ -17,6 +17,11 @@ namespace Scrapers.Persistence.Entities
         public string? State { get; set; }
         public string? Country { get; set; }
 
+        public int? MeshDescriptorId { get; set; }
+
+        [ForeignKey(nameof(MeshDescriptorId))]
+        public MeshDescriptorEntity? MeshDescriptor { get; set; }
+
         public StudyEntity? Study { get; set; }
     }
 }

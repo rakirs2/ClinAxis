@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260724180212_InitialCreate")]
+    [Migration("20260730010222_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -678,6 +678,37 @@ namespace Scrapers.Persistence.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TreeNumbers"), "GIN");
 
                     b.ToTable("mesh_descriptors", (string)null);
+                });
+
+            modelBuilder.Entity("Scrapers.Persistence.Entities.MeshTreePathEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("MeshDescriptorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("mesh_descriptor_id");
+
+                    b.Property<string>("TreeNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tree_number");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeshDescriptorId");
+
+                    b.HasIndex("TreeNumber")
+                        .HasDatabaseName("ix_mesh_tree_paths_tree_number_pattern");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TreeNumber"), "btree");
+
+                    b.ToTable("mesh_tree_paths", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.OpenPaymentEntity", b =>
@@ -1585,6 +1616,47 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("studies", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyInterventionEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("InterventionName")
+                        .HasColumnType("text")
+                        .HasColumnName("intervention_name");
+
+                    b.Property<string>("InterventionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("intervention_type");
+
+                    b.Property<int?>("MeshDescriptorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("mesh_descriptor_id");
+
+                    b.Property<string>("StudyNctId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("study_nct_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeshDescriptorId");
+
+                    b.HasIndex("StudyNctId", "InterventionType");
+
+                    b.ToTable("study_interventions", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyInvestigatorEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1682,6 +1754,9 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("facility");
 
+                    b.Property<int?>("MeshDescriptorId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("State")
                         .HasColumnType("text")
                         .HasColumnName("state");
@@ -1699,6 +1774,8 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("Country");
 
                     b.HasIndex("Facility");
+
+                    b.HasIndex("MeshDescriptorId");
 
                     b.HasIndex("State");
 
@@ -1892,6 +1969,17 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("InvestigatorPerson");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.MeshTreePathEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.MeshDescriptorEntity", "MeshDescriptor")
+                        .WithMany("TreeNumberPaths")
+                        .HasForeignKey("MeshDescriptorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeshDescriptor");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.OpenPaymentEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
@@ -1954,6 +2042,24 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("Study");
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.StudyInterventionEntity", b =>
+                {
+                    b.HasOne("Scrapers.Persistence.Entities.MeshDescriptorEntity", "MeshDescriptor")
+                        .WithMany("StudyInterventions")
+                        .HasForeignKey("MeshDescriptorId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
+                        .WithMany("Interventions")
+                        .HasForeignKey("StudyNctId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MeshDescriptor");
+
+                    b.Navigation("Study");
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyInvestigatorEntity", b =>
                 {
                     b.HasOne("Scrapers.Persistence.Entities.InvestigatorPersonEntity", "InvestigatorPerson")
@@ -1986,11 +2092,18 @@ namespace Scrapers.Persistence.Migrations
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyLocationEntity", b =>
                 {
+                    b.HasOne("Scrapers.Persistence.Entities.MeshDescriptorEntity", "MeshDescriptor")
+                        .WithMany("StudyLocations")
+                        .HasForeignKey("MeshDescriptorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("Locations")
                         .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("MeshDescriptor");
 
                     b.Navigation("Study");
                 });
@@ -2069,6 +2182,12 @@ namespace Scrapers.Persistence.Migrations
             modelBuilder.Entity("Scrapers.Persistence.Entities.MeshDescriptorEntity", b =>
                 {
                     b.Navigation("StudyConditions");
+
+                    b.Navigation("StudyInterventions");
+
+                    b.Navigation("StudyLocations");
+
+                    b.Navigation("TreeNumberPaths");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedPaperEntity", b =>
@@ -2083,6 +2202,8 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("ArmGroups");
 
                     b.Navigation("Conditions");
+
+                    b.Navigation("Interventions");
 
                     b.Navigation("Keywords");
 

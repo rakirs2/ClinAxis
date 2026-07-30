@@ -19,6 +19,19 @@ internal static class SeedData
         new MeshDescriptorEntity { Id = 1010, Cui = "D006973", Name = "Hypertension", TreeNumbers = ["C14.907"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1010, TreeNumber = "C14.907" }] },
         new MeshDescriptorEntity { Id = 1011, Cui = "D030342", Name = "Genetic Diseases, Inborn", TreeNumbers = ["C16.320"], Category = "disease", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1011, TreeNumber = "C16.320" }] },
         new MeshDescriptorEntity { Id = 1012, Cui = "D015415", Name = "Biomarkers, Pharmacological", TreeNumbers = ["D23.101"], Category = "chemical", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 1012, TreeNumber = "D23.101" }] },
+        // Z-Geographicals for location matching
+        new MeshDescriptorEntity { Id = 2001, Cui = "GEO001", Name = "United States", TreeNumbers = ["Z01.107.567.875"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2001, TreeNumber = "Z01.107.567.875" }] },
+        new MeshDescriptorEntity { Id = 2002, Cui = "GEO002", Name = "Canada", TreeNumbers = ["Z01.107.567.176"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2002, TreeNumber = "Z01.107.567.176" }] },
+        new MeshDescriptorEntity { Id = 2003, Cui = "GEO003", Name = "Germany", TreeNumbers = ["Z01.542.315"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2003, TreeNumber = "Z01.542.315" }] },
+        new MeshDescriptorEntity { Id = 2004, Cui = "GEO004", Name = "California", TreeNumbers = ["Z01.107.567.875.580.200"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2004, TreeNumber = "Z01.107.567.875.580.200" }] },
+        new MeshDescriptorEntity { Id = 2005, Cui = "GEO005", Name = "New York", TreeNumbers = ["Z01.107.567.875.350"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2005, TreeNumber = "Z01.107.567.875.350" }] },
+        new MeshDescriptorEntity { Id = 2006, Cui = "GEO006", Name = "Massachusetts", TreeNumbers = ["Z01.107.567.875.550"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2006, TreeNumber = "Z01.107.567.875.550" }] },
+        new MeshDescriptorEntity { Id = 2007, Cui = "GEO007", Name = "New York City", TreeNumbers = ["Z01.107.567.875.350.350"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2007, TreeNumber = "Z01.107.567.875.350.350" }] },
+        new MeshDescriptorEntity { Id = 2008, Cui = "GEO008", Name = "Chicago", TreeNumbers = ["Z01.107.567.875.510.350"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2008, TreeNumber = "Z01.107.567.875.510.350" }] },
+        new MeshDescriptorEntity { Id = 2009, Cui = "GEO009", Name = "Texas", TreeNumbers = ["Z01.107.567.875.760"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2009, TreeNumber = "Z01.107.567.875.760" }] },
+        new MeshDescriptorEntity { Id = 2010, Cui = "GEO010", Name = "Ontario", TreeNumbers = ["Z01.107.567.176.064"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2010, TreeNumber = "Z01.107.567.176.064" }] },
+        new MeshDescriptorEntity { Id = 2011, Cui = "GEO011", Name = "British Columbia", TreeNumbers = ["Z01.107.567.176.160"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2011, TreeNumber = "Z01.107.567.176.160" }] },
+        new MeshDescriptorEntity { Id = 2012, Cui = "GEO012", Name = "Berlin", TreeNumbers = ["Z01.542.315.182"], Category = "geographic", TreeNumberPaths = [new MeshTreePathEntity { MeshDescriptorId = 2012, TreeNumber = "Z01.542.315.182" }] },
     ];
 
     internal static readonly StudyEntity Study1 = new()

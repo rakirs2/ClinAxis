@@ -1751,6 +1751,9 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("facility");
 
+                    b.Property<int?>("MeshDescriptorId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("State")
                         .HasColumnType("text")
                         .HasColumnName("state");
@@ -1768,6 +1771,8 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("Country");
 
                     b.HasIndex("Facility");
+
+                    b.HasIndex("MeshDescriptorId");
 
                     b.HasIndex("State");
 
@@ -2084,11 +2089,18 @@ namespace Scrapers.Persistence.Migrations
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyLocationEntity", b =>
                 {
+                    b.HasOne("Scrapers.Persistence.Entities.MeshDescriptorEntity", "MeshDescriptor")
+                        .WithMany("StudyLocations")
+                        .HasForeignKey("MeshDescriptorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Scrapers.Persistence.Entities.StudyEntity", "Study")
                         .WithMany("Locations")
                         .HasForeignKey("StudyNctId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("MeshDescriptor");
 
                     b.Navigation("Study");
                 });
@@ -2169,6 +2181,8 @@ namespace Scrapers.Persistence.Migrations
                     b.Navigation("StudyConditions");
 
                     b.Navigation("StudyInterventions");
+
+                    b.Navigation("StudyLocations");
 
                     b.Navigation("TreeNumberPaths");
                 });
