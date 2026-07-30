@@ -523,6 +523,26 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "mesh_tree_paths",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    mesh_descriptor_id = table.Column<int>(type: "integer", nullable: false),
+                    tree_number = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_mesh_tree_paths", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_mesh_tree_paths_mesh_descriptors_mesh_descriptor_id",
+                        column: x => x.mesh_descriptor_id,
+                        principalTable: "mesh_descriptors",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "scrape_events",
                 columns: table => new
                 {
@@ -624,6 +644,35 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "study_interventions",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    study_nct_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    intervention_name = table.Column<string>(type: "text", nullable: true),
+                    intervention_type = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    description = table.Column<string>(type: "text", nullable: true),
+                    mesh_descriptor_id = table.Column<int>(type: "integer", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_study_interventions", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_study_interventions_mesh_descriptors_mesh_descriptor_id",
+                        column: x => x.mesh_descriptor_id,
+                        principalTable: "mesh_descriptors",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_study_interventions_studies_study_nct_id",
+                        column: x => x.study_nct_id,
+                        principalTable: "studies",
+                        principalColumn: "nct_id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "study_investigators",
                 columns: table => new
                 {
@@ -683,11 +732,18 @@ namespace Scrapers.Persistence.Migrations
                     facility = table.Column<string>(type: "text", nullable: true),
                     city = table.Column<string>(type: "text", nullable: true),
                     state = table.Column<string>(type: "text", nullable: true),
-                    country = table.Column<string>(type: "text", nullable: true)
+                    country = table.Column<string>(type: "text", nullable: true),
+                    MeshDescriptorId = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_study_locations", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_study_locations_mesh_descriptors_MeshDescriptorId",
+                        column: x => x.MeshDescriptorId,
+                        principalTable: "mesh_descriptors",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_study_locations_studies_study_nct_id",
                         column: x => x.study_nct_id,
@@ -904,6 +960,17 @@ namespace Scrapers.Persistence.Migrations
                 .Annotation("Npgsql:IndexMethod", "GIN");
 
             migrationBuilder.CreateIndex(
+                name: "IX_mesh_tree_paths_mesh_descriptor_id",
+                table: "mesh_tree_paths",
+                column: "mesh_descriptor_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_mesh_tree_paths_tree_number_pattern",
+                table: "mesh_tree_paths",
+                column: "tree_number")
+                .Annotation("Npgsql:IndexMethod", "btree");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_open_payments_investigator_person_id",
                 table: "open_payments",
                 column: "investigator_person_id");
@@ -1044,6 +1111,16 @@ namespace Scrapers.Persistence.Migrations
                 column: "study_nct_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_study_interventions_mesh_descriptor_id",
+                table: "study_interventions",
+                column: "mesh_descriptor_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_study_interventions_study_nct_id_intervention_type",
+                table: "study_interventions",
+                columns: new[] { "study_nct_id", "intervention_type" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_study_investigators_investigator_person_id",
                 table: "study_investigators",
                 column: "investigator_person_id");
@@ -1077,6 +1154,11 @@ namespace Scrapers.Persistence.Migrations
                 name: "IX_study_locations_facility",
                 table: "study_locations",
                 column: "facility");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_study_locations_MeshDescriptorId",
+                table: "study_locations",
+                column: "MeshDescriptorId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_study_locations_state",
@@ -1142,6 +1224,9 @@ namespace Scrapers.Persistence.Migrations
                 name: "medicare_utilizations");
 
             migrationBuilder.DropTable(
+                name: "mesh_tree_paths");
+
+            migrationBuilder.DropTable(
                 name: "open_payments");
 
             migrationBuilder.DropTable(
@@ -1178,6 +1263,9 @@ namespace Scrapers.Persistence.Migrations
                 name: "study_conditions");
 
             migrationBuilder.DropTable(
+                name: "study_interventions");
+
+            migrationBuilder.DropTable(
                 name: "study_investigators");
 
             migrationBuilder.DropTable(
@@ -1202,10 +1290,10 @@ namespace Scrapers.Persistence.Migrations
                 name: "pipeline_runs");
 
             migrationBuilder.DropTable(
-                name: "mesh_descriptors");
+                name: "investigator_persons");
 
             migrationBuilder.DropTable(
-                name: "investigator_persons");
+                name: "mesh_descriptors");
 
             migrationBuilder.DropTable(
                 name: "pubmed_papers");
