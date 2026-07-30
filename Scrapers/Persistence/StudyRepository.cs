@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Scrapers.Models;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
@@ -1907,6 +1908,8 @@ namespace Scrapers.Persistence
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            var personModified = false;
+
             foreach (var pmid in pmids)
             {
                 if (string.IsNullOrWhiteSpace(pmid))
@@ -1914,93 +1917,120 @@ namespace Scrapers.Persistence
                     continue;
                 }
 
-                PubMedScraperService.PaperDetail? paperDetail = null;
-
-                var paper = await context.PubmedPapers
-                    .FirstOrDefaultAsync(p => p.Pmid == pmid, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (paper == null)
+                try
                 {
-                    paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
-                    if (paperDetail == null)
-                    {
-                        continue;
-                    }
-
-                    paper = new PubmedPaperEntity
-                    {
-                        Pmid = pmid,
-                        Doi = paperDetail.Doi,
-                        Title = paperDetail.Title,
-                        Journal = paperDetail.Journal,
-                        PublicationDate = paperDetail.PublicationDate,
-                        Abstract = paperDetail.Abstract,
-                        IsNonEnglish = paperDetail.IsNonEnglish,
-                        PublicationTypes = paperDetail.PublicationTypes,
-                        Source = "PubMed/EUtils"
-                    };
-                    context.PubmedPapers.Add(paper);
-                    var aliasExists = await context.EntityAliases
-                        .AnyAsync(a => a.EntityType == "PubmedPaper"
-                            && a.Source == "PubMed/EUtils"
-                            && a.SourceEntityId == pmid, cancellationToken)
-                        .ConfigureAwait(false);
-                    if (!aliasExists)
-                    {
-                        context.EntityAliases.Add(new EntityAliasEntity
-                        {
-                            EntityType = "PubmedPaper",
-                            CanonicalId = paper.Id.ToString(),
-                            Source = paper.Source,
-                            SourceEntityId = paper.Pmid,
-                            FirstSeenAt = DateTime.UtcNow,
-                            LastSeenAt = DateTime.UtcNow
-                        });
-                    }
+                    await ScrubSinglePmidAsync(context, person, pmid, cancellationToken).ConfigureAwait(false);
+                    personModified = true;
                 }
-
-                var existingLink = await context.InvestigatorPapers
-                    .AnyAsync(ip => ip.InvestigatorPersonId == personId && ip.PubmedPaperId == paper.Id, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (!existingLink)
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx
+                    && pgEx.SqlState == "23505")
                 {
-                    context.InvestigatorPapers.Add(new InvestigatorPaperEntity
-                    {
-                        InvestigatorPersonId = personId,
-                        PubmedPaperId = paper.Id,
-                    });
-                }
-
-                if (paperDetail == null && person.Orcid == null)
-                {
-                    paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
-                }
-
-                if (paperDetail?.Authors != null && person.Orcid == null)
-                {
-                    var fullNameParts = person.FullName.Split(',')[0].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    var lastName = fullNameParts.LastOrDefault();
-                    var foreName = fullNameParts.FirstOrDefault();
-
-                    foreach (var author in paperDetail.Authors)
-                    {
-                        if (author.Orcid != null
-                            && string.Equals(author.LastName, lastName, StringComparison.OrdinalIgnoreCase)
-                            && (author.ForeName == null || foreName == null || author.ForeName.StartsWith(foreName[0].ToString(), StringComparison.OrdinalIgnoreCase)))
-                        {
-                            person.Orcid = author.Orcid;
-                            person.VerifiedAt = DateTime.UtcNow;
-                            person.VerificationSource = "PubMed";
-                            break;
-                        }
-                    }
+                    // Unique constraint violation — data already exists from concurrent processing.
+                    // This is harmless; continue to next PMID.
                 }
             }
 
-            person.UpdatedAt = DateTime.UtcNow;
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            if (personModified)
+            {
+                person.UpdatedAt = DateTime.UtcNow;
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task ScrubSinglePmidAsync(
+            ClinicalTrialsContext context,
+            InvestigatorPersonEntity person,
+            string pmid,
+            CancellationToken cancellationToken)
+        {
+            PubMedScraperService.PaperDetail? paperDetail = null;
+
+            var paper = await context.PubmedPapers
+                .FirstOrDefaultAsync(p => p.Pmid == pmid, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (paper == null)
+            {
+                paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                if (paperDetail == null)
+                {
+                    return;
+                }
+
+                paper = new PubmedPaperEntity
+                {
+                    Pmid = pmid,
+                    Doi = paperDetail.Doi,
+                    Title = paperDetail.Title,
+                    Journal = paperDetail.Journal,
+                    PublicationDate = paperDetail.PublicationDate,
+                    Abstract = paperDetail.Abstract,
+                    IsNonEnglish = paperDetail.IsNonEnglish,
+                    PublicationTypes = paperDetail.PublicationTypes,
+                    Source = "PubMed/EUtils"
+                };
+                context.PubmedPapers.Add(paper);
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                var aliasExists = await context.EntityAliases
+                    .AnyAsync(a => a.EntityType == "PubmedPaper"
+                        && a.Source == "PubMed/EUtils"
+                        && a.SourceEntityId == pmid, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!aliasExists)
+                {
+                    context.EntityAliases.Add(new EntityAliasEntity
+                    {
+                        EntityType = "PubmedPaper",
+                        CanonicalId = paper.Id.ToString(),
+                        Source = paper.Source,
+                        SourceEntityId = paper.Pmid,
+                        FirstSeenAt = DateTime.UtcNow,
+                        LastSeenAt = DateTime.UtcNow
+                    });
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            var existingLink = await context.InvestigatorPapers
+                .AnyAsync(ip => ip.InvestigatorPersonId == person.Id && ip.PubmedPaperId == paper.Id, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!existingLink)
+            {
+                context.InvestigatorPapers.Add(new InvestigatorPaperEntity
+                {
+                    InvestigatorPersonId = person.Id,
+                    PubmedPaperId = paper.Id,
+                });
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (paperDetail == null && person.Orcid == null)
+            {
+                paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (paperDetail?.Authors != null && person.Orcid == null)
+            {
+                var fullNameParts = person.FullName.Split(',')[0].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var lastName = fullNameParts.LastOrDefault();
+                var foreName = fullNameParts.FirstOrDefault();
+
+                foreach (var author in paperDetail.Authors)
+                {
+                    if (author.Orcid != null
+                        && string.Equals(author.LastName, lastName, StringComparison.OrdinalIgnoreCase)
+                        && (author.ForeName == null || foreName == null || author.ForeName.StartsWith(foreName[0].ToString(), StringComparison.OrdinalIgnoreCase)))
+                    {
+                        person.Orcid = author.Orcid;
+                        person.VerifiedAt = DateTime.UtcNow;
+                        person.VerificationSource = "PubMed";
+                        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                        break;
+                    }
+                }
+            }
         }
 
         private static readonly HashSet<string> AffiliationBlocklist = new(StringComparer.OrdinalIgnoreCase)

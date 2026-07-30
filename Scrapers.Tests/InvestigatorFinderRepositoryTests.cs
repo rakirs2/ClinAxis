@@ -53,9 +53,7 @@ public sealed class InvestigatorFinderRepositoryTests : DbTestBase
 
         var repo = new StudyRepository(ConnectionString);
         var results = await repo.GetInvestigatorFinderCandidatesAsync(
-            conditionTreePrefixes: ["C19.246"],
-            drugTreePrefixes: null,
-            therapyTreePrefixes: null,
+            treePrefixes: ["C19.246"],
             topN: 20);
 
         Assert.IsNotNull(results);
@@ -107,9 +105,7 @@ public sealed class InvestigatorFinderRepositoryTests : DbTestBase
 
         var repo = new StudyRepository(ConnectionString);
         var results = await repo.GetInvestigatorFinderCandidatesAsync(
-            conditionTreePrefixes: ["C19.246"],
-            drugTreePrefixes: null,
-            therapyTreePrefixes: null,
+            treePrefixes: ["C19.246"],
             topN: 20);
 
         Assert.IsNotNull(results);

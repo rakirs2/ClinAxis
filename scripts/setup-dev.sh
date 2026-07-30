@@ -112,7 +112,7 @@ echo ""
 echo "[7/7] Ingesting ${STUDY_LIMIT} studies from ClinicalTrials.gov..."
 echo "  This will take several minutes..."
 POSTGRES_CONNECTION_STRING="$CONN_STRING" \
-    dotnet run --project Scrapers.Validation/ -- "$STUDY_LIMIT" --truncate 2>&1 || true
+    dotnet run --project Scrapers.Validation/ -- "$STUDY_LIMIT" 2>&1 || true
 echo ""
 
 # ------------------------------------------------

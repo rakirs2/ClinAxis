@@ -15,9 +15,10 @@
             <div class="row mb-3">
                 @for (int j = i; j < i + 4 && j < _branches.Count; j++)
                 {
-                    var b = _branches[j];
+                    var idx = j;
+                    var b = _branches[idx];
                     <div class="col-md-3">
-                        <SearchableTagSelector @ref="_selectors[j]" Branch="@b.Prefix" Label="@($"MeSH {b.Prefix}: {b.Name}")" Placeholder="@($"Search {b.Name}...")" />
+                        <SearchableTagSelector @ref="_selectors[idx]" Branch="@b.Prefix" Label="@($"MeSH {b.Prefix}: {b.Name}")" Placeholder="@($"Search {b.Name}...")" />
                     </div>
                 }
             </div>
