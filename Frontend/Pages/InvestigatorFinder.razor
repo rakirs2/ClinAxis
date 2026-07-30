@@ -8,23 +8,15 @@
 <h1>Investigator Finder</h1>
 
 <div class="card mb-4">
-    <div class="card-header"><h5>Filter by Dimensions</h5></div>
+    <div class="card-header"><h5>Search by Research Area</h5></div>
     <div class="card-body">
-        @for (int i = 0; i < _branches.Count; i += 4)
-        {
-            <div class="row mb-3">
-                @for (int j = i; j < i + 4 && j < _branches.Count; j++)
-                {
-                    var idx = j;
-                    var b = _branches[idx];
-                    <div class="col-md-3">
-                        <SearchableTagSelector @ref="_selectors[idx]" Branch="@b.Prefix" Label="@($"MeSH {b.Prefix}: {b.Name}")" Placeholder="@($"Search {b.Name}...")" />
-                    </div>
-                }
-            </div>
-        }
-
         <div class="row">
+            <div class="col-md-12">
+                <SearchableTagSelector @ref="_selector" Branch="" Label="Research Area" Placeholder="Search conditions, diseases, keywords..." />
+            </div>
+        </div>
+
+        <div class="row mt-3">
             <div class="col-md-12">
                 <button class="btn btn-primary" @onclick="FindInvestigators" disabled="@(_loading)">
                     @if (_loading) { <span>Searching...</span> } else { <span>Find Investigators</span> }
@@ -112,27 +104,7 @@ else if (_result is not null)
 }
 
 @code {
-    private static readonly List<BranchInfo> _branches = new()
-    {
-        new("A", "Anatomy"),
-        new("B", "Organisms"),
-        new("C", "Diseases"),
-        new("D", "Chemicals and Drugs"),
-        new("E", "Techniques and Equipment"),
-        new("F", "Psychiatry and Psychology"),
-        new("G", "Phenomena and Processes"),
-        new("H", "Disciplines and Occupations"),
-        new("I", "Anthropology and Sociology"),
-        new("J", "Technology and Industry"),
-        new("K", "Humanities"),
-        new("L", "Information Science"),
-        new("M", "Named Groups"),
-        new("N", "Health Care"),
-        new("V", "Publication Characteristics"),
-        new("Z", "Geographicals"),
-    };
-
-    private SearchableTagSelector[] _selectors = new SearchableTagSelector[16];
+    private SearchableTagSelector? _selector;
     private bool _loading;
     private string? _error;
     private FinderResponse? _result;
@@ -154,19 +126,13 @@ else if (_result is not null)
         {
             var client = HttpClientFactory.CreateClient("DataApi");
 
-            var allPrefixes = new List<string>();
-            for (int i = 0; i < _branches.Count; i++)
-            {
-                var prefixes = _selectors[i]?.GetSelectedTreeNumbers();
-                if (prefixes is { Count: > 0 })
-                    allPrefixes.AddRange(prefixes);
-            }
+            var allPrefixes = _selector?.GetSelectedTreeNumbers() ?? [];
 
             Logger.LogInformation("Selections: {Prefixes}", allPrefixes.Count > 0 ? string.Join(",", allPrefixes) : "none");
 
             if (allPrefixes.Count == 0)
             {
-                _error = "Please select at least one filter from any dimension.";
+                _error = "Please select at least one research area.";
                 _loading = false;
                 return;
             }
@@ -245,5 +211,4 @@ else if (_result is not null)
         public string? error { get; set; }
     }
 
-    private record BranchInfo(string Prefix, string Name);
 }

@@ -59,8 +59,8 @@
 
     protected override void OnParametersSet()
     {
-        if (string.IsNullOrWhiteSpace(Branch))
-            Logger.LogWarning("SearchableTagSelector: Branch parameter is empty");
+        if (Branch is null)
+            Logger.LogWarning("SearchableTagSelector: Branch parameter is null");
     }
 
     private async Task OnSearchInput(ChangeEventArgs e)
@@ -83,8 +83,10 @@
             if (token.IsCancellationRequested) return;
 
             var client = HttpClientFactory.CreateClient("DataApi");
-            var results = await client.GetFromJsonAsync<List<MeshSearchResult>>(
-                $"/api/mesh-tree/search?q={Uri.EscapeDataString(_searchText)}&branch={Branch}&maxResults=200", token);
+            var url = $"/api/mesh-tree/search?q={Uri.EscapeDataString(_searchText)}&maxResults=200";
+            if (!string.IsNullOrEmpty(Branch))
+                url += $"&branch={Uri.EscapeDataString(Branch)}";
+            var results = await client.GetFromJsonAsync<List<MeshSearchResult>>(url, token);
 
             if (!token.IsCancellationRequested)
             {
