@@ -5,10 +5,12 @@ using Markdig;
 
 namespace Frontend;
 
-internal sealed partial class BlogService
+internal sealed partial class BlogService : IDisposable
 {
     private readonly string _blogPath;
     private List<BlogPostInfo>? _cache;
+    private FileSystemWatcher? _watcher;
+    private CancellationTokenSource? _debounceCts;
 
     public BlogService(IWebHostEnvironment env)
     {
@@ -21,6 +23,53 @@ internal sealed partial class BlogService
             if (Directory.Exists(devPath))
                 _blogPath = Path.GetFullPath(devPath);
         }
+
+        StartWatcher();
+    }
+
+    private void StartWatcher()
+    {
+        if (!Directory.Exists(_blogPath))
+            return;
+
+        _watcher = new FileSystemWatcher(_blogPath, "*.md")
+        {
+            IncludeSubdirectories = true,
+            EnableRaisingEvents = true
+        };
+
+        _watcher.Changed += OnBlogFileChanged;
+        _watcher.Created += OnBlogFileChanged;
+        _watcher.Deleted += OnBlogFileChanged;
+        _watcher.Renamed += OnBlogFileChanged;
+    }
+
+    private void OnBlogFileChanged(object sender, FileSystemEventArgs e)
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(500, token).ConfigureAwait(false);
+                if (!token.IsCancellationRequested)
+                    _cache = null;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, token);
+    }
+
+    public void Dispose()
+    {
+        _watcher?.Dispose();
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
     }
 
     public async Task<List<BlogPostInfo>> GetAllPostsAsync()
