@@ -91,8 +91,11 @@ rate → higher P(completed)).
 ### Endpoint-driven generation (no direct DB access)
 
 All model training data comes from one DataApi endpoint,
-`GET /api/export/training/pi-features`, which streams the training frame as CSV
-(window params `from`/`to`, default 2018-01-01..2019-12-31). The endpoint owns
+`GET /api/export/training/pi-features`, which streams the training frame as CSV.
+The window is **client-supplied**: required query params `from`/`to`
+(yyyy-MM-dd, validated server-side — no defaults, no hardcoded training
+window). Bounds: `from >= 2000-01-01` (prior-history data starts then) and
+`to <= today`; anything else returns 400. The endpoint owns
 feature computation (no-lookahead rules, coverage flags) and is the *only*
 consumer-facing generator — no SQL, no mirror DB, no file handoff.
 
