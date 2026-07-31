@@ -85,3 +85,71 @@ The smoke test (`smoke_test.py`) runs the full pipeline on synthetic data and
 asserts: training frame shape, learnability (AUC > 0.5), ONNX round-trip
 (probabilities in [0,1], sum to 1), and monotonicity (higher prior completion
 rate → higher P(completed)).
+
+## Extensibility — adding data sources
+
+### Endpoint-driven generation (no direct DB access)
+
+All model training data comes from one DataApi endpoint,
+`GET /api/export/training/pi-features`, which streams the training frame as CSV
+(window params `from`/`to`, default 2018-01-01..2019-12-31). The endpoint owns
+feature computation (no-lookahead rules, coverage flags) and is the *only*
+consumer-facing generator — no SQL, no mirror DB, no file handoff.
+
+### The mechanism (for any future source, e.g., Medicare)
+
+1. **Ingest into prod** — the source lands in the app DB via IngestionApp
+   (NPPES/ORCID enrichment, CMS Medicare, CMS Open Payments, Semantic Scholar,
+   PubMed are already there).
+2. **Identity join** — the source must key on person id (directly, or via
+   NPI/ORCID resolution — the v0 name-based identity is a documented
+   simplification and cannot join NPI-keyed sources).
+3. **As-of features** — every feature must be computable from data available
+   before the study's start date (e.g., Medicare/Open Payments rows use
+   `DataYear <= study start year`). Features that can't be rebuilt as-of are
+   either omitted or exported with an explicit leak flag (see below).
+4. **Coverage flags** — missing data is exported as explicit `has_*` columns
+   (1/0), never silently imputed to 0.
+5. **Schema + model versioning** — `feature_schema.json` records the exact
+   feature list per model version; old artifacts remain loadable
+   (schema-driven binding is a serve-side change-point, below).
+6. **Ablate before adopting** — `source_ablation_experiment.py` compares the
+   incumbent vs the new feature set on identical splits; a source is adopted
+   only if it improves holdout AUC with documented coverage.
+
+### Source catalog (already in the app DB)
+
+| Source | Tables | Identity | Exported features (as-of) | Leak |
+|--------|--------|----------|---------------------------|------|
+| Trial history | studies, study_investigators | person | prior study count/completed/enrollment/rate (window start) | clean |
+| PubMed | pubmed_papers, investigator_papers | person | papers before start, papers/year before start | clean |
+| Medicare | medicare_utilizations (+ procedures) | person via NPI | beneficiaries, services, payments, risk score, has_medicare (year ≤ start) | clean |
+| Open Payments (Sunshine Act) | open_payments | person via NPI | research/general payments, payor count, has_payments (year ≤ start) | clean |
+| Semantic Scholar | investigator_metrics | person (name search) | **current** h-index, citations, i10, papers, has_metrics | **leaky — diagnostic only** |
+
+### Leak-flagged features (h-index)
+
+The stored Semantic Scholar h-index is a *point-in-time snapshot taken at
+enrichment time* — for a 2018-19 training study it contains ~7 years of future
+publications, some caused by the outcome itself (label leakage). It can't be
+rebuilt as-of because per-paper citation histories are not stored. Policy:
+the snapshot group is trained and reported in every ablation as a
+**leaky upper-bound diagnostic**, but it is never a deploy candidate unless an
+as-of rebuild (e.g., OpenAlex paper-level citations) becomes a source.
+The `pubmed` group (papers before start) is the clean alternative.
+
+### Serve-side change-points (future model-swap PR)
+
+- `DataApi/Services/PiCompletionModel.Predict` hardcodes the four v0 features
+  and tensor shape `[1,4]` — must become schema-driven (bind inputs by name
+  from `feature_schema.json`).
+- `InvestigatorFinderService`/`StudyRepository` candidates must expose the new
+  feature values (same as-of semantics as the export endpoint).
+- `feature_schema.json` needs `schemaVersion`/`modelVersion`; a model registry
+  (`model_artifacts` table + upload endpoint) replaces SCP/file shipping so
+  past models stay loadable and current-vs-past comparison is reproducible.
+
+### Ablation results
+
+Populated by running `source_ablation_experiment.py --url <deployed endpoint>`
+after the export endpoint ships to prod (PR #326 → deploy → run → record here).
