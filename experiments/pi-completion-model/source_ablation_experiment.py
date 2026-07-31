@@ -1,7 +1,9 @@
 """Multi-source feature ablation for the PI completion model.
 
-Consumes the training frame exported by DataApi's endpoint
-GET /api/export/training/pi-features (endpoint-driven: no direct DB access).
+Consumes the training frame by calling the deployed DataApi instance directly
+(GET /api/export/training/pi-features, endpoint-driven: no direct DB access,
+no local data files). The experiment never reads exported CSVs — it always
+fetches from a live instance (prod or local dev) with the client-owned window.
 
 Trains the same logistic-regression pipeline (StandardScaler + LR, mirroring
 train.py) on identical stratified train/test splits and compares feature sets:
@@ -21,15 +23,18 @@ lift is future information.
 
 Usage:
   .venv/bin/python source_ablation_experiment.py \
-      --url "https://<host>/api/export/training/pi-features?from=2018-01-01&to=2019-12-31"
-  .venv/bin/python source_ablation_experiment.py --csv data/pi-features.csv
-  .venv/bin/python source_ablation_experiment.py --csv data/pi-features.csv \
+      --base-url https://<host> --from 2018-01-01 --to 2019-12-31
+  .venv/bin/python source_ablation_experiment.py \
+      --base-url http://localhost:5003 --from 2018-01-01 --to 2019-12-31 \
       --synthetic-signal medicare --strength 1.0
 """
 
 import argparse
+import io
 import json
 import os
+import urllib.error
+import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -95,11 +100,24 @@ COVERAGE_FLAG = {
 LABEL_COLUMN = "label"
 
 
-def load_frame(source: str) -> pd.DataFrame:
-    """Load the export CSV from a URL or a local file."""
-    if source.startswith("http"):
-        return pd.read_csv(source)
-    return pd.read_csv(source)
+def fetch_export(base_url: str, window_from: str, window_to: str) -> pd.DataFrame:
+    """Fetch the training frame from a running DataApi instance.
+
+    Builds the pi-features endpoint URL from the instance base URL and the
+    client-owned window (required, matching the endpoint contract). Never
+    reads local files — the experiment only ever calls the instance directly.
+    Server-side 400s (invalid/missing/out-of-range window) surface with the
+    endpoint's error body.
+    """
+    url = f"{base_url.rstrip('/')}/api/export/training/pi-features?from={window_from}&to={window_to}"
+    try:
+        with urllib.request.urlopen(url, timeout=120) as response:
+            return pd.read_csv(io.BytesIO(response.read()))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"instance returned HTTP {e.code} for {url}: {body}") from e
+    except urllib.error.URLError as e:
+        raise SystemExit(f"cannot reach instance at {url}: {e.reason}") from e
 
 
 def coverage(frame: pd.DataFrame, group: str) -> float:
@@ -167,9 +185,23 @@ def inject_synthetic_signal(frame: pd.DataFrame, group: str, strength: float) ->
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    source_group = parser.add_mutually_exclusive_group(required=True)
-    source_group.add_argument("--url", help="full URL of the pi-features export endpoint")
-    source_group.add_argument("--csv", help="path to an exported pi-features CSV")
+    parser.add_argument(
+        "--base-url",
+        required=True,
+        help="base URL of a running DataApi instance (e.g. https://<host> or http://localhost:5003)",
+    )
+    parser.add_argument(
+        "--from",
+        dest="window_from",
+        required=True,
+        help="window start yyyy-MM-dd (client-owned; instance requires >= 2000-01-01)",
+    )
+    parser.add_argument(
+        "--to",
+        dest="window_to",
+        required=True,
+        help="window end yyyy-MM-dd (client-owned; instance requires <= today)",
+    )
     parser.add_argument(
         "--synthetic-signal",
         choices=[g for g in SOURCE_GROUPS if g != "base"],
@@ -178,7 +210,7 @@ def main() -> None:
     parser.add_argument("--strength", type=float, default=1.0, help="signal strength for --synthetic-signal")
     args = parser.parse_args()
 
-    frame = load_frame(args.url if args.url else args.csv)
+    frame = fetch_export(args.base_url, args.window_from, args.window_to)
 
     required = [c for g in SOURCE_GROUPS for c in SOURCE_GROUPS[g]] + [LABEL_COLUMN, "study_nct_id", "person_id"]
     missing = [c for c in required if c not in frame.columns]

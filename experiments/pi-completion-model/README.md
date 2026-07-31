@@ -154,5 +154,8 @@ The `pubmed` group (papers before start) is the clean alternative.
 
 ### Ablation results
 
-Populated by running `source_ablation_experiment.py --url <deployed endpoint>`
-after the export endpoint ships to prod (PR #326 → deploy → run → record here).
+Populated by running `source_ablation_experiment.py` against the live instance
+(`--base-url` + required `--from`/`--to`, e.g.
+`--base-url https://<host> --from 2018-01-01 --to 2019-12-31`) — the script
+only ever calls the instance directly, never local files. Expected after the
+export endpoint ships to prod (deployed → run → record here).
