@@ -25,6 +25,7 @@ namespace DataApi.Endpoints;
 internal static class PiFeaturesExportEndpoints
 {
     private const int HistoryYearMin = 2000;
+    private const string DateFormat = "yyyy-MM-dd";
     private const string PrincipalInvestigatorRole = "PRINCIPAL_INVESTIGATOR";
     private const string SemanticScholarSource = "SemanticScholar";
     private const string Found = "found";
@@ -43,8 +44,14 @@ internal static class PiFeaturesExportEndpoints
     {
         app.MapGet("/api/export/training/pi-features", async (HttpResponse response, string? from, string? to) =>
         {
-            var windowStart = ParseDate(from, new DateOnly(2018, 1, 1));
-            var windowEnd = ParseDate(to, new DateOnly(2019, 12, 31));
+            var validationError = ValidateWindow(from, to, out var windowStart, out var windowEnd);
+            if (validationError is not null)
+            {
+                response.StatusCode = 400;
+                await response.WriteAsJsonAsync(new { error = validationError });
+                return;
+            }
+
             var historyStart = new DateOnly(HistoryYearMin, 1, 1);
 
             using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
@@ -221,9 +228,55 @@ internal static class PiFeaturesExportEndpoints
         });
     }
 
-    private static DateOnly ParseDate(string? value, DateOnly fallback)
+    /// <summary>
+    /// Validates the client-supplied training window. Both bounds are required
+    /// (the client owns the window — no defaults), must parse as yyyy-MM-dd,
+    /// must lie within [2000-01-01, today], and from must not be after to.
+    /// Returns an error message or null when the window is valid.
+    /// </summary>
+    private static string? ValidateWindow(string? from, string? to, out DateOnly windowStart, out DateOnly windowEnd)
     {
-        return DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : fallback;
+        windowStart = default;
+        windowEnd = default;
+
+        if (string.IsNullOrWhiteSpace(from))
+        {
+            return "Missing required query parameter 'from' (expected yyyy-MM-dd).";
+        }
+
+        if (string.IsNullOrWhiteSpace(to))
+        {
+            return "Missing required query parameter 'to' (expected yyyy-MM-dd).";
+        }
+
+        if (!DateOnly.TryParseExact(from, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out windowStart))
+        {
+            return $"Query parameter 'from' must be a valid date in yyyy-MM-dd format, got '{from}'.";
+        }
+
+        if (!DateOnly.TryParseExact(to, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out windowEnd))
+        {
+            return $"Query parameter 'to' must be a valid date in yyyy-MM-dd format, got '{to}'.";
+        }
+
+        var minDate = new DateOnly(HistoryYearMin, 1, 1);
+        if (windowStart < minDate)
+        {
+            return $"Window start must not be before {minDate:yyyy-MM-dd} (prior-history data starts then), got '{from}'.";
+        }
+
+        var maxDate = DateOnly.FromDateTime(DateTime.Today);
+        if (windowEnd > maxDate)
+        {
+            return $"Window end must not be after today ({maxDate:yyyy-MM-dd}), got '{to}'.";
+        }
+
+        if (windowStart > windowEnd)
+        {
+            return $"Window start '{from}' must not be after window end '{to}'.";
+        }
+
+        return null;
     }
 
     private static string Quote(string value)

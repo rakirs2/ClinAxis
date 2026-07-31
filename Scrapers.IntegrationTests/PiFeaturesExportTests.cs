@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Testing;
@@ -38,11 +39,18 @@ public sealed class PiFeaturesExportTests
         "current_h_index", "citation_count", "i10_index", "total_papers", "has_metrics",
     ];
 
+    private static string Today => DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
     private async Task<string> FetchAsync(string from, string to)
     {
         var response = await _client.GetAsync($"/api/export/training/pi-features?from={from}&to={to}");
         Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
+    }
+
+    private async Task<HttpResponseMessage> FetchStatusAsync(string from, string to)
+    {
+        return await _client.GetAsync($"/api/export/training/pi-features?from={from}&to={to}");
     }
 
     private static string[] ParseCsvLine(string line)
@@ -91,7 +99,7 @@ public sealed class PiFeaturesExportTests
     [TestCategory("Integration")]
     public async Task Export_WideWindow_ReturnsHeaderAndWindowRows()
     {
-        var csv = await FetchAsync("2000-01-01", "2030-12-31");
+        var csv = await FetchAsync("2000-01-01", Today);
         var lines = csv.TrimEnd('\n').Split('\n');
 
         Assert.AreEqual(ExpectedHeader.Length, ParseCsvLine(lines[0]).Length, "header column count");
@@ -115,7 +123,7 @@ public sealed class PiFeaturesExportTests
     [TestCategory("Integration")]
     public async Task Export_ExcludesNonPrincipalRolesAndOtherStatuses()
     {
-        var csv = await FetchAsync("2000-01-01", "2030-12-31");
+        var csv = await FetchAsync("2000-01-01", Today);
         var lines = csv.TrimEnd('\n').Split('\n');
 
         Assert.AreEqual(2, lines.Length, "only NCT00000009/PI in window");
@@ -139,11 +147,54 @@ public sealed class PiFeaturesExportTests
 
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task Export_DefaultsTo2018To2019Window()
+    public async Task Export_MissingWindowParams_ReturnsBadRequest()
     {
-        var csv = await FetchAsync("", "");
-        var lines = csv.TrimEnd('\n').Split('\n');
+        using var missingTo = await FetchStatusAsync("2000-01-01", "");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, missingTo.StatusCode);
+        StringAssert.Contains(await missingTo.Content.ReadAsStringAsync(), "'to'", StringComparison.Ordinal);
 
-        Assert.AreEqual(1, lines.Length, "golden data has no 2018-2019 studies; default window returns header only");
+        using var missingFrom = await FetchStatusAsync("", "2020-01-01");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, missingFrom.StatusCode);
+        StringAssert.Contains(await missingFrom.Content.ReadAsStringAsync(), "'from'", StringComparison.Ordinal);
+
+        using var bothMissing = await FetchStatusAsync("", "");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, bothMissing.StatusCode);
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Export_InvalidDate_ReturnsBadRequest()
+    {
+        using var response = await FetchStatusAsync("banana", "2020-01-01");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        StringAssert.Contains(await response.Content.ReadAsStringAsync(), "'from'", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Export_DateBefore2000_ReturnsBadRequest()
+    {
+        using var response = await FetchStatusAsync("1999-12-31", "2020-01-01");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        StringAssert.Contains(await response.Content.ReadAsStringAsync(), "2000-01-01", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Export_DateAfterToday_ReturnsBadRequest()
+    {
+        var tomorrow = DateOnly.FromDateTime(DateTime.Today).AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        using var response = await FetchStatusAsync("2000-01-01", tomorrow);
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        StringAssert.Contains(await response.Content.ReadAsStringAsync(), "today", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Export_FromAfterTo_ReturnsBadRequest()
+    {
+        using var response = await FetchStatusAsync("2020-01-01", "2019-12-31");
+        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        StringAssert.Contains(await response.Content.ReadAsStringAsync(), "must not be after", StringComparison.Ordinal);
     }
 }
