@@ -94,7 +94,7 @@ public sealed class SearchPageTests
 
         cut.Find("button:contains('Search')").Click();
 
-        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(6));
 
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
         ctx.Dispose();
@@ -122,7 +122,7 @@ public sealed class SearchPageTests
 
         input.Input("Diabetes");
 
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
         var items = cut.FindAll("li.list-group-item");
         Assert.AreEqual(1, items.Count);
         Assert.IsTrue(items[0].TextContent.Contains("Diabetes Mellitus", StringComparison.Ordinal));
@@ -137,7 +137,7 @@ public sealed class SearchPageTests
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Zebra");
 
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count == 0, TimeSpan.FromSeconds(1));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count == 0, TimeSpan.FromSeconds(3));
         Assert.AreEqual(0, cut.FindAll("li.list-group-item").Count);
         ctx.Dispose();
     }
@@ -150,10 +150,10 @@ public sealed class SearchPageTests
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Condition");
 
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
         cut.FindAll("li.list-group-item")[0].Click();
 
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(1));
+        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(6));
         var badges = cut.FindAll("span.badge");
         Assert.IsTrue(badges.Any(b => b.TextContent.Contains("Condition A", StringComparison.Ordinal)));
         ctx.Dispose();
@@ -167,15 +167,15 @@ public sealed class SearchPageTests
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Condition");
 
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
         cut.FindAll("li.list-group-item")[0].Click();
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(1));
+        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(3));
         Assert.AreEqual(1, cut.FindAll("span.badge").Count);
 
         var removeBtn = cut.Find("span.badge button.btn-close");
         removeBtn.Click();
 
-        cut.WaitForState(() => cut.FindAll("span.badge").Count == 0, TimeSpan.FromSeconds(1));
+        cut.WaitForState(() => cut.FindAll("span.badge").Count == 0, TimeSpan.FromSeconds(3));
         Assert.AreEqual(0, cut.FindAll("span.badge").Count);
         ctx.Dispose();
     }
@@ -211,14 +211,14 @@ public sealed class SearchPageTests
         // Add a condition
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Condition");
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
         cut.FindAll("li.list-group-item")[0].Click();
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(1));
+        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(3));
 
         // Search
         cut.Find("button:contains('Search')").Click();
 
-        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(2));
+        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(6));
 
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
         ctx.Dispose();

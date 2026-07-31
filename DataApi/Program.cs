@@ -90,6 +90,7 @@ app.MapEventQueueEndpoints(connectionString);
 app.MapStatsEndpoints(connectionString);
 app.MapPipelineEndpoints(connectionString);
 app.MapTrainingExportEndpoints(connectionString);
+app.MapPiFeaturesExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
 app.MapInvestigatorFinderEndpoints(connectionString);
 

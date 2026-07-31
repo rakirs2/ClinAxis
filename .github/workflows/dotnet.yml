@@ -53,6 +53,11 @@ jobs:
           dotnet test Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj
           --no-build --filter "TestCategory!=HttpLive"
 
+      - name: Frontend Tests
+        # Runs after the Docker-heavy integration suite to avoid concurrent
+        # machine load; bUnit page tests flake under thread-pool starvation.
+        run: dotnet test Frontend.Tests/Frontend.Tests.csproj --no-build
+
   live-http-tests:
     runs-on: ubuntu-latest
     services:
