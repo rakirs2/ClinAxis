@@ -157,7 +157,7 @@ namespace Scrapers.Persistence
 
                         if (!string.IsNullOrWhiteSpace(officialAffiliation))
                         {
-                            if (!IsValidInstitutionName(officialAffiliation))
+                            if (!AffiliationFilter.IsValidInstitutionName(officialAffiliation))
                             {
                                 rejectedAffiliations.Add($"{record.NctId}: {officialAffiliation}");
                             }
@@ -221,46 +221,8 @@ namespace Scrapers.Persistence
                             .Select(c => c.Trim())
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                        var knownShortMedicalTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            "HIV", "HPV", "ALS", "MS", "IBS", "COPD", "ICU", "GI",
-                            "ENT", "CT", "MRI", "PET", "CVD", "CHF", "CAD", "CKD",
-                            "UTI", "STD", "PTSD", "ADHD", "GERD", "RA", "SLE",
-                            "NASH", "NAFLD", "OSA", "PCOS", "TBI", "SCI",
-                        };
-
-                        var keywordBlocklist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            "randomized controlled trial", "randomized clinical trial",
-                            "randomized controlled study", "randomised controlled trial",
-                            "randomised clinical trial", "cluster randomized controlled trial",
-                            "observational study", "interventional study", "clinical trial",
-                            "pilot study", "case-control", "cross-sectional study",
-                            "prospective study", "retrospective study", "cohort study",
-                            "longitudinal study", "controlled clinical trial",
-                            "phase 1", "phase i", "phase 2", "phase ii",
-                            "phase 3", "phase iii", "phase 4", "phase iv",
-                            "healthy volunteer study", "healthy subjects", "healthy volunteers",
-                            "treatment", "safety", "efficacy", "outcomes",
-                            "patient", "patients", "subjects", "human",
-                            "participation", "participatory", "measurement",
-                            "multicenter", "multicentric",
-                            "diagnosis", "diagnoses", "therapy", "therapies",
-                            "management", "treatment outcome", "treatment protocol",
-                            "standard therapy", "best practice", "clinical practice",
-                            "pathology", "symptom", "symptoms",
-                            "complication", "complications",
-                            "prognosis", "mortality", "survival",
-                            "effectiveness", "evaluation",
-                        };
-
-                        var originalKeywords = record.Keywords
-                            .Where(k => !string.IsNullOrWhiteSpace(k))
-                            .Select(k => k.Trim())
-                            .Select(k => k.TrimEnd(',', ';', ':', '.', '!', '?'))
-                            .Select(k => k.ToUpperInvariant())
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .ToList();
+                        var (cleanedKeywords, rejected) = KeywordFilter.Filter(record.Keywords, conditions);
+                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         if (_meshMatcher != null)
                         {
@@ -274,22 +236,6 @@ namespace Scrapers.Persistence
                                 }
                             }
                         }
-
-                        var cleanedKeywords = originalKeywords
-                            .Where(k => k.Length >= 4 || (k.Length >= 2 && knownShortMedicalTerms.Contains(k)))
-                            .Where(k => k.Length <= 150)
-                            .Where(k => !keywordBlocklist.Contains(k))
-                            .Where(k => !k.Contains(';', StringComparison.Ordinal))
-                            .Where(k => !k.Contains('|', StringComparison.Ordinal))
-                            .Where(k => k.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 10)
-                            .Where(k => k.Count(c => c == ',') < 3)
-                            .Where(k => conditions == null || !conditions.Contains(k))
-                            .ToList();
-
-                        var rejected = originalKeywords.Except(cleanedKeywords, StringComparer.OrdinalIgnoreCase).ToList();
-                        if (conditions != null)
-                            rejected = rejected.Where(k => !conditions.Contains(k)).ToList();
-                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         foreach (var kw in cleanedKeywords)
                         {
@@ -326,17 +272,17 @@ namespace Scrapers.Persistence
                                         }
                                         else
                                         {
-                                            studyRejected.Add(new { term = trimmed, reason = "cui_not_found", meshCui = match.MeshCui, similarity = match.Similarity });
+                                            studyRejected.Add(ConditionDecision.CuiNotFound(trimmed, match.MeshCui, match.Similarity));
                                         }
                                     }
                                     else
                                     {
-                                        studyRejected.Add(new { term = trimmed, reason = match.RejectionReason, similarity = match.Similarity });
+                                        studyRejected.Add(ConditionDecision.Rejected(trimmed, match.RejectionReason, match.Similarity));
                                     }
                                 }
                                 else
                                 {
-                                    studyRejected.Add(new { term = trimmed, reason = "mesh_matcher_not_initialized" });
+                                    studyRejected.Add(ConditionDecision.MatcherUnavailable(trimmed));
                                 }
                             }
                         }
@@ -1772,19 +1718,17 @@ namespace Scrapers.Persistence
             string rawName,
             CancellationToken cancellationToken)
         {
-            var (prefix, fullName, _) = NameParser.Parse(rawName);
-            var raw = rawName.Trim();
+            var (prefix, fullName, raw) = PersonNameKey.Parse(rawName);
 
             // 1. Check batch-local cache by parsed fullName, then by raw name
-            if (batchPersons.TryGetValue(fullName, out var cached) ||
-                (fullName != raw && batchPersons.TryGetValue(raw, out cached)))
+            foreach (var key in PersonNameKey.LookupOrder(fullName, raw))
             {
-                cached.UpdatedAt = DateTime.UtcNow;
-                if (cached.Prefix == null && prefix != null)
+                if (batchPersons.TryGetValue(key, out var cached))
                 {
-                    cached.Prefix = prefix;
+                    cached.UpdatedAt = DateTime.UtcNow;
+                    cached.Prefix = PersonNameKey.MergePrefix(cached.Prefix, prefix);
+                    return cached;
                 }
-                return cached;
             }
 
             // 2. Check database by parsed fullName, then by raw name (legacy records)
@@ -1802,10 +1746,7 @@ namespace Scrapers.Persistence
             if (existing != null)
             {
                 existing.UpdatedAt = DateTime.UtcNow;
-                if (existing.Prefix == null && prefix != null)
-                {
-                    existing.Prefix = prefix;
-                }
+                existing.Prefix = PersonNameKey.MergePrefix(existing.Prefix, prefix);
                 batchPersons[fullName] = existing;
                 return existing;
             }
@@ -2028,46 +1969,6 @@ namespace Scrapers.Persistence
                     }
                 }
             }
-        }
-
-        private static readonly HashSet<string> AffiliationBlocklist = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "professor", "director", "chief", "chair", "chairman", "chairperson",
-            "surgeon", "specialist", "consultant", "resident", "fellow",
-            "nurse", "physician", "doctor", "anesthesiologist", "cardiologist",
-            "neurologist", "oncologist", "radiologist", "pathologist", "dermatologist",
-            "gastroenterologist", "endocrinologist", "rheumatologist", "nephrologist",
-            "pulmonologist", "hematologist", "ophthalmologist", "urologist",
-            "psychiatrist", "pediatrician", "researcher", "scientist", "investigator",
-            "professor emeritus", "associate professor", "assistant professor",
-            "clinical professor", "research professor", "adjunct professor",
-            "principle investigator", "principal investigator",
-            "co-investigator", "sub-investigator", "study director",
-            "medical director", "clinical director", "research director",
-            "department head", "section head", "division chief",
-            "pharmacist", "therapist", "psychologist", "epidemiologist",
-            "biostatistician", "coordinator", "manager", "supervisor",
-            "technician", "technologist", "assistant", "associate",
-        };
-
-        private static bool IsValidInstitutionName(string affiliation)
-        {
-            var trimmed = affiliation.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed))
-                return false;
-
-            if (AffiliationBlocklist.Contains(trimmed))
-                return false;
-
-            if (trimmed.Split(' ').Length == 1 && trimmed.Length > 1)
-            {
-                if (trimmed.EndsWith("ist", StringComparison.OrdinalIgnoreCase) ||
-                    trimmed.EndsWith("ian", StringComparison.OrdinalIgnoreCase) ||
-                    trimmed.EndsWith("logist", StringComparison.OrdinalIgnoreCase))
-                    return false;
-            }
-
-            return true;
         }
 
         public async Task<IReadOnlyList<TableRowCount>> GetTableRowCountsAsync(CancellationToken cancellationToken = default)
