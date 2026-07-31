@@ -154,8 +154,33 @@ The `pubmed` group (papers before start) is the clean alternative.
 
 ### Ablation results
 
-Populated by running `source_ablation_experiment.py` against the live instance
-(`--base-url` + required `--from`/`--to`, e.g.
-`--base-url https://<host> --from 2018-01-01 --to 2019-12-31`) — the script
-only ever calls the instance directly, never local files. Expected after the
-export endpoint ships to prod (deployed → run → record here).
+Run 2026-07-31 against the prod instance
+(`--base-url http://206.189.235.73:5003 --from 2018-01-01 --to 2019-12-31`):
+
+| arm | rows | AUC | AUC(exp) | coverage |
+|-----|------|-----|----------|----------|
+| base | 760 | 0.5147 | n/a | 0.034 |
+| base+medicare | 760 | 0.5147 | n/a | 0.034 |
+| base+pubmed | 760 | 0.5147 | n/a | 0.034 |
+| base+semach | 760 | 0.5147 | n/a | 0.034 |
+| base+openpay | 760 | 0.5147 | n/a | 0.034 |
+| base+all | 760 | 0.5147 | n/a | 0.034 |
+
+Coverage: base 0.034, medicare 0.000, pubmed 0.001, semach 0.000, openpay 0.000.
+AUC(exp) is undefined (too few experienced PIs in the holdout, single class).
+
+**Null result — no source can show lift because no source has data.** Prod
+enrichment (NPI/Medicare/Open Payments/Semantic Scholar/PubMed) runs at
+ingestion time only via `investigator.enrichment` events; the 2018–19 cohort
+predates the enrichment services and was never backfilled. Verified via
+`/api/investigators`: 2018–19 PIs have `npi=null`, `medicare=null`,
+`openPayments=null`, `paperCount=0`, while 2024–26 PIs are fully enriched. The
+window can't move to recent years either: recent studies are mostly not
+COMPLETED/TERMINATED, so labels vanish.
+
+**Blocked on:** a re-enrichment backfill for existing persons (enqueue
+`investigator.enrichment` for persons without NPI/metrics) — then rerun the
+command above; the harness is ready and verified.
+
+The script only ever calls a live instance (`--base-url` + required
+`--from`/`--to`); it never reads local files.
