@@ -17,12 +17,27 @@ public sealed class SearchPageTests
     private static readonly string[] EmptyArray = [];
 
     private static (BunitContext Ctx, MockHttpMessageHandler Mock, IRenderedComponent<Frontend.Pages.Search> Cut) SetupTest(
-        string[]? conditions = null, object? studiesResponse = null)
+        string[]? conditions = null, object? studiesResponse = null, TimeSpan? conditionsDelay = null)
     {
         var ctx = new BunitContext();
         var mockHttp = new MockHttpMessageHandler();
-        mockHttp.When("/api/distinct-conditions")
-            .Respond("application/json", JsonSerializer.Serialize(conditions ?? ConditionTestData));
+        if (conditionsDelay is null)
+        {
+            mockHttp.When("/api/distinct-conditions")
+                .Respond("application/json", JsonSerializer.Serialize(conditions ?? ConditionTestData));
+        }
+        else
+        {
+            mockHttp.When("/api/distinct-conditions")
+                .Respond(async () =>
+                {
+                    await Task.Delay(conditionsDelay.Value);
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(JsonSerializer.Serialize(conditions ?? ConditionTestData), System.Text.Encoding.UTF8, "application/json")
+                    };
+                });
+        }
         mockHttp.When("/api/distinct-locations").Respond("application/json", JsonSerializer.Serialize(new
         {
             countries = CountryTestData,
@@ -123,6 +138,21 @@ public sealed class SearchPageTests
         input.Input("Diabetes");
 
         cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
+        var items = cut.FindAll("li.list-group-item");
+        Assert.AreEqual(1, items.Count);
+        Assert.IsTrue(items[0].TextContent.Contains("Diabetes Mellitus", StringComparison.Ordinal));
+        ctx.Dispose();
+    }
+
+    [TestMethod]
+    public void ConditionAutocompleteFiltersWhenTypedBeforeConditionsLoad()
+    {
+        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData, conditionsDelay: TimeSpan.FromMilliseconds(300));
+
+        var input = cut.Find("input[placeholder='Search condition name...']");
+        input.Input("Diabetes");
+
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(5));
         var items = cut.FindAll("li.list-group-item");
         Assert.AreEqual(1, items.Count);
         Assert.IsTrue(items[0].TextContent.Contains("Diabetes Mellitus", StringComparison.Ordinal));
