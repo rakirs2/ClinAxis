@@ -1,0 +1,7 @@
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+skl2onnx>=1.17
+onnxruntime>=1.19
+psycopg2-binary>=2.9
+pyarrow>=16.0

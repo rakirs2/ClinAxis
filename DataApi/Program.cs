@@ -1,6 +1,7 @@
 using System.Reflection;
 using DataApi;
 using DataApi.Endpoints;
+using DataApi.Services;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scrapers;
@@ -54,6 +55,12 @@ if (meshJsonPath != null)
 
 builder.Services.AddSingleton(meshTreeStore);
 
+var piModelPath = ResolvePiModelPath();
+if (piModelPath != null)
+    builder.Services.AddSingleton(_ => PiCompletionModel.TryLoad(piModelPath)!);
+else
+    await Console.Out.WriteLineAsync("  [PI Model] model.onnx not found, ModelScore will be null");
+
 _ = Task.Run(async () =>
 {
     await Task.Delay(TimeSpan.FromSeconds(15));
@@ -91,7 +98,7 @@ app.MapStatsEndpoints(connectionString);
 app.MapPipelineEndpoints(connectionString);
 app.MapTrainingExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
-app.MapInvestigatorFinderEndpoints(connectionString);
+app.MapInvestigatorFinderEndpoints(connectionString, app.Services.GetService<PiCompletionModel>());
 
 await app.RunAsync();
 
@@ -110,6 +117,24 @@ static string? ResolveMeshJsonPath()
         var full = Path.GetFullPath(path);
         if (File.Exists(full))
             return full;
+    }
+    return null;
+}
+
+static string? ResolvePiModelPath()
+{
+    var baseDir = AppContext.BaseDirectory;
+    var possiblePaths = new[]
+    {
+        Path.Combine(baseDir, "Resources", "pi-model"),
+        Path.Combine(baseDir, "..", "..", "..", "..", "Scrapers", "Resources", "pi-model"),
+        Path.Combine(baseDir, "..", "..", "..", "..", "..", "Scrapers", "Resources", "pi-model"),
+    };
+
+    foreach (var path in possiblePaths)
+    {
+        if (Directory.Exists(path))
+            return path;
     }
     return null;
 }

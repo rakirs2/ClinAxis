@@ -7,10 +7,12 @@ namespace DataApi.Services;
 internal class InvestigatorFinderService
 {
     private readonly string _connectionString;
+    private readonly PiCompletionModel? _piCompletionModel;
 
-    public InvestigatorFinderService(string connectionString)
+    public InvestigatorFinderService(string connectionString, PiCompletionModel? piCompletionModel = null)
     {
         _connectionString = connectionString;
+        _piCompletionModel = piCompletionModel;
     }
 
     public async Task<FinderResponse> FindAsync(FinderRequest request)
@@ -39,6 +41,7 @@ internal class InvestigatorFinderService
                     Name = c.Name,
                     PrimaryAffiliation = c.PrimaryAffiliation,
                     Score = total,
+                    ModelScore = _piCompletionModel?.Predict(c.StudyCount, c.CompletedStudies, c.EnrollmentTotal),
                     Factors = new ScoreFactors
                     {
                         Relevance = Math.Round(relevance, 2),

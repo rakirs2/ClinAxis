@@ -14,6 +14,7 @@ internal class InvestigatorRank
     public string? Name { get; set; }
     public string? PrimaryAffiliation { get; set; }
     public double Score { get; set; }
+    public double? ModelScore { get; set; }
     public ScoreFactors Factors { get; set; } = new();
     public InvestigatorDetails Details { get; set; } = new();
 }

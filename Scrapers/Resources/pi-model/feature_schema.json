@@ -1,0 +1,25 @@
+{
+  "features": [
+    "priorStudyCount",
+    "priorCompletedCount",
+    "priorEnrollmentTotal",
+    "priorCompletionRate"
+  ],
+  "inputName": "features",
+  "outputName": "probabilities",
+  "positiveClassIndex": 1,
+  "model": "logistic-regression",
+  "trainedOn": {
+    "windowStart": "2018-01-01",
+    "windowEnd": "2019-12-31",
+    "testFraction": 0.2
+  },
+  "metrics": {
+    "holdoutAUC": 0.484,
+    "experiencedHoldoutAUC": 0.524,
+    "coldStartShare": 0.8994
+  },
+  "windowRows": 3906,
+  "uniquePis": 3815,
+  "positiveRate": 0.8927291346646186
+}

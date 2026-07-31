@@ -48,8 +48,14 @@ else if (_result is not null)
     }
     else
     {
+        <div class="mb-3">
+            <div class="btn-group" role="group" aria-label="Sort results by">
+                <button type="button" class="btn btn-sm @(_sortBy == SortBy.RuleScore ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetSort(SortBy.RuleScore)">Sort by Rule Score</button>
+                <button type="button" class="btn btn-sm @(_sortBy == SortBy.ModelScore ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetSort(SortBy.ModelScore)">Sort by Model Score</button>
+            </div>
+        </div>
         <div class="row">
-            @foreach (var inv in _result.investigators)
+            @foreach (var inv in _sortedInvestigators)
             {
                 <div class="col-md-6 mb-3">
                     <div class="card">
@@ -58,9 +64,20 @@ else if (_result is not null)
                                 <h5 class="card-title">
                                     <a href="/investigator/@inv.uuid">@inv.name</a>
                                 </h5>
-                                <span class="badge bg-primary fs-6">@(inv.score.ToString("F2"))</span>
+                                <span class="badge bg-primary fs-6" title="Rule-based score">@(inv.score.ToString("F2"))</span>
                             </div>
-                            <p class="card-text text-muted">@inv.primaryAffiliation</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">Model likelihood of completing next trial</span>
+                                @if (inv.modelScore.HasValue)
+                                {
+                                    <span class="badge bg-success fs-6" title="Model P(completion)">@(inv.modelScore.Value.ToString("F2"))</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary fs-6" title="Model not available">—</span>
+                                }
+                            </div>
+                            <p class="card-text text-muted mt-1">@inv.primaryAffiliation</p>
 
                             <div class="mb-2">
                                 <div class="d-flex justify-content-between small">
@@ -104,10 +121,26 @@ else if (_result is not null)
 }
 
 @code {
+    private enum SortBy
+    {
+        RuleScore,
+        ModelScore,
+    }
+
     private SearchableTagSelector? _selector;
     private bool _loading;
     private string? _error;
     private FinderResponse? _result;
+    private SortBy _sortBy = SortBy.RuleScore;
+
+    private List<InvestigatorRank> _sortedInvestigators =>
+        _result?.investigators.OrderByDescending(inv =>
+            _sortBy == SortBy.ModelScore ? (inv.modelScore ?? 0) : inv.score).ToList() ?? [];
+
+    private void SetSort(SortBy sortBy)
+    {
+        _sortBy = sortBy;
+    }
 
     protected override void OnInitialized()
     {
@@ -185,6 +218,7 @@ else if (_result is not null)
         public string? name { get; set; }
         public string? primaryAffiliation { get; set; }
         public double score { get; set; }
+        public double? modelScore { get; set; }
         public ScoreFactors factors { get; set; } = new();
         public InvestigatorDetails details { get; set; } = new();
     }
