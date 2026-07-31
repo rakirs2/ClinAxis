@@ -446,6 +446,13 @@ else if (searchExecuted && studies is not null)
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
             allConditions = await client.GetFromJsonAsync<List<string>>("/api/distinct-conditions") ?? new();
             _conditionsLoaded = true;
+            if (!string.IsNullOrEmpty(conditionSearchText))
+            {
+                filteredConditions = allConditions
+                    .Where(c => c.Contains(conditionSearchText, StringComparison.OrdinalIgnoreCase))
+                    .Take(20)
+                    .ToList();
+            }
         }
         catch
         {
