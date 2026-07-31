@@ -329,7 +329,7 @@ else if (searchExecuted && studies is not null)
                     <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
                         <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">Previous</button>
                     </li>
-                    @foreach (var p in GetPaginationRange(currentPage, totalPages))
+                    @foreach (var p in PaginationHelpers.GetPaginationRange(currentPage, totalPages))
                     {
                         if (p is null)
                         {
@@ -448,10 +448,7 @@ else if (searchExecuted && studies is not null)
             _conditionsLoaded = true;
             if (!string.IsNullOrEmpty(conditionSearchText))
             {
-                filteredConditions = allConditions
-                    .Where(c => c.Contains(conditionSearchText, StringComparison.OrdinalIgnoreCase))
-                    .Take(20)
-                    .ToList();
+                filteredConditions = SearchConditionFilter.Filter(allConditions, conditionSearchText);
             }
         }
         catch
@@ -512,17 +509,7 @@ else if (searchExecuted && studies is not null)
     private void OnConditionSearchInput(ChangeEventArgs e)
     {
         conditionSearchText = e.Value?.ToString() ?? "";
-        if (conditionSearchText.Length > 0)
-        {
-            filteredConditions = allConditions
-                .Where(c => c.Contains(conditionSearchText, StringComparison.OrdinalIgnoreCase))
-                .Take(20)
-                .ToList();
-        }
-        else
-        {
-            filteredConditions.Clear();
-        }
+        filteredConditions = SearchConditionFilter.Filter(allConditions, conditionSearchText);
     }
 
     private void AddCondition(string condition)
@@ -869,57 +856,8 @@ else if (searchExecuted && studies is not null)
         try
         {
             HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            
-            // Build query string with all filter parameters
-            var queryParams = new List<string>
-            {
-                $"page={page}",
-                $"pageSize={pageSize}"
-            };
 
-            if (!string.IsNullOrEmpty(criteria.Keyword))
-                queryParams.Add($"keyword={Uri.EscapeDataString(criteria.Keyword)}");
-
-            if (criteria.Statuses.Count > 0)
-                queryParams.Add($"status={Uri.EscapeDataString(string.Join(",", criteria.Statuses))}");
-
-            if (criteria.Phases.Count > 0)
-                queryParams.Add($"phase={Uri.EscapeDataString(string.Join(",", criteria.Phases))}");
-
-            if (criteria.MeshTreePrefixes.Count > 0)
-                queryParams.Add($"meshTree={Uri.EscapeDataString(string.Join(",", criteria.MeshTreePrefixes))}");
-
-            if (criteria.Conditions.Count > 0)
-                queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", criteria.Conditions))}");
-
-            if (criteria.LocationMeshTreePrefixes.Count > 0)
-                queryParams.Add($"locationMeshTree={Uri.EscapeDataString(string.Join(",", criteria.LocationMeshTreePrefixes))}");
-
-            if (criteria.Countries is { Count: > 0 })
-                queryParams.Add($"country={Uri.EscapeDataString(string.Join(",", criteria.Countries))}");
-
-            if (criteria.States is { Count: > 0 })
-                queryParams.Add($"state={Uri.EscapeDataString(string.Join(",", criteria.States))}");
-
-            if (criteria.Cities is { Length: > 0 } && !string.IsNullOrEmpty(criteria.Cities[0]))
-                queryParams.Add($"city={Uri.EscapeDataString(criteria.Cities[0])}");
-
-            if (criteria.Facilities is { Count: > 0 })
-                queryParams.Add($"facility={Uri.EscapeDataString(string.Join(",", criteria.Facilities))}");
-
-            if (criteria.EnrollmentMin.HasValue)
-                queryParams.Add($"enrollmentMin={criteria.EnrollmentMin}");
-
-            if (criteria.EnrollmentMax.HasValue)
-                queryParams.Add($"enrollmentMax={criteria.EnrollmentMax}");
-
-            if (criteria.StartDateFrom.HasValue)
-                queryParams.Add($"startDateFrom={criteria.StartDateFrom.Value:yyyy-MM-dd}");
-
-            if (criteria.StartDateTo.HasValue)
-                queryParams.Add($"startDateTo={criteria.StartDateTo.Value:yyyy-MM-dd}");
-
-            var queryString = string.Join("&", queryParams);
+            var queryString = SearchQueryBuilder.BuildStudiesQuery(page, pageSize, criteria);
             var response = await client.GetFromJsonAsync<StudyListResponse>($"/api/studies?{queryString}");
             
             if (response is not null)
@@ -978,40 +916,6 @@ else if (searchExecuted && studies is not null)
         }
     }
 
-    private static List<int?> GetPaginationRange(int current, int total, int maxVisible = 10)
-    {
-        var range = new List<int?>();
-        if (total <= maxVisible)
-        {
-            for (int i = 1; i <= total; i++) range.Add(i);
-            return range;
-        }
-
-        int half = maxVisible / 2;
-        int start = Math.Max(1, current - half);
-        int end = Math.Min(total, start + maxVisible - 1);
-
-        if (end - start + 1 < maxVisible)
-            start = Math.Max(1, end - maxVisible + 1);
-
-        if (start > 1)
-        {
-            range.Add(1);
-            if (start > 2) range.Add(null);
-        }
-
-        for (int i = start; i <= end; i++)
-            range.Add(i);
-
-        if (end < total)
-        {
-            if (end < total - 1) range.Add(null);
-            range.Add(total);
-        }
-
-        return range;
-    }
-
     private static string StatusColor(string? status) => status switch
     {
         "ACTIVE" or "RECRUITING" => "success",
@@ -1020,24 +924,6 @@ else if (searchExecuted && studies is not null)
         "TERMINATED" or "SUSPENDED" => "danger",
         _ => "warning"
     };
-
-    private class SearchCriteria
-    {
-        public string? Keyword { get; set; }
-        public List<string> Statuses { get; set; } = new();
-        public List<string> Phases { get; set; } = new();
-        public List<string> Conditions { get; set; } = new();
-        public List<string> MeshTreePrefixes { get; set; } = new();
-        public List<string> LocationMeshTreePrefixes { get; set; } = new();
-        public List<string>? Countries { get; set; }
-        public List<string>? States { get; set; }
-        public string[] Cities { get; set; } = Array.Empty<string>();
-        public List<string>? Facilities { get; set; }
-        public int? EnrollmentMin { get; set; }
-        public int? EnrollmentMax { get; set; }
-        public DateTime? StartDateFrom { get; set; }
-        public DateTime? StartDateTo { get; set; }
-    }
 
     private class StudyListResponse
     {

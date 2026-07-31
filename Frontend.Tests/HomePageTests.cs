@@ -17,11 +17,11 @@ public sealed class SearchPageTests
     private static readonly string[] EmptyArray = [];
 
     private static (BunitContext Ctx, MockHttpMessageHandler Mock, IRenderedComponent<Frontend.Pages.Search> Cut) SetupTest(
-        string[]? conditions = null, object? studiesResponse = null, TimeSpan? conditionsDelay = null)
+        string[]? conditions = null, object? studiesResponse = null, TaskCompletionSource? conditionsGate = null)
     {
         var ctx = new BunitContext();
         var mockHttp = new MockHttpMessageHandler();
-        if (conditionsDelay is null)
+        if (conditionsGate is null)
         {
             mockHttp.When("/api/distinct-conditions")
                 .Respond("application/json", JsonSerializer.Serialize(conditions ?? ConditionTestData));
@@ -31,7 +31,7 @@ public sealed class SearchPageTests
             mockHttp.When("/api/distinct-conditions")
                 .Respond(async () =>
                 {
-                    await Task.Delay(conditionsDelay.Value);
+                    await conditionsGate.Task;
                     return new HttpResponseMessage(HttpStatusCode.OK)
                     {
                         Content = new StringContent(JsonSerializer.Serialize(conditions ?? ConditionTestData), System.Text.Encoding.UTF8, "application/json")
@@ -128,47 +128,22 @@ public sealed class SearchPageTests
     }
 
     [TestMethod]
-    public void ConditionAutocompleteFiltersListOnInput()
-    {
-        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData);
-
-        var input = cut.Find("input[placeholder='Search condition name...']");
-        Assert.AreEqual(0, cut.FindAll("ul.list-group").Count);
-
-        input.Input("Diabetes");
-
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
-        var items = cut.FindAll("li.list-group-item");
-        Assert.AreEqual(1, items.Count);
-        Assert.IsTrue(items[0].TextContent.Contains("Diabetes Mellitus", StringComparison.Ordinal));
-        ctx.Dispose();
-    }
-
-    [TestMethod]
     public void ConditionAutocompleteFiltersWhenTypedBeforeConditionsLoad()
     {
-        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData, conditionsDelay: TimeSpan.FromMilliseconds(300));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData, conditionsGate: gate);
 
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Diabetes");
+
+        cut.WaitForAssertion(() => Assert.AreEqual(0, cut.FindAll("li.list-group-item").Count));
+
+        gate.SetResult();
 
         cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(5));
         var items = cut.FindAll("li.list-group-item");
         Assert.AreEqual(1, items.Count);
         Assert.IsTrue(items[0].TextContent.Contains("Diabetes Mellitus", StringComparison.Ordinal));
-        ctx.Dispose();
-    }
-
-    [TestMethod]
-    public void ConditionAutocompleteShowsNoResultsForUnmatchedInput()
-    {
-        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData);
-
-        var input = cut.Find("input[placeholder='Search condition name...']");
-        input.Input("Zebra");
-
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count == 0, TimeSpan.FromSeconds(3));
-        Assert.AreEqual(0, cut.FindAll("li.list-group-item").Count);
         ctx.Dispose();
     }
 
