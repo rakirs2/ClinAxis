@@ -17,7 +17,8 @@ public sealed class SearchPageTests
     private static readonly string[] EmptyArray = [];
 
     private static (BunitContext Ctx, MockHttpMessageHandler Mock, IRenderedComponent<Frontend.Pages.Search> Cut) SetupTest(
-        string[]? conditions = null, object? studiesResponse = null, TaskCompletionSource? conditionsGate = null)
+        string[]? conditions = null, object? studiesResponse = null, TaskCompletionSource? conditionsGate = null,
+        TaskCompletionSource? studiesGate = null)
     {
         var ctx = new BunitContext();
         var mockHttp = new MockHttpMessageHandler();
@@ -48,7 +49,22 @@ public sealed class SearchPageTests
         mockHttp.When("/api/mesh-tree*").Respond("application/json", "[]");
         if (studiesResponse is not null)
         {
-            mockHttp.When("/api/studies*").Respond("application/json", JsonSerializer.Serialize(studiesResponse));
+            if (studiesGate is null)
+            {
+                mockHttp.When("/api/studies*").Respond("application/json", JsonSerializer.Serialize(studiesResponse));
+            }
+            else
+            {
+                mockHttp.When("/api/studies*")
+                    .Respond(async () =>
+                    {
+                        await studiesGate.Task;
+                        return new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new StringContent(JsonSerializer.Serialize(studiesResponse), System.Text.Encoding.UTF8, "application/json")
+                        };
+                    });
+            }
         }
         var client = mockHttp.ToHttpClient();
         client.BaseAddress = new Uri("http://localhost:5003");
@@ -103,11 +119,17 @@ public sealed class SearchPageTests
             totalPages = 1
         };
 
-        var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse);
+        var studiesGate = new TaskCompletionSource();
+
+        var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse, studiesGate: studiesGate);
 
         ctx.JSInterop.Setup<string[]>("meshTree.getSelected", _ => true).SetResult([]);
 
         cut.Find("button:contains('Search')").Click();
+
+        Assert.AreEqual(0, cut.FindAll("table").Count, "table must not render before the studies response completes");
+
+        studiesGate.SetResult();
 
         cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(6));
 
