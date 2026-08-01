@@ -24,6 +24,7 @@ namespace Scrapers.Persistence.Entities
         public string? MatchedOtherNamesJson { get; set; }
         public string? MatchedIdentifiersJson { get; set; }
         public double? RuleScore { get; set; }
+        public double? ModelScore { get; set; }
         public string? SourceStatus { get; set; }
         public DateTime? SourceDeactivatedAt { get; set; }
         public bool IsAutoApproved { get; set; }

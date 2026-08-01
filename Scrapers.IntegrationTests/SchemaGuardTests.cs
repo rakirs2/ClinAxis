@@ -72,6 +72,7 @@ public sealed class SchemaGuardTests : DbTestBase
         Assert.IsTrue(columns.Any(c => c.Name == "matched_other_names_json" && c.Type == "text"), "matched_other_names_json column missing or wrong type");
         Assert.IsTrue(columns.Any(c => c.Name == "matched_identifiers_json" && c.Type == "text"), "matched_identifiers_json column missing or wrong type");
         Assert.IsTrue(columns.Any(c => c.Name == "rule_score" && c.Type == "double precision"), "rule_score column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "model_score" && c.Type == "double precision"), "model_score column missing or wrong type");
     }
 
     [TestMethod]

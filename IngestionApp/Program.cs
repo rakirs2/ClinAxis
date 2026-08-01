@@ -9,6 +9,7 @@ using Scrapers.Services;
 using Scrapers.Services.CrawlServices;
 using Scrapers.Services.Enrichment;
 using Scrapers.Services.EventQueue;
+using Scrapers.Utilities;
 
 if (args.Contains("--version") || args.Contains("-v"))
 {
@@ -100,10 +101,24 @@ var host = Host.CreateDefaultBuilder(args)
         // Enrichment services (NPI lookup via NPPES NPI Registry, ORCID API for disambiguation)
         services.AddSingleton<NppesNpiRegistryClient>(_ => new NppesNpiRegistryClient(new HttpClient()));
         services.AddSingleton<OrcidApiClient>(_ => new OrcidApiClient(new HttpClient()));
+
+        // NPI disambiguation ML model (A/B recording — the rule scorer stays authoritative)
+        var npiModelPath = Path.Combine(AppContext.BaseDirectory, "Resources", "npi-model");
+        var npiModelService = NpiModelService.TryLoad(npiModelPath);
+        if (npiModelService != null)
+        {
+            Console.WriteLine($"  [NPI Model] Loaded from {npiModelPath}, ModelScore recording enabled");
+        }
+        else
+        {
+            Console.WriteLine("  [NPI Model] Resources not found or invalid, ModelScore recording disabled");
+        }
+
         services.AddHostedService(sp => new InvestigatorEnrichmentService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<NppesNpiRegistryClient>(),
             sp.GetRequiredService<OrcidApiClient>(),
+            npiModelService,
             cs,
             pollIntervalSeconds: 30));
 
