@@ -161,6 +161,54 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
             "Person still reset so the pending event re-runs the enrichment");
     }
 
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task ScrubInvestigatorPapersAsync_OnlyScopesToPersonsOwnStudies()
+    {
+        // Regression test for issue #334: the scrub previously scanned every distinct
+        // PMID in the database per person. It must only link the person to papers
+        // cited by their own studies.
+        var personId = Guid.NewGuid();
+        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity
+        {
+            Id = personId,
+            FullName = "Eve Principal",
+            IsHuman = true,
+            // ORCID set so the scrub's author-matching path performs no PubMed fetch.
+            Orcid = "0000-0001-2345-6789",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        Context.Studies.Add(new StudyEntity { NctId = "NCT500001", BriefTitle = "Own Study", OverallStatus = "ACTIVE", CreatedAt = DateTime.UtcNow });
+        Context.Studies.Add(new StudyEntity { NctId = "NCT500002", BriefTitle = "Other Study", OverallStatus = "ACTIVE", CreatedAt = DateTime.UtcNow });
+        Context.StudyInvestigators.Add(new StudyInvestigatorEntity { StudyNctId = "NCT500001", InvestigatorPersonId = personId, IsOverallOfficial = true });
+        Context.StudyReferences.AddRange(
+            new StudyReferenceEntity { StudyNctId = "NCT500001", Pmid = "30001001", Citation = "Paper A" },
+            new StudyReferenceEntity { StudyNctId = "NCT500001", Pmid = "30001002", Citation = "Paper B" },
+            new StudyReferenceEntity { StudyNctId = "NCT500002", Pmid = "30001003", Citation = "Paper C" });
+        foreach (var pmid in new[] { "30001001", "30001002", "30001003" })
+        {
+            Context.PubmedPapers.Add(new PubmedPaperEntity
+            {
+                Id = Guid.NewGuid(),
+                Pmid = pmid,
+                Title = $"Paper {pmid}",
+                Journal = "Journal",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+        await Context.SaveChangesAsync();
+
+        await StudyRepository.ScrubInvestigatorPapersAsync(Context, personId, CancellationToken.None);
+
+        var linkedPmids = await Context.InvestigatorPapers
+            .Where(ip => ip.InvestigatorPersonId == personId)
+            .Select(ip => ip.PubmedPaper!.Pmid)
+            .ToListAsync();
+        CollectionAssert.AreEquivalent(new[] { "30001001", "30001002" }, linkedPmids);
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null,
         DateOnly? startDate = null)

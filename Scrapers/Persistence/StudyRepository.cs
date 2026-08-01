@@ -1284,6 +1284,9 @@ namespace Scrapers.Persistence
         /// </summary>
         private static readonly System.Text.Json.JsonSerializerOptions s_jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+        private static readonly PaperDetailCache s_paperDetailCache =
+            new((pmid, ct) => PubMedScraperService.FetchPaperDetailAsync(pmid, ct));
+
         public async Task SeedMeshDescriptorsAsync(string meshTermsJsonPath, CancellationToken cancellationToken = default)
         {
             if (!File.Exists(meshTermsJsonPath))
@@ -1795,11 +1798,12 @@ namespace Scrapers.Persistence
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var existingEventPersonIds = await context.PipelineEvents
+            var existingEventPersonIds = (await context.PipelineEvents
                 .Where(e => e.EventType == "investigator.discovered" && e.Status != "dead-letter")
                 .Select(e => e.Data)
                 .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
+                .ConfigureAwait(false))
+                .ToHashSet(StringComparer.Ordinal);
 
             var now = DateTime.UtcNow;
             var count = 0;
@@ -1907,12 +1911,36 @@ namespace Scrapers.Persistence
                 return;
             }
 
-            var pmids = await context.StudyReferences
-                .Where(r => !string.IsNullOrWhiteSpace(r.Pmid))
-                .Select(r => r.Pmid!)
+            // Scope candidate PMIDs to the person's own studies (issue #334): the previous
+            // implementation scanned every distinct PMID in the database per person —
+            // O(persons × all PMIDs), plus a duplicate PubMed fetch per (person, PMID) pair.
+            var studyNctIds = await context.StudyInvestigators
+                .Where(si => si.InvestigatorPersonId == personId)
+                .Select(si => si.StudyNctId)
                 .Distinct()
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
+
+            if (studyNctIds.Count == 0)
+            {
+                return;
+            }
+
+            var references = await context.StudyReferences
+                .Where(r => studyNctIds.Contains(r.StudyNctId))
+                .Select(r => new { r.StudyNctId, r.Pmid })
+                .AsNoTracking()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var pmids = PublicationScrubScoping.CandidatePmidsForPersonStudies(
+                studyNctIds.ToHashSet(StringComparer.Ordinal),
+                references.Select(r => (r.StudyNctId, r.Pmid)));
+
+            if (pmids.Count == 0)
+            {
+                return;
+            }
 
             var personModified = false;
 
@@ -1955,7 +1983,7 @@ namespace Scrapers.Persistence
 
             if (paper == null)
             {
-                paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                paperDetail = await s_paperDetailCache.GetOrAddAsync(pmid, cancellationToken).ConfigureAwait(false);
                 if (paperDetail == null)
                 {
                     return;
@@ -2012,7 +2040,7 @@ namespace Scrapers.Persistence
 
             if (paperDetail == null && person.Orcid == null)
             {
-                paperDetail = await PubMedScraperService.FetchPaperDetailAsync(pmid, cancellationToken).ConfigureAwait(false);
+                paperDetail = await s_paperDetailCache.GetOrAddAsync(pmid, cancellationToken).ConfigureAwait(false);
             }
 
             if (paperDetail?.Authors != null && person.Orcid == null)
