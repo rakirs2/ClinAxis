@@ -57,6 +57,25 @@ public sealed class SchemaGuardTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
+    public async Task PersonIdentifierCandidatesTable_HasEnrichmentFeatureColumns()
+    {
+        var columns = await GetColumnsAsync("person_identifier_candidates");
+
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_middle_name"), "matched_middle_name column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_credential"), "matched_credential column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_name_prefix"), "matched_name_prefix column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_gender"), "matched_gender column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_city"), "matched_city column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_taxonomy_desc"), "matched_taxonomy_desc column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_taxonomy_state"), "matched_taxonomy_state column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_taxonomy_license"), "matched_taxonomy_license column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_other_names_json" && c.Type == "text"), "matched_other_names_json column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "matched_identifiers_json" && c.Type == "text"), "matched_identifiers_json column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "rule_score" && c.Type == "double precision"), "rule_score column missing or wrong type");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
     public async Task StudiesTable_HasRemediatedScalarColumns()
     {
         var columns = await GetColumnsAsync("studies");

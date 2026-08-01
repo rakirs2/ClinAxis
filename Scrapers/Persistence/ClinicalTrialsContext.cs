@@ -276,6 +276,17 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.MatchedFullName).HasColumnName("matched_full_name").HasMaxLength(300);
                 entity.Property(e => e.MatchedAffiliation).HasColumnName("matched_affiliation").HasMaxLength(300);
                 entity.Property(e => e.MatchedState).HasColumnName("matched_state").HasMaxLength(100);
+                entity.Property(e => e.MatchedCity).HasColumnName("matched_city").HasMaxLength(200);
+                entity.Property(e => e.MatchedMiddleName).HasColumnName("matched_middle_name").HasMaxLength(100);
+                entity.Property(e => e.MatchedCredential).HasColumnName("matched_credential").HasMaxLength(100);
+                entity.Property(e => e.MatchedNamePrefix).HasColumnName("matched_name_prefix").HasMaxLength(50);
+                entity.Property(e => e.MatchedGender).HasColumnName("matched_gender").HasMaxLength(20);
+                entity.Property(e => e.MatchedTaxonomyDesc).HasColumnName("matched_taxonomy_desc").HasMaxLength(300);
+                entity.Property(e => e.MatchedTaxonomyState).HasColumnName("matched_taxonomy_state").HasMaxLength(100);
+                entity.Property(e => e.MatchedTaxonomyLicense).HasColumnName("matched_taxonomy_license").HasMaxLength(100);
+                entity.Property(e => e.MatchedOtherNamesJson).HasColumnName("matched_other_names_json").HasColumnType("text");
+                entity.Property(e => e.MatchedIdentifiersJson).HasColumnName("matched_identifiers_json").HasColumnType("text");
+                entity.Property(e => e.RuleScore).HasColumnName("rule_score");
                 entity.Property(e => e.SourceStatus).HasColumnName("source_status").HasMaxLength(10);
                 entity.Property(e => e.SourceDeactivatedAt).HasColumnName("source_deactivated_at");
                 entity.Property(e => e.IsAutoApproved).HasColumnName("is_auto_approved");

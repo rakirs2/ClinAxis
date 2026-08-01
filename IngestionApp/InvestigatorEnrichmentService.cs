@@ -5,6 +5,7 @@ using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.Enrichment;
 using Scrapers.Services.EventQueue;
+using Scrapers.Utilities;
 
 namespace IngestionApp;
 
@@ -132,12 +133,28 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
             }
         }
 
-        // Get affiliation from primary affiliation for disambiguation
+        // Build the person signal profile: primary affiliation + specialty derived from
+        // the MeSH descriptors of the person's studies (used for NPI candidate scoring).
         var primaryAffil = await context.InvestigatorAffiliations
             .Where(a => a.InvestigatorPersonId == personId && a.IsPrimary)
             .FirstOrDefaultAsync(ct).ConfigureAwait(false);
-        var affilName = primaryAffil?.InstitutionName;
-        var affilState = primaryAffil?.State;
+
+        var meshDescriptorNames = await context.StudyInvestigators
+            .Where(si => si.InvestigatorPersonId == personId && si.Study != null)
+            .SelectMany(si => si.Study!.Conditions!)
+            .Where(c => c.MeshDescriptor != null)
+            .Select(c => c.MeshDescriptor!.Name)
+            .Distinct()
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        var profile = NpiFeatureExtractor.BuildProfile(
+            person.FullName,
+            person.Orcid,
+            primaryAffil?.InstitutionName,
+            primaryAffil?.Department,
+            primaryAffil?.City,
+            primaryAffil?.State,
+            meshDescriptorNames);
 
         // --- NPI lookup ---
         var enqueueDiscovered = false;
@@ -148,92 +165,70 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                 IReadOnlyList<NpiRegistryResult> npiResults = [];
                 foreach (var (tryFirst, tryLast) in nameVariations)
                 {
-                    npiResults = await _npiClient.SearchByNameAsync(tryFirst, tryLast, affilName, affilState, ct).ConfigureAwait(false);
+                    npiResults = await _npiClient.SearchByNameAsync(tryFirst, tryLast, ct).ConfigureAwait(false);
                     if (npiResults.Count > 0)
                         break;
                 }
 
+                var entities = new List<(PersonIdentifierCandidateEntity Entity, NpiCandidateFeatures Features)>();
                 foreach (var result in npiResults)
                 {
-                    var matchedName = $"{result.Basic?.FirstName} {result.Basic?.LastName}".Trim();
-                    var matchedOrg = result.Basic?.OrganizationName;
-                    var matchedState = result.Addresses is { Count: > 0 } ? result.Addresses[0].State : null;
+                    var features = NpiFeatureExtractor.Extract(profile, result);
 
-                    context.PersonIdentifierCandidates.Add(new PersonIdentifierCandidateEntity
+                    var entity = new PersonIdentifierCandidateEntity
                     {
                         PersonId = personId,
                         IdentifierType = "NPI",
-                        IdentifierValue = result.Number ?? "",
+                        IdentifierValue = features.Number,
                         SourceName = "NPPES",
-                        MatchedFullName = matchedName,
-                        MatchedAffiliation = matchedOrg,
-                        MatchedState = matchedState,
+                        MatchedFullName = features.MatchedFullName,
+                        MatchedAffiliation = features.MatchedAffiliation,
+                        MatchedState = features.MatchedState,
+                        MatchedCity = features.MatchedCity,
+                        MatchedMiddleName = features.MatchedMiddleName,
+                        MatchedCredential = features.MatchedCredential,
+                        MatchedNamePrefix = features.MatchedNamePrefix,
+                        MatchedGender = features.MatchedGender,
+                        MatchedTaxonomyDesc = features.MatchedTaxonomyDesc,
+                        MatchedTaxonomyState = features.MatchedTaxonomyState,
+                        MatchedTaxonomyLicense = features.MatchedTaxonomyLicense,
+                        MatchedOtherNamesJson = features.MatchedOtherNamesJson,
+                        MatchedIdentifiersJson = features.MatchedIdentifiersJson,
                         SourceStatus = result.Status,
                         SourceDeactivatedAt = result.DeactivationDate,
                         IsAutoApproved = false,
                         CreatedAt = DateTime.UtcNow
-                    });
+                    };
+                    context.PersonIdentifierCandidates.Add(entity);
+                    entities.Add((entity, features));
                 }
 
-                IReadOnlyList<NpiRegistryResult> resolved;
+                var resolution = NpiCandidateScorer.Resolve(entities.Select(e => e.Features).ToList());
 
-                // Try affiliation-based filtering (now populated by CT.gov enrichment)
-                if (npiResults.Count > 1 && !string.IsNullOrWhiteSpace(affilName))
+                foreach (var (entity, features) in entities)
                 {
-                    var orgResults = npiResults
-                        .Where(r => r.Basic?.OrganizationName != null &&
-                            r.Basic.OrganizationName.Contains(affilName, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    resolved = orgResults.Count == 1 ? orgResults : npiResults;
-                }
-                else
-                {
-                    resolved = npiResults;
+                    entity.RuleScore = features.Score;
                 }
 
-                // Try ORCID cross-reference: if person has ORCID, check NPPES identifiers
-                if (resolved.Count > 1 && !string.IsNullOrWhiteSpace(person.Orcid))
+                switch (resolution.Outcome)
                 {
-                    var orcidResults = resolved
-                        .Where(r => r.Identifiers != null &&
-                            r.Identifiers.Any(id =>
-                                string.Equals(id.IdentifierType, "17", StringComparison.Ordinal) &&
-                                string.Equals(id.Identifier, person.Orcid, StringComparison.OrdinalIgnoreCase)))
-                        .ToList();
-                    if (orcidResults.Count == 1)
-                        resolved = orcidResults;
-                }
-
-                // State-based tiebreaker: if exactly 1 candidate matches the investigator's state → auto-approve
-                if (resolved.Count > 1 && !string.IsNullOrWhiteSpace(affilState))
-                {
-                    var stateResults = resolved
-                        .Where(r => r.Addresses is { Count: > 0 } &&
-                            r.Addresses.Any(a =>
-                                string.Equals(a.State, affilState, StringComparison.OrdinalIgnoreCase)))
-                        .ToList();
-                    if (stateResults.Count == 1)
-                        resolved = stateResults;
-                }
-
-                if (resolved.Count == 1 && resolved[0].Status != "D")
-                {
-                    person.Npi = resolved[0].Number;
-                    person.NpiEnrichmentResult = "assigned";
-                    var candidate = await context.PersonIdentifierCandidates
-                        .Where(c => c.PersonId == personId && c.IdentifierType == "NPI")
-                        .FirstOrDefaultAsync(ct).ConfigureAwait(false);
-                    if (candidate != null)
-                        candidate.IsAutoApproved = true;
-                    enqueueDiscovered = true;
-                }
-                else if (npiResults.Count == 0)
-                {
-                    person.NpiEnrichmentResult = "not_found";
-                }
-                else
-                {
-                    person.NpiEnrichmentResult = "ambiguous";
+                    case NpiCandidateScorer.NpiResolutionOutcome.Assigned:
+                        person.Npi = resolution.AssignedNumber;
+                        person.NpiEnrichmentResult = "assigned";
+                        var candidate = await context.PersonIdentifierCandidates
+                            .Where(c => c.PersonId == personId && c.IdentifierType == "NPI"
+                                && c.IdentifierValue == resolution.AssignedNumber)
+                            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+                        if (candidate != null)
+                            candidate.IsAutoApproved = true;
+                        enqueueDiscovered = true;
+                        break;
+                    case NpiCandidateScorer.NpiResolutionOutcome.NotFound:
+                        person.NpiEnrichmentResult = "not_found";
+                        break;
+                    default:
+                        person.NpiEnrichmentResult = "ambiguous";
+                        break;
                 }
             }
             catch (HttpRequestException ex)

@@ -166,6 +166,13 @@ internal static class StatsEndpoints
             return Results.Ok(breakdown);
         });
 
+        app.MapPost("/api/enrichment/requeue-ambiguous", async () =>
+        {
+            var repo = new StudyRepository(connectionString);
+            var requeued = await repo.RequeueAmbiguousNpiLookupsAsync();
+            return Results.Ok(new { requeued });
+        });
+
         app.MapGet("/api/data-source-state", async () =>
         {
             var dataSourceService = new DataSourceStateService(connectionString);
