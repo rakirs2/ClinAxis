@@ -234,7 +234,7 @@ internal static class PiFeaturesExportEndpoints
     /// must lie within [2000-01-01, today], and from must not be after to.
     /// Returns an error message or null when the window is valid.
     /// </summary>
-    private static string? ValidateWindow(string? from, string? to, out DateOnly windowStart, out DateOnly windowEnd)
+    internal static string? ValidateWindow(string? from, string? to, out DateOnly windowStart, out DateOnly windowEnd)
     {
         windowStart = default;
         windowEnd = default;

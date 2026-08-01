@@ -1,9 +1,9 @@
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Testing;
-using Scrapers.Persistence.Entities;
-using Microsoft.EntityFrameworkCore;
 
 namespace Scrapers.IntegrationTests;
 
@@ -36,7 +36,7 @@ public sealed class DataApiSmokeTests
     public async Task HealthEndpoint_Returns200WithStatusAndVersion()
     {
         using HttpResponseMessage response = await _client.GetAsync("/health");
-        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.AreEqual("application/json", response.Content.Headers.ContentType?.MediaType);
 
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -49,31 +49,45 @@ public sealed class DataApiSmokeTests
 
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task RejectedEntitiesEndpoint_Returns200WithPagination()
+    public async Task SearchByTitle_WithSeededData_ReturnsMatchingResult()
     {
-        using HttpResponseMessage response = await _client.GetAsync("/api/rejected-entities?type=keyword&page=1&pageSize=10");
-        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
-        Assert.AreEqual("application/json", response.Content.Headers.ContentType?.MediaType);
+        using HttpResponseMessage response = await _client.GetAsync("/api/studies?search=Pregabalin&page=1&pageSize=10");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
 
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.IsTrue(doc.RootElement.TryGetProperty("data", out _));
-        Assert.IsTrue(doc.RootElement.TryGetProperty("total", out _));
-        Assert.IsTrue(doc.RootElement.TryGetProperty("page", out _));
-        Assert.IsTrue(doc.RootElement.TryGetProperty("pageSize", out _));
-        Assert.IsTrue(doc.RootElement.TryGetProperty("totalPages", out _));
-        Assert.AreEqual(1, doc.RootElement.GetProperty("page").GetInt32());
+        JsonElement data = doc.RootElement.GetProperty("data");
+        Assert.IsTrue(data.GetArrayLength() > 0, "Search should return at least one result");
+
+        var found = data.EnumerateArray().Any(s => s.GetProperty("nctId").GetString() == "NCT00000002");
+        Assert.IsTrue(found, "Seeded Pregabalin study should appear in search results");
     }
 
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task EnrichmentBreakdownEndpoint_Returns200WithCounts()
+    public async Task InvestigatorFinder_ReturnsScoredResults()
     {
-        using HttpResponseMessage response = await _client.GetAsync("/api/enrichment/breakdown");
-        Assert.AreEqual(System.Net.HttpStatusCode.OK, response.StatusCode);
-        Assert.AreEqual("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/investigator-finder")
+        {
+            Content = new StringContent(
+                """{"treePrefixes": ["C14.907"]}""",
+                Encoding.UTF8,
+                "application/json")
+        };
 
+        using HttpResponseMessage response = await _client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var dictionary = doc.RootElement;
-        Assert.IsTrue(dictionary.ValueKind == System.Text.Json.JsonValueKind.Object);
+
+        Assert.IsTrue(doc.RootElement.TryGetProperty("totalCandidates", out JsonElement totalCandidates));
+        Assert.IsTrue(totalCandidates.GetInt32() > 0, "Hypertension prefix should match seeded studies");
+
+        JsonElement investigators = doc.RootElement.GetProperty("investigators");
+        Assert.IsTrue(investigators.GetArrayLength() > 0, "Should return ranked investigators");
+
+        var found = investigators.EnumerateArray().Any(i =>
+            i.GetProperty("name").GetString() == "Dr. David Williams, MD" &&
+            i.GetProperty("uuid").GetString() == SeedData.Person9.Id.ToString());
+        Assert.IsTrue(found, "PI of the seeded hypertension study should be ranked");
     }
 }
