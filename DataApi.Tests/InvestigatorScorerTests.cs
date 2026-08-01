@@ -91,4 +91,61 @@ public sealed class InvestigatorScorerTests
         var total = InvestigatorScorer.ComputeTotal(0.5, 0.5, 0.5, 0.5);
         Assert.AreEqual(0.5, total);
     }
+
+    [TestMethod]
+    public void ComputeRelevance_Intermediate_IsProportional()
+    {
+        var score = InvestigatorScorer.ComputeRelevance(10);
+        Assert.AreEqual(0.5, score, 1e-9);
+    }
+
+    [TestMethod]
+    public void ComputeExperience_ZeroEnrollment_ReturnsCountScoreOnly()
+    {
+        var score = InvestigatorScorer.ComputeExperience(50, 50, 0);
+        Assert.AreEqual(0.7, score, 1e-9);
+    }
+
+    [TestMethod]
+    public void ComputeExperience_ZeroStudyCount_NoDivisionByZero()
+    {
+        var score = InvestigatorScorer.ComputeExperience(0, 0, 1000);
+        Assert.IsTrue(double.IsFinite(score));
+        Assert.IsTrue(score >= 0);
+    }
+
+    [TestMethod]
+    public void ComputeExperience_CompletedExceedsStudyCount_ReflectsUncappedCompletionRate()
+    {
+        var score = InvestigatorScorer.ComputeExperience(2, 5, 5000);
+        Assert.AreEqual(1.162, score, 1e-9);
+    }
+
+    [TestMethod]
+    public void ComputePublication_OnlyHIndex_ReturnsHScore()
+    {
+        var score = InvestigatorScorer.ComputePublication(100, null);
+        Assert.AreEqual(0.6, score, 1e-9);
+    }
+
+    [TestMethod]
+    public void ComputePublication_OnlyPaperCount_ReturnsPaperScore()
+    {
+        var score = InvestigatorScorer.ComputePublication(null, 200);
+        Assert.AreEqual(0.4, score, 1e-9);
+    }
+
+    [TestMethod]
+    public void ComputePublication_ZeroMetrics_ReturnsZero()
+    {
+        var score = InvestigatorScorer.ComputePublication(0, 0);
+        Assert.AreEqual(0.0, score);
+    }
+
+    [TestMethod]
+    public void ComputeNetwork_Intermediate_IsProportional()
+    {
+        var score = InvestigatorScorer.ComputeNetwork(25);
+        Assert.AreEqual(0.5, score, 1e-9);
+    }
 }

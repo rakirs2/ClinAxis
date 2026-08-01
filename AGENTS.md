@@ -30,6 +30,19 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 | **Snapshot** | `SnapshotDb` | Container seeded with known golden data. Deterministic assertions against a fixed dataset. |
 | **Persistent/fiddle** | `SnapshotDb(persist: true)` | Same as snapshot but no rollback — DB stays for manual inspection via any SQL tool. |
 
+### 3b. Current Testing Approach — Baseline Log (superseded by the testing pyramid reset)
+Status as of the pure-helper extraction PR (issue #327). Documented here so the pre-reset state is preserved before sections §3/§6/§7 are rewritten to the pyramid doctrine.
+
+- **Suite size (Docker-backed where noted):**
+  - `Scrapers.IntegrationTests`: 148 tests / 27 classes — 108 via `DbTestBase`, 27 via `SnapshotDb`, 5 via `WebApplicationFactory` (no DB), plus `PerformanceTests` (10) and `DebugDbConnection` (1). All but the WebApplicationFactory ones spin up a Postgres Testcontainers container.
+  - `Scrapers.Tests`: 12 tests run against a DB via `DbTestBase` (`AdvancedSearchRepositoryTests` 13, `MeshDescriptorSeedingTests` 4, `InvestigatorFinderRepositoryTests` 2, `PubMedScraperServiceTests` 6 — the last has 5 pure XML tests that only use the DB for one test); `ClinicalTrialsGovIntegrationTests` hits the live clinicaltrials.gov API.
+  - `Frontend.Tests`: 53 tests — 22 bUnit page tests with `WaitForState` (11 in `HomePageTests.cs`, 7 in `DataQualityPageTests.cs`, 4 in `StatusPageTests.cs`), 31 pure unit tests, 2 `WebApplicationFactory` health checks.
+  - `DataApi.Tests`: 82 pure unit tests.
+- **Isolation reality vs. docs:** `DbTestBase` does NOT use transaction rollback — it creates a fresh database per test (`CREATE DATABASE "ct_<GUID>"` + `MigrateAsync()`, never dropped). `SnapshotDb` is a fresh container per instance, seeded with golden data from `Scrapers/Testing/SeedData.cs`.
+- **CI (`.github/workflows/dotnet.yml`):** `unit-and-db-tests` job runs Scrapers.Tests, DataApi.Tests, then the integration suite (filter `TestCategory!=HttpLive`), then Frontend.Tests (added after the Docker-heavy suite to avoid bUnit flake under machine load). `live-http-tests` job filters `TestCategory=HttpLive` — matches zero tests (`HttpLive` category exists nowhere in the codebase).
+- **Known pain points driving #327:** bUnit `WaitForState` timeouts under concurrent Docker load (3 reruns in CI, different test each time); 144 of 148 integration tests need Docker; `PerformanceTests` latency thresholds (<500ms) flake under load; `AdvancedSearchRepositoryTests` runs vacuous assertions against an empty DB.
+- **Target doctrine (PR B):** very few e2e (health check + 1 happy path per service), few integration (migration/schema/data-loss guards), base = fast pure unit tests.
+
 ### 4. Single Gateway Rule: All DB Access Goes Through DataApi
 - **Only DataApi talks to PostgreSQL.** Frontend, IngestionApp, and tests all access the database exclusively through DataApi's REST endpoints or via the shared `Scrapers` library's repositories.
 - **No DbContext, Npgsql, or direct SQL in Frontend.** Frontend communicates with DataApi via HTTP (HttpClient). If something needs database access, it either calls DataApi or lives in the `Scrapers` library consumed by DataApi.
