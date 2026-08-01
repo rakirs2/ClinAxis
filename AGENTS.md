@@ -21,14 +21,20 @@ These are non-negotiable. Never violate these rules.
 - Full verification: `dotnet test` (full test suite — Testcontainers manages Docker PostgreSQL automatically).
 - **If local verification cannot be performed, the change must not proceed until the gap is resolved.** No exceptions.
 
-### 3. Three DB Testing Modes (see `/docs/README.md` for full design)
-All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data_test`). No `CREATE DATABASE`/`DROP DATABASE` per test class. Isolation is via **transaction rollback** — each test writes inside a transaction, then rolls back. Single shared copy of the test base lives in `Scrapers/Testing/`.
+### 3. Testing Pyramid — DB Tests Are the Exception, Not the Default
+The test suite follows a strict pyramid (issue #327). The integration suite is deliberately small (~17 tests in `Scrapers.IntegrationTests/`) and is **not** a dumping ground: before adding any DB-backed test, exhaust the unit-test layer.
 
-| Mode | Class | Use Case |
-|------|-------|----------|
-| **Integration/IO** | `DbTestBase` | Testcontainers container per class, transaction rollback per method. Fast and isolated. |
-| **Snapshot** | `SnapshotDb` | Container seeded with known golden data. Deterministic assertions against a fixed dataset. |
-| **Persistent/fiddle** | `SnapshotDb(persist: true)` | Same as snapshot but no rollback — DB stays for manual inspection via any SQL tool. |
+| Layer | Location | Rule |
+|-------|----------|------|
+| **Unit** | `Scrapers.Tests/`, `DataApi.Tests/`, `Frontend.Tests/` | Must run with **no Docker and no database**. Covers parsing, mapping, scoring, filters, validation, and page rendering (bUnit). Extract pure helpers from DB-touching code to make this possible. |
+| **Schema guards** | `Scrapers.IntegrationTests/SchemaGuardTests.cs` | Assert indexes and required columns exist. A few cheap queries replace dozens of behavioral tests. |
+| **Happy-path integration** | `Scrapers.IntegrationTests/` (`DbTestBase`/`SnapshotDb`) | One test per capability: repository upsert/idempotency/stats, migration idempotency, data-loss persistence, full pipeline, pi-features export, data-loss columns. |
+| **Smoke E2E** | `Scrapers.IntegrationTests/DataApiSmokeTests.cs`, `FrontendE2ETests.cs` | Health + one seeded happy path per app (WebApplicationFactory). Never per-endpoint. |
+
+- **Every new DB-backed integration test must replace an existing one** unless a schema guard or unit test cannot cover the concern. The integration count is a reviewable budget, not an entitlement.
+- Tests that need Postgres use a Testcontainers-managed PostgreSQL database. Shared test infrastructure lives in `Scrapers/Testing/` (`DbTestBase`, `SnapshotDb`, `SeedData`).
+- `DbTestBase` = one shared container, fresh database per test method (migrated), no rollback needed. `SnapshotDb` = container seeded with `SeedData` golden data for deterministic assertions. `SnapshotDb(persist: true)` = no cleanup for manual inspection.
+- `Scrapers.Tests/` must stay **DB-free** (issue #328). If a test class there touches a database, it belongs in `Scrapers.IntegrationTests/` instead.
 
 ### 4. Single Gateway Rule: All DB Access Goes Through DataApi
 - **Only DataApi talks to PostgreSQL.** Frontend, IngestionApp, and tests all access the database exclusively through DataApi's REST endpoints or via the shared `Scrapers` library's repositories.
@@ -67,10 +73,11 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **New features** require tests covering the happy path, edge cases, and any data persistence verification.
 - **Bug fixes** require a test that reproduces the bug before the fix and passes after.
 - **Refactors** must not reduce existing test coverage. If existing tests don't cover the refactored code, add tests.
-- **Patterns to follow:**
-  - **Unit tests** (`Scrapers.Tests/`) — for client deserialization, mapping logic, and any code that can run without a database. Use `FakeHttpMessageHandler` with captured JSON fixtures for HTTP clients.
-  - **DB integration tests** (`Scrapers.IntegrationTests/` via `DbTestBase`) — for repository persistence, data loss verification, and any code that writes to PostgreSQL.
-  - **End-to-end tests** (in `Scrapers.IntegrationTests/`) — for full pipeline flows using `SnapshotDb` with golden data.
+- **Patterns to follow (see §3 for the pyramid):**
+  - **Unit tests** (`Scrapers.Tests/`, `DataApi.Tests/`, `Frontend.Tests/`) — for client deserialization, mapping logic, scoring, validation, and any code that can run without a database. Use `FakeHttpMessageHandler` with captured JSON fixtures for HTTP clients. DB-touching logic must have its pure parts extracted and unit-tested (e.g., `Scrapers/Utilities/`, `Frontend/*.cs` helpers).
+  - **Schema guard tests** (`Scrapers.IntegrationTests/SchemaGuardTests.cs`) — for index and column existence. Prefer these over behavioral tests that would only catch missing schema.
+  - **DB integration tests** (`Scrapers.IntegrationTests/`) — only for repository persistence, data loss verification, migration behavior, and full pipeline flows that cannot be unit-tested. Keep the suite lean per §3.
+  - **Smoke tests** (`DataApiSmokeTests`, `FrontendE2ETests`) — one happy path per application via `WebApplicationFactory`, not one per endpoint.
 - **Data loss verification:** Any new entity or column must have a test that:
   1. Arranges known input data (fixture or inline)
   2. Runs it through the full mapping/persistence path
@@ -78,15 +85,16 @@ All tests use a Testcontainers-managed PostgreSQL database (`clinical_trial_data
 - **Verify before committing:** Run `dotnet build` (0 errors, 0 warnings) + `dotnet test` (all pass) before creating the PR.
 
 ### 8. Test Conventions
-- **Avoid mocks. Prefer pre-seeded data.** Most tests should use `SnapshotDb` with known golden data in a real PostgreSQL database. Only use fake HTTP handlers when testing an HTTP client against an external API that cannot be called in CI (e.g., third-party rate limits).
+- **Unit-test first. Avoid mocks. Prefer pre-seeded data.** Only use fake HTTP handlers when testing an HTTP client against an external API that cannot be called in CI (e.g., third-party rate limits).
 - **MSTest only.** Do not introduce xUnit, NUnit, or any other framework.
 - **Per-API coverage:** Every external API we call must have:
-  - A unit test class that uses fake HTTP handlers with real captured payloads (only when the live API cannot be hit every run).
-  - A live smoke test class that exercises the actual API endpoint (kept separate from unit tests).
+  - A unit test class that uses fake HTTP handlers with real captured payloads.
   - A schema guard test that inspects JSON response shape via `JsonDocument` and fails if required fields disappear.
+  - No dedicated live-API test class — live behavior is covered by the shared `FullPipelineIntegrationTests`/smoke tests, which must run every time.
 - **Fixtures:** Store real captured JSON responses in `Scrapers.Tests/Data/<ServiceName>/`. Keep them unmodified except for truncating unrelated sections.
-- **Live/integration tests:** Keep in separate `*IntegrationTests.cs` files. Tag with `[TestCategory("Integration")]` or `[TestCategory("HttpLive")]`. Do not gate behind `[Ignore]` or environment variables — they must run as part of `dotnet test`.
+- **Integration tests:** Keep in `Scrapers.IntegrationTests/` only. Tag with `[TestCategory("Integration")]`. Do not gate behind `[Ignore]` or environment variables — they must run as part of `dotnet test`.
 - **Test utilities live in `Scrapers/Testing/`** — shared via `InternalsVisibleTo`. Never duplicate.
+- **Test projects are DB-free unless they are the integration project.** `Scrapers.Tests/`, `DataApi.Tests/`, and `Frontend.Tests/` must not start containers or open a `DbContext`.
 
 ### Running Tests from Rider
 1. Ensure Docker Desktop is running (Testcontainers manages containers automatically — no manual `docker compose` needed)
@@ -195,8 +203,8 @@ bash scripts/reset-db.sh
 ```
 
 ## GitHub Actions
-- CI must run `dotnet build` + `dotnet test` on every push and pull request, covering unit, DB integration, and live HTTP tests.
-- **No push to `main` without all integration tests passing.** The CI workflow blocks the merge if any test — unit, integration, or live HTTP — fails.
+- CI runs a single `unit-and-db-tests` job (`.github/workflows/dotnet.yml`): `dotnet build` then the four test projects — `Scrapers.Tests`, `DataApi.Tests`, `Scrapers.IntegrationTests` (against a Postgres 15 service container), and `Frontend.Tests` (last, to avoid thread-pool starvation from concurrent load).
+- **No push to `main` without all tests passing.** The CI workflow blocks the merge if any test fails.
 
 ## Deployment
 - Production deployment is **manual only** — triggered via `workflow_dispatch` from the GitHub Actions UI or CLI. There is no auto-deploy on push to `main`.

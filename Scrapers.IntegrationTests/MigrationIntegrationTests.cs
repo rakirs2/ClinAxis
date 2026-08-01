@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -23,28 +22,6 @@ public sealed class MigrationIntegrationTests : DbTestBase
     }
 
     [TestMethod]
-    public async Task Migrate_CreatesFullSchema()
-    {
-        using var ctx = new ClinicalTrialsContext(
-            new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .ConfigureNpgsql(ConnectionString).Options);
-
-        await ctx.Database.EnsureDeletedAsync();
-        await ctx.Database.MigrateAsync();
-
-        if (!await IsTableAccessibleAsync(ctx.Studies))
-        {
-            await ctx.Database.EnsureDeletedAsync();
-            await ctx.Database.EnsureCreatedAsync();
-        }
-
-        var entityTypes = ctx.Model.GetEntityTypes().Select(e => e.GetTableName()).ToHashSet();
-        Assert.IsTrue(entityTypes.Contains("studies"), "Expected 'studies' table in model");
-        Assert.IsTrue(entityTypes.Contains("investigator_persons"), "Expected 'investigator_persons' table in model");
-        Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies), "Expected 'studies' table to be accessible");
-    }
-
-    [TestMethod]
     public async Task Migrate_IsIdempotent()
     {
         using var ctx = new ClinicalTrialsContext(
@@ -64,25 +41,6 @@ public sealed class MigrationIntegrationTests : DbTestBase
         Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies), "Schema should exist after idempotent MigrateAsync calls");
     }
 
-    [TestMethod]
-    public async Task ResetDatabase_AllowsWritesAfterReset()
-    {
-        var repo = new StudyRepository(ConnectionString);
-        await repo.ResetDatabaseAsync();
-
-        using var ctx = new ClinicalTrialsContext(
-            new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .ConfigureNpgsql(ConnectionString).Options);
-
-        ctx.Studies.Add(new Scrapers.Persistence.Entities.StudyEntity
-        {
-            NctId = "NCT00000001",
-            BriefTitle = "Post-Reset Test"
-        });
-        await ctx.SaveChangesAsync();
-        Assert.AreEqual(1, await ctx.Studies.CountAsync());
-    }
-
     private static async Task<bool> IsTableAccessibleAsync<T>(IQueryable<T> query)
     {
         try
@@ -94,38 +52,5 @@ public sealed class MigrationIntegrationTests : DbTestBase
         {
             return false;
         }
-    }
-
-    [TestMethod]
-    public async Task Migrate_WithSearchPathPublic_IsIdempotent()
-    {
-        var cs = $"{ConnectionString};Search Path=public;Pooling=false";
-        using var ctx = new ClinicalTrialsContext(
-            new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .ConfigureNpgsql(cs).Options);
-
-        await ctx.Database.MigrateAsync();
-        await ctx.Database.MigrateAsync();
-
-        Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies));
-        Assert.IsTrue(await IsTableAccessibleAsync(ctx.CategoryAggregations));
-    }
-
-    [TestMethod]
-    public async Task Migrate_WithSearchPathPublic_CreatesFullSchema()
-    {
-        var cs = $"{ConnectionString};Search Path=public;Pooling=false";
-        using var ctx = new ClinicalTrialsContext(
-            new DbContextOptionsBuilder<ClinicalTrialsContext>()
-                .ConfigureNpgsql(cs).Options);
-
-        await ctx.Database.EnsureDeletedAsync();
-        await ctx.Database.MigrateAsync();
-
-        var entityTypes = ctx.Model.GetEntityTypes().Select(e => e.GetTableName()).ToHashSet();
-        Assert.IsTrue(entityTypes.Contains("studies"));
-        Assert.IsTrue(entityTypes.Contains("category_aggregations"));
-        Assert.IsTrue(entityTypes.Contains("investigator_persons"));
-        Assert.IsTrue(await IsTableAccessibleAsync(ctx.Studies).ConfigureAwait(false));
     }
 }
