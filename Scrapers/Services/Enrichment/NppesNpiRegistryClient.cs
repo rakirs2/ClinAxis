@@ -19,11 +19,9 @@ public sealed class NppesNpiRegistryClient
         _httpClient.BaseAddress ??= new Uri("https://npiregistry.cms.hhs.gov/");
     }
 
-    public async Task<IReadOnlyList<NpiRegistryResult>> SearchByNameAsync(string firstName, string lastName, string? affiliation = null, string? state = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<NpiRegistryResult>> SearchByNameAsync(string firstName, string lastName, CancellationToken ct = default)
     {
         var url = $"/api/?version=2.1&first_name={Uri.EscapeDataString(firstName)}&last_name={Uri.EscapeDataString(lastName)}&limit=20";
-        if (!string.IsNullOrWhiteSpace(state))
-            url += $"&state={Uri.EscapeDataString(state)}";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(url, UriKind.Relative));
         using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
@@ -32,15 +30,7 @@ public sealed class NppesNpiRegistryClient
         var json = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         var envelope = await JsonSerializer.DeserializeAsync<NpiSearchResponse>(json, _jsonOptions, ct).ConfigureAwait(false);
 
-        var results = envelope?.Results ?? [];
-        if (!string.IsNullOrWhiteSpace(affiliation) && results.Count > 1)
-        {
-            var orgResults = results.Where(r => r.Basic?.OrganizationName != null &&
-                r.Basic.OrganizationName.Contains(affiliation, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (orgResults.Count > 0)
-                return orgResults;
-        }
-        return results;
+        return envelope?.Results ?? [];
     }
 
     public async Task<IReadOnlyList<NpiRegistryResult>> SearchByOrganizationAsync(string organization, string? state = null, CancellationToken ct = default)
@@ -104,6 +94,20 @@ public sealed class NpiBasic
     public string? MiddleName { get; set; }
     [JsonPropertyName("organization_name")]
     public string? OrganizationName { get; set; }
+    [JsonPropertyName("other_names")]
+    public List<NpiOtherName>? OtherNames { get; set; }
+}
+
+public sealed class NpiOtherName
+{
+    [JsonPropertyName("organization_name")]
+    public string? OrganizationName { get; set; }
+    [JsonPropertyName("last_name")]
+    public string? LastName { get; set; }
+    [JsonPropertyName("first_name")]
+    public string? FirstName { get; set; }
+    [JsonPropertyName("middle_name")]
+    public string? MiddleName { get; set; }
 }
 
 public sealed class NpiAddress

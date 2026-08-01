@@ -1825,6 +1825,72 @@ namespace Scrapers.Persistence
             return count;
         }
 
+        /// <summary>
+        /// Resets NPI lookup state for persons whose enrichment ended in "ambiguous" so they
+        /// re-run through the disambiguation scorer, and enqueues an enrichment event for each.
+        /// Stale NPI candidates for those persons are removed so the re-run starts clean.
+        /// Returns the number of enrichment events enqueued.
+        /// </summary>
+        public async Task<int> RequeueAmbiguousNpiLookupsAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var ambiguousPersonIds = await context.InvestigatorPersons
+                .Where(p => p.IsHuman && p.NpiEnrichmentResult == "ambiguous")
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (ambiguousPersonIds.Count == 0)
+            {
+                return 0;
+            }
+
+            var now = DateTime.UtcNow;
+
+            await context.InvestigatorPersons
+                .Where(p => ambiguousPersonIds.Contains(p.Id))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(p => p.NpiLookupAttemptedAt, (DateTime?)null)
+                    .SetProperty(p => p.NpiEnrichmentResult, (string?)null)
+                    .SetProperty(p => p.UpdatedAt, now),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            await context.PersonIdentifierCandidates
+                .Where(c => c.IdentifierType == "NPI" && ambiguousPersonIds.Contains(c.PersonId))
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var existingEnrichmentEvents = await context.PipelineEvents
+                .Where(e => e.EventType == "investigator.enrichment" && e.Status != "dead-letter")
+                .Select(e => e.Data)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var requeued = 0;
+            foreach (var personId in ambiguousPersonIds)
+            {
+                if (existingEnrichmentEvents.Contains(personId.ToString()))
+                {
+                    continue;
+                }
+
+                context.PipelineEvents.Add(new PipelineEventEntity
+                {
+                    EventType = "investigator.enrichment",
+                    Data = personId.ToString(),
+                    Status = "pending",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                requeued++;
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return requeued;
+        }
+
         public static async Task ScrubInvestigatorPapersAsync(
             ClinicalTrialsContext context,
             Guid personId,

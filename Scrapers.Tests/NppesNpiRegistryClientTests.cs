@@ -33,17 +33,20 @@ public sealed class NppesNpiRegistryClientTests
     }
 
     [TestMethod]
-    public async Task SearchByNameAsync_WithAffiliation_FiltersToMatching()
+    public async Task SearchByNameAsync_DoesNotFilterByAffiliationOrState()
     {
         var handler = new FakeHttpMessageHandler();
         var json = FixtureLoader.LoadNppesNpiJson("search-multiple-results.json");
         handler.EnqueueJsonResponse(json);
 
         var client = CreateClient(handler);
-        var results = await client.SearchByNameAsync("John", "Smith", affiliation: "Mayo Clinic");
+        var results = await client.SearchByNameAsync("John", "Smith");
 
-        Assert.AreEqual(1, results.Count);
-        Assert.AreEqual("1234567890", results[0].Number);
+        Assert.AreEqual(2, results.Count);
+        Assert.AreEqual(1, handler.Requests.Count);
+        var requestUrl = handler.Requests[0].ToString();
+        Assert.IsFalse(requestUrl.Contains("state=", StringComparison.Ordinal),
+            "Query must not narrow by state — the scorer evaluates the full candidate set");
     }
 
     [TestMethod]
@@ -57,19 +60,6 @@ public sealed class NppesNpiRegistryClientTests
         var results = await client.SearchByNameAsync("Nonexistent", "Nobody");
 
         Assert.AreEqual(0, results.Count);
-    }
-
-    [TestMethod]
-    public async Task SearchByNameAsync_WithAffiliationNoMatch_ReturnsAll()
-    {
-        var handler = new FakeHttpMessageHandler();
-        var json = FixtureLoader.LoadNppesNpiJson("search-multiple-results.json");
-        handler.EnqueueJsonResponse(json);
-
-        var client = CreateClient(handler);
-        var results = await client.SearchByNameAsync("John", "Smith", affiliation: "Unknown Hospital");
-
-        Assert.AreEqual(2, results.Count, "All results returned when affiliation doesn't match any");
     }
 
     [TestMethod]

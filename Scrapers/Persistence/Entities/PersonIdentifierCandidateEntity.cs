@@ -13,6 +13,17 @@ namespace Scrapers.Persistence.Entities
         public string? MatchedFullName { get; set; }
         public string? MatchedAffiliation { get; set; }
         public string? MatchedState { get; set; }
+        public string? MatchedCity { get; set; }
+        public string? MatchedMiddleName { get; set; }
+        public string? MatchedCredential { get; set; }
+        public string? MatchedNamePrefix { get; set; }
+        public string? MatchedGender { get; set; }
+        public string? MatchedTaxonomyDesc { get; set; }
+        public string? MatchedTaxonomyState { get; set; }
+        public string? MatchedTaxonomyLicense { get; set; }
+        public string? MatchedOtherNamesJson { get; set; }
+        public string? MatchedIdentifiersJson { get; set; }
+        public double? RuleScore { get; set; }
         public string? SourceStatus { get; set; }
         public DateTime? SourceDeactivatedAt { get; set; }
         public bool IsAutoApproved { get; set; }

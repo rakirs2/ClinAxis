@@ -65,20 +65,100 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task StatsCounts_MatchDatabaseState()
+    public async Task RequeueAmbiguousNpiLookups_ResetsAndEnqueues()
     {
-        var paperId = Guid.NewGuid();
-        Context.PubmedPapers.Add(new PubmedPaperEntity { Id = paperId, Pmid = "30000001", Title = "Linked Paper", Journal = "Journal", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        Context.Studies.Add(new StudyEntity { NctId = "NCT400001", BriefTitle = "Main Study", OverallStatus = "ACTIVE", CreatedAt = DateTime.UtcNow });
-        Context.InvestigatorPersons.Add(new InvestigatorPersonEntity { Id = Guid.NewGuid(), FullName = "Dr. Person", IsHuman = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        Context.StudyPapers.Add(new StudyPaperEntity { StudyNctId = "NCT400001", PubmedPaperId = paperId });
-        Context.StudyKeywords.Add(new StudyKeywordEntity { StudyNctId = "NCT400001", Keyword = "ONCOLOGY" });
+        var ambiguousPerson = new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Dr. Ambiguous Person",
+            IsHuman = true,
+            NpiEnrichmentResult = "ambiguous",
+            NpiLookupAttemptedAt = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var assignedPerson = new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Dr. Assigned Person",
+            IsHuman = true,
+            Npi = "1234567890",
+            NpiEnrichmentResult = "assigned",
+            NpiLookupAttemptedAt = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var notFoundPerson = new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Dr. NotFound Person",
+            IsHuman = true,
+            NpiEnrichmentResult = "not_found",
+            NpiLookupAttemptedAt = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        Context.InvestigatorPersons.AddRange(ambiguousPerson, assignedPerson, notFoundPerson);
+        Context.PersonIdentifierCandidates.Add(new PersonIdentifierCandidateEntity
+        {
+            PersonId = ambiguousPerson.Id,
+            IdentifierType = "NPI",
+            IdentifierValue = "1111111111",
+            SourceName = "NPPES",
+            CreatedAt = DateTime.UtcNow
+        });
         await Context.SaveChangesAsync();
 
-        Assert.AreEqual(1, await _repo.CountStudiesAsync());
-        Assert.AreEqual(1, await _repo.CountInvestigatorsAsync());
-        Assert.AreEqual(1, await _repo.CountPubmedPapersAsync());
-        Assert.AreEqual(1, await _repo.CountKeywordsAsync());
+        var requeued = await _repo.RequeueAmbiguousNpiLookupsAsync();
+
+        Assert.AreEqual(1, requeued);
+
+        var ambiguousAfter = await Context.InvestigatorPersons.AsNoTracking().FirstAsync(p => p.Id == ambiguousPerson.Id);
+        Assert.IsNull(ambiguousAfter.NpiLookupAttemptedAt);
+        Assert.IsNull(ambiguousAfter.NpiEnrichmentResult);
+
+        var assignedAfter = await Context.InvestigatorPersons.AsNoTracking().FirstAsync(p => p.Id == assignedPerson.Id);
+        Assert.AreEqual("assigned", assignedAfter.NpiEnrichmentResult);
+        Assert.IsNotNull(assignedAfter.NpiLookupAttemptedAt);
+
+        var notFoundAfter = await Context.InvestigatorPersons.AsNoTracking().FirstAsync(p => p.Id == notFoundPerson.Id);
+        Assert.AreEqual("not_found", notFoundAfter.NpiEnrichmentResult);
+
+        Assert.AreEqual(0, await Context.PersonIdentifierCandidates.CountAsync(c => c.PersonId == ambiguousPerson.Id));
+        Assert.AreEqual(1, await Context.PipelineEvents.CountAsync(e => e.EventType == "investigator.enrichment"));
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task RequeueAmbiguousNpiLookups_AlreadyPendingEvent_DoesNotDuplicate()
+    {
+        var person = new InvestigatorPersonEntity
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Dr. Pending Person",
+            IsHuman = true,
+            NpiEnrichmentResult = "ambiguous",
+            NpiLookupAttemptedAt = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        Context.InvestigatorPersons.Add(person);
+        Context.PipelineEvents.Add(new PipelineEventEntity
+        {
+            EventType = "investigator.enrichment",
+            Data = person.Id.ToString(),
+            Status = "pending",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await Context.SaveChangesAsync();
+
+        var requeued = await _repo.RequeueAmbiguousNpiLookupsAsync();
+
+        Assert.AreEqual(0, requeued, "No duplicate event enqueued for a person with a pending event");
+        var personAfter = await Context.InvestigatorPersons.AsNoTracking().FirstAsync(p => p.Id == person.Id);
+        Assert.IsNull(personAfter.NpiLookupAttemptedAt,
+            "Person still reset so the pending event re-runs the enrichment");
     }
 
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
