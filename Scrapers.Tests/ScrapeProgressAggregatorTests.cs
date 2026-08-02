@@ -161,4 +161,40 @@ public sealed class ScrapeProgressAggregatorTests
         Assert.AreEqual(75, summary.TotalInRun);
         Assert.AreEqual(0, summary.EstimatedRemaining);
     }
+
+    [TestMethod]
+    public void LastRunCompleted_NoEvents_ReturnsNull()
+    {
+        Assert.IsNull(ScrapeProgressAggregator.LastRunCompleted(Array.Empty<ScrapeEventEntity>(), "ClinicalTrials.gov"));
+    }
+
+    [TestMethod]
+    public void LastRunCompleted_ReturnsLatestRunEventForSource()
+    {
+        var events = new[]
+        {
+            Event(1, "ClinicalTrials.gov", ScrapeProgressAggregator.RunCompletedEventType, records: 100, durationMs: 60000),
+            Event(2, "ClinicalTrials.gov", ScrapeProgressAggregator.RunCompletedEventType, records: 200, durationMs: 120000),
+            Event(3, "PubMed", ScrapeProgressAggregator.RunCompletedEventType, records: 999, durationMs: 999)
+        };
+
+        var lastRun = ScrapeProgressAggregator.LastRunCompleted(events, "ClinicalTrials.gov");
+
+        Assert.IsNotNull(lastRun);
+        Assert.AreEqual(2, lastRun.Id);
+        Assert.AreEqual(200, lastRun.RecordsAffected);
+        Assert.AreEqual(120000, lastRun.DurationMs);
+    }
+
+    [TestMethod]
+    public void LastRunCompleted_NoRunEventForSource_ReturnsNull()
+    {
+        var events = new[]
+        {
+            Event(1, "ClinicalTrials.gov", ScrapeProgressAggregator.BatchEventType, records: 10),
+            Event(2, "PubMed", ScrapeProgressAggregator.RunCompletedEventType, records: 10)
+        };
+
+        Assert.IsNull(ScrapeProgressAggregator.LastRunCompleted(events, "ClinicalTrials.gov"));
+    }
 }
