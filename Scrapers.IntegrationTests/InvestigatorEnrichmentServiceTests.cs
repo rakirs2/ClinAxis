@@ -42,7 +42,8 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
             new NppesNpiRegistryClient(new HttpClient(handler)),
             new OrcidApiClient(new HttpClient(new FakeNppesHandler("{}"))),
             modelService: null,
-            ConnectionString);
+            ConnectionString,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InvestigatorEnrichmentService>.Instance);
 
         await service.ProcessEnrichmentEventAsync(
             new PipelineEventEntity { Data = person.Id.ToString() },
