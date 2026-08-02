@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers.Services;
 using Scrapers.Services.EventQueue;
 
@@ -7,22 +8,40 @@ namespace IngestionApp;
 
 internal sealed class EventProcessingService : BackgroundService
 {
+    private static readonly Action<ILogger, int, string, Exception?> LogEventFailed =
+        LoggerMessage.Define<int, string>(
+            LogLevel.Error,
+            new EventId(1, "EventFailed"),
+            "Event {EventId} ({EventType}) failed");
+
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(2, "ProcessingLoopError"),
+            "EventProcessingService error");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly ClinicalTrialsIngestionService _ingestionService;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
     private readonly int _claimedEventTimeoutMinutes;
+    private readonly int _ingestTimeoutMinutes;
+    private readonly ILogger<EventProcessingService>? _logger;
 
     public EventProcessingService(
         IEventQueueService eventQueueService,
         ClinicalTrialsIngestionService ingestionService,
         int pollIntervalSeconds = 10,
-        int claimedEventTimeoutMinutes = 30)
+        int claimedEventTimeoutMinutes = 30,
+        int ingestTimeoutMinutes = 60,
+        ILogger<EventProcessingService>? logger = null)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _ingestionService = ingestionService ?? throw new ArgumentNullException(nameof(ingestionService));
         _pollIntervalSeconds = pollIntervalSeconds;
         _claimedEventTimeoutMinutes = claimedEventTimeoutMinutes;
+        _ingestTimeoutMinutes = ingestTimeoutMinutes;
+        _logger = logger;
 
         _serviceInstanceId = $"{System.Environment.MachineName}-{System.Environment.ProcessId}";
     }
@@ -59,6 +78,10 @@ internal sealed class EventProcessingService : BackgroundService
                 }
                 catch (Exception ex)
                 {
+                    if (_logger != null && _logger.IsEnabled(LogLevel.Error))
+                    {
+                        LogEventFailed(_logger, @event.Id, @event.EventType, ex);
+                    }
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
                         ex.ToString(),
@@ -71,7 +94,10 @@ internal sealed class EventProcessingService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"EventProcessingService error: {ex}");
+                if (_logger != null && _logger.IsEnabled(LogLevel.Error))
+                {
+                    LogLoopError(_logger, ex);
+                }
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }
@@ -94,6 +120,18 @@ internal sealed class EventProcessingService : BackgroundService
             }
         }
 
-        await _ingestionService.IngestAsync(count, cancellationToken: ct).ConfigureAwait(false);
+        // Bound each ingest call so a stalled DB operation cannot block the queue forever.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromMinutes(_ingestTimeoutMinutes));
+        try
+        {
+            await _ingestionService.IngestAsync(count, cancellationToken: timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"IngestAsync of {count} studies exceeded the {_ingestTimeoutMinutes} minute timeout; " +
+                "the event was failed and will be retried.");
+        }
     }
 }

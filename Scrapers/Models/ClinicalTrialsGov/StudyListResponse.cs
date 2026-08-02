@@ -13,6 +13,9 @@ namespace Scrapers.Models.ClinicalTrialsGov
         [JsonPropertyName("studies")]
         public List<StudyPayload>? Studies { get; set; }
 
+        [JsonPropertyName("totalCount")]
+        public int? TotalCount { get; set; }
+
         public class StudyPayload
         {
             [JsonPropertyName("protocolSection")]

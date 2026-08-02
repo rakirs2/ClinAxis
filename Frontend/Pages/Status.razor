@@ -233,6 +233,56 @@ else
         </table>
     }
 
+    <h3 class="mt-4">Scrape Progress</h3>
+    @if (dataSourceStates is null || !dataSourceStates.Any(s => s.scrapeProgress != null))
+    {
+        <p class="text-muted">No scrape runs recorded yet.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-striped" style="max-width: 900px">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Processed</th>
+                    <th>Total in Run</th>
+                    <th>Estimated Remaining</th>
+                    <th>Batches</th>
+                    <th>Last Batch</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var state in dataSourceStates.Where(s => s.scrapeProgress != null))
+                {
+                    var p = state.scrapeProgress!;
+                    <tr>
+                        <td>@state.sourceName</td>
+                        <td><span class="badge bg-@(p.status == "completed" ? "success" : p.status == "in_progress" ? "warning" : "secondary")">@p.status</span></td>
+                        <td>@p.recordsProcessed.ToString("N0")</td>
+                        <td>@p.totalInRun.ToString("N0")</td>
+                        <td>@p.estimatedRemaining.ToString("N0")</td>
+                        <td>@p.batchesCompleted.ToString("N0")</td>
+                        <td>
+                            @if (p.lastBatchAt.HasValue)
+                            {
+                                <small>
+                                    @p.lastBatchRecords?.ToString("N0") records
+                                    in @((p.lastBatchDurationMs ?? 0) / 1000.0).ToString("F1")s
+                                    @(string.IsNullOrWhiteSpace(p.lastBatchNctRange) ? "" : $"({p.lastBatchNctRange})")
+                                </small>
+                            }
+                            else
+                            {
+                                <small class="text-muted">awaiting first batch</small>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
     <h3 class="mt-4">Event Queue Health</h3>
     @if (queueStats is not null)
     {
@@ -479,6 +529,21 @@ else
         public string? errorMessage { get; set; }
         public DateTime updatedAt { get; set; }
         public int rejectedKeywordsTotal { get; set; }
+        public ScrapeProgressItem? scrapeProgress { get; set; }
+    }
+
+    private class ScrapeProgressItem
+    {
+        public int totalInRun { get; set; }
+        public int recordsProcessed { get; set; }
+        public int batchesCompleted { get; set; }
+        public int estimatedRemaining { get; set; }
+        public string? status { get; set; }
+        public string? lastBatchNctRange { get; set; }
+        public DateTime? lastBatchAt { get; set; }
+        public long? lastBatchDurationMs { get; set; }
+        public int? lastBatchRecords { get; set; }
+        public DateTime? runStartedAt { get; set; }
     }
 
     private class QueueStatsItem

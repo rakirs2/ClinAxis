@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Scrapers;
+using Scrapers.Services;
 using Scrapers.Services.EventQueue;
 
 namespace IngestionApp;
@@ -13,6 +14,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
 {
     private readonly IEventQueueService _eventQueueService;
     private readonly IDataSourceStateService _dataSourceStateService;
+    private readonly INgestionProgressReporter? _progressReporter;
     private readonly int _scrapeIntervalMinutes;
 
     private const string SourceName = "ClinicalTrials.gov";
@@ -21,10 +23,12 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     public ClinicalTrialsScrapeService(
         IEventQueueService eventQueueService,
         IDataSourceStateService dataSourceStateService,
+        INgestionProgressReporter? progressReporter = null,
         int scrapeIntervalMinutes = 60)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _dataSourceStateService = dataSourceStateService ?? throw new ArgumentNullException(nameof(dataSourceStateService));
+        _progressReporter = progressReporter;
         _scrapeIntervalMinutes = scrapeIntervalMinutes;
     }
 
@@ -82,16 +86,15 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         var state = await _dataSourceStateService.GetStateAsync(SourceName, ct).ConfigureAwait(false);
         var lastSyncTimestamp = state?.LastSyncTimestamp;
 
-        // Fetch new/updated studies from CT.gov API since last sync
-        var studyCount = 0;
-        await ctClient.GetTrialRecordsBatchedAsync(
-            count: int.MaxValue,
-            lastUpdatedPost: lastSyncTimestamp,
-            onBatch: async batch =>
-            {
-                studyCount += batch.Count;
-            },
-            cancellationToken: ct).ConfigureAwait(false);
+        // Count new/updated studies from CT.gov API since last sync (lightweight countTotal call)
+        var studyCount = await ctClient.CountStudiesAsync(lastSyncTimestamp, ct).ConfigureAwait(false);
+
+        if (_progressReporter != null)
+        {
+            await _progressReporter
+                .ReportDiscoveryCompletedAsync(studyCount, lastSyncTimestamp, ct)
+                .ConfigureAwait(false);
+        }
 
         if (studyCount > 0)
         {

@@ -43,6 +43,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IEventQueueService>(new EventQueueService(cs));
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
         services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
+        services.AddSingleton<INgestionProgressReporter>(new ScrapeEventProgressReporter(cs, "ClinicalTrials.gov"));
 
         // MeSH Matcher for A/B testing
         MeSHMatcher? meshMatcher = null;
@@ -78,16 +79,22 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<PivotConfigurationService>(new PivotConfigurationService(cs));
 
         // Background services for scraping and event processing
+        var ingestTimeoutMinutes = int.TryParse(Environment.GetEnvironmentVariable("INGEST_TIMEOUT_MINUTES"), out var ingestTimeout)
+            ? ingestTimeout
+            : 60;
+
         services.AddHostedService(sp => new ClinicalTrialsScrapeService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<IDataSourceStateService>(),
+            sp.GetRequiredService<INgestionProgressReporter>(),
             scrapeIntervalMinutes: 60));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<ClinicalTrialsIngestionService>(),
             pollIntervalSeconds: 10,
-            claimedEventTimeoutMinutes: 30));
+            claimedEventTimeoutMinutes: 30,
+            ingestTimeoutMinutes: ingestTimeoutMinutes));
 
         services.AddHostedService(sp => new DeadLetterProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
