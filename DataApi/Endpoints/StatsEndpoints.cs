@@ -147,11 +147,26 @@ internal static class StatsEndpoints
             var repo = new StudyRepository(connectionString);
             var totalInDb = await repo.CountStudiesAsync();
 
+            ScrapeEta? eta = null;
+            var recentEvents = await repo.GetRecentScrapeEventsAsync(limit: 500);
+            var lastRun = ScrapeProgressAggregator.LastRunCompleted(recentEvents, "ClinicalTrials.gov");
+            if (lastRun != null)
+            {
+                eta = ScrapeEtaCalculator.Calculate(
+                    totalAvailable,
+                    totalInDb,
+                    lastRun.RecordsAffected ?? 0,
+                    lastRun.DurationMs);
+            }
+
             var result = new
             {
                 totalAvailable,
                 totalInDb,
                 percentScraped = totalAvailable > 0 ? Math.Round((double)totalInDb / totalAvailable * 100, 1) : 0.0,
+                ingestRatePerHour = eta != null ? Math.Round(eta.RatePerHour, 1) : (double?)null,
+                remainingStudies = eta?.RemainingStudies,
+                estimatedCompletionUtc = eta?.EstimatedCompletionUtc,
                 lastChecked = DateTime.UtcNow
             };
 
