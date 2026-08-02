@@ -97,7 +97,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         }
     }
 
-    private async Task ProcessEnrichmentEventAsync(PipelineEventEntity @event, CancellationToken ct)
+    internal async Task ProcessEnrichmentEventAsync(PipelineEventEntity @event, CancellationToken ct)
     {
         if (!Guid.TryParse(@event.Data, out var personId))
             return;
@@ -224,12 +224,14 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                     case NpiCandidateScorer.NpiResolutionOutcome.Assigned:
                         person.Npi = resolution.AssignedNumber;
                         person.NpiEnrichmentResult = "assigned";
-                        var candidate = await context.PersonIdentifierCandidates
-                            .Where(c => c.PersonId == personId && c.IdentifierType == "NPI"
-                                && c.IdentifierValue == resolution.AssignedNumber)
-                            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
-                        if (candidate != null)
-                            candidate.IsAutoApproved = true;
+                        // The candidates are still only in the change tracker (SaveChanges
+                        // runs after the switch), so a database query cannot see them.
+                        // Mark the winner in memory instead.
+                        var winner = entities
+                            .FirstOrDefault(e => e.Features.Number == resolution.AssignedNumber)
+                            .Entity;
+                        if (winner != null)
+                            winner.IsAutoApproved = true;
                         enqueueDiscovered = true;
                         break;
                     case NpiCandidateScorer.NpiResolutionOutcome.NotFound:

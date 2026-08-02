@@ -19,6 +19,13 @@
     <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
     <ProjectReference Include="..\DataApi\DataApi.csproj" />
     <ProjectReference Include="..\Frontend\Frontend.csproj" />
+    <ProjectReference Include="..\IngestionApp\IngestionApp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Scrapers.Tests\Data\NppesNpi\search-multiple-results.json"
+          Link="Data\NppesNpi\search-multiple-results.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
