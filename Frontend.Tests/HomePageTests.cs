@@ -119,7 +119,7 @@ public sealed class SearchPageTests
             totalPages = 1
         };
 
-        var studiesGate = new TaskCompletionSource();
+        var studiesGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse, studiesGate: studiesGate);
 
@@ -131,7 +131,7 @@ public sealed class SearchPageTests
 
         studiesGate.SetResult();
 
-        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(6));
+        cut.WaitForAssertion(() => Assert.AreEqual(1, cut.FindAll("table").Count), timeout: TimeSpan.FromSeconds(30));
 
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
         ctx.Dispose();
