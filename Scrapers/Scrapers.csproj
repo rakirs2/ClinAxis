@@ -27,6 +27,7 @@
     <InternalsVisibleTo Include="Scrapers.IntegrationTests" />
     <InternalsVisibleTo Include="Scrapers.Validation" />
     <InternalsVisibleTo Include="IngestionApp" />
+    <InternalsVisibleTo Include="DataApi" />
     <InternalsVisibleTo Include="MeshCompare" />
     <InternalsVisibleTo Include="ABTestRunner" />
   </ItemGroup>
