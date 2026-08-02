@@ -31,6 +31,24 @@ public static class ScrapeProgressAggregator
     public const string RunCompletedEventType = "run.completed";
 
     /// <summary>
+    /// Returns the latest <c>run.completed</c> event for <paramref name="source"/>, which carries
+    /// the run's total records (<c>RecordsAffected</c>) and wall time (<c>DurationMs</c>).
+    /// </summary>
+    public static ScrapeEventEntity? LastRunCompleted(IEnumerable<ScrapeEventEntity> events, string source)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            throw new ArgumentException("Source cannot be null or empty.", nameof(source));
+        }
+
+        return events
+            .Where(e => e.EventType == RunCompletedEventType && e.Source == source)
+            .OrderByDescending(e => e.Id)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
     /// Summarizes scrape progress for <paramref name="source"/> from events ordered by Id.
     /// Returns <c>null</c> when the source has no discovery event yet.
     /// </summary>
