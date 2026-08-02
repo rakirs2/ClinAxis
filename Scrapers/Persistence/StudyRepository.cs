@@ -66,6 +66,21 @@ namespace Scrapers.Persistence
             var meshMatchResults = new List<MeSHMatchResult>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
             var batchCount = 0;
+
+            // Batch-prefetch existing studies for this batch to avoid one query per record (N+1).
+            var batchNctIds = recordList.Select(r => r.NctId).Distinct().ToList();
+            var existingStudies = await context.Studies
+                .Include(s => s.StudyInvestigators)
+                .Include(s => s.Keywords)
+                .Include(s => s.Conditions)
+                .Include(s => s.Phases)
+                .Include(s => s.Locations)
+                .Include(s => s.References)
+                .Where(s => batchNctIds.Contains(s.NctId))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var existingByNctId = existingStudies.ToDictionary(s => s.NctId, StringComparer.OrdinalIgnoreCase);
+
             foreach (ClinicalTrialRecord? record in recordList)
             {
                 if (record == null)
@@ -99,15 +114,7 @@ namespace Scrapers.Persistence
                     incomplete = true;
                 }
 
-                StudyEntity? entity = await context.Studies
-                    .Include(s => s.StudyInvestigators)
-                    .Include(s => s.Keywords)
-                    .Include(s => s.Conditions)
-                    .Include(s => s.Phases)
-                    .Include(s => s.Locations)
-                    .Include(s => s.References)
-                    .FirstOrDefaultAsync(s => s.NctId == record.NctId, cancellationToken)
-                    .ConfigureAwait(false);
+                existingByNctId.TryGetValue(record.NctId, out var entity);
 
                 if (entity == null)
                 {
@@ -127,6 +134,7 @@ namespace Scrapers.Persistence
                         StudyPapers = new List<StudyPaperEntity>()
                     };
                     context.Studies.Add(entity);
+                    existingByNctId[record.NctId] = entity;
                     context.EntityAliases.Add(new EntityAliasEntity
                     {
                         EntityType = "Study",
