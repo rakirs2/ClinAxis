@@ -287,6 +287,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.MatchedOtherNamesJson).HasColumnName("matched_other_names_json").HasColumnType("text");
                 entity.Property(e => e.MatchedIdentifiersJson).HasColumnName("matched_identifiers_json").HasColumnType("text");
                 entity.Property(e => e.RuleScore).HasColumnName("rule_score");
+                entity.Property(e => e.ModelScore).HasColumnName("model_score");
                 entity.Property(e => e.SourceStatus).HasColumnName("source_status").HasMaxLength(10);
                 entity.Property(e => e.SourceDeactivatedAt).HasColumnName("source_deactivated_at");
                 entity.Property(e => e.IsAutoApproved).HasColumnName("is_auto_approved");

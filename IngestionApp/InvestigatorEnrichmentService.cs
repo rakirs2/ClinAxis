@@ -14,6 +14,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
     private readonly IEventQueueService _eventQueueService;
     private readonly NppesNpiRegistryClient _npiClient;
     private readonly OrcidApiClient _orcidClient;
+    private readonly NpiModelService? _modelService;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
@@ -22,12 +23,14 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         IEventQueueService eventQueueService,
         NppesNpiRegistryClient npiClient,
         OrcidApiClient orcidClient,
+        NpiModelService? modelService,
         string connectionString,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _npiClient = npiClient ?? throw new ArgumentNullException(nameof(npiClient));
         _orcidClient = orcidClient ?? throw new ArgumentNullException(nameof(orcidClient));
+        _modelService = modelService;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{System.Environment.MachineName}-enrichment-{System.Environment.ProcessId}";
@@ -208,6 +211,12 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                 foreach (var (entity, features) in entities)
                 {
                     entity.RuleScore = features.Score;
+                    if (_modelService != null)
+                    {
+                        // Parallel A/B recording: the model never changes the
+                        // decision — the rule scorer stays authoritative.
+                        entity.ModelScore = _modelService.Predict(features);
+                    }
                 }
 
                 switch (resolution.Outcome)

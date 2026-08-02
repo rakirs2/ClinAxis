@@ -1,0 +1,41 @@
+{
+  "features": [
+    "exact_name_match",
+    "middle_name_match",
+    "has_middle_name_match",
+    "credential_match",
+    "has_credential_match",
+    "state_match",
+    "has_state_match",
+    "city_match",
+    "has_city_match",
+    "org_match",
+    "has_org_match",
+    "other_name_match",
+    "has_other_name_match",
+    "specialty_match",
+    "has_specialty_match",
+    "license_state_match",
+    "has_license_state_match",
+    "department_match",
+    "has_department_match",
+    "orcid_match",
+    "deactivated"
+  ],
+  "inputName": "features",
+  "outputName": "probabilities",
+  "positiveClassIndex": 1,
+  "model": "logistic-regression",
+  "decision": {
+    "rule": "argmax over batch, assignment threshold 0.6",
+    "assignThreshold": 0.6
+  },
+  "metrics": {
+    "holdoutAUC": 0.9729,
+    "batchWinnerAccuracy": 0.7455,
+    "precisionAtAssignThreshold": 0.9538,
+    "meanBatchSize": 1.2652,
+    "testFraction": 0.2
+  },
+  "corpusRows": 1764
+}
