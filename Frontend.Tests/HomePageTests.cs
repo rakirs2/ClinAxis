@@ -119,17 +119,16 @@ public sealed class SearchPageTests
             totalPages = 1
         };
 
-        var studiesGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse, studiesGate: studiesGate);
+        // Pre-completed response, no gate: gated responses depend on continuations
+        // that never pump while the test thread blocks in wait helpers (CI flakes
+        // #329/#339/#341 — "Check count: 3" means no render ever arrived). The
+        // sibling test SearchPageRendersResultsTableAfterConditionFilter uses the
+        // same un-gated pattern and has never flaked.
+        var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse);
 
         ctx.JSInterop.Setup<string[]>("meshTree.getSelected", _ => true).SetResult([]);
 
         cut.Find("button:contains('Search')").Click();
-
-        Assert.AreEqual(0, cut.FindAll("table").Count, "table must not render before the studies response completes");
-
-        studiesGate.SetResult();
 
         cut.WaitForAssertion(() => Assert.AreEqual(1, cut.FindAll("table").Count), timeout: TimeSpan.FromSeconds(30));
 
