@@ -55,3 +55,7 @@ jobs:
         # Runs after the Docker-heavy integration suite to avoid concurrent
         # machine load; bUnit page tests flake under thread-pool starvation.
         run: dotnet test Frontend.Tests/Frontend.Tests.csproj --no-build
+
+      - name: Watchdog Script Tests
+        # Offline bash unit tests for scripts/health-check.sh (no Docker, no network).
+        run: bash scripts/test-health-check.sh
