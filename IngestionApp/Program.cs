@@ -37,6 +37,13 @@ if (Environment.GetEnvironmentVariable("INGESTION_RESET_DB") == "true")
 
 // Build the host for long-running background services
 var host = Host.CreateDefaultBuilder(args)
+    .ConfigureLogging(logging =>
+    {
+        // Structured JSON console logs (machine-parseable in docker logs).
+        // Levels are configurable at runtime via Logging__LogLevel__* env vars,
+        // e.g. Logging__LogLevel__IngestionApp=Debug (see docs/README.md).
+        logging.AddJsonConsole();
+    })
     .ConfigureServices(services =>
     {
         // Event queue infrastructure
@@ -98,6 +105,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService(sp => new DeadLetterProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<ILogger<DeadLetterProcessingService>>(),
             checkIntervalMinutes: 5));
 
         services.AddHostedService(sp => new InvestigatorPublicationScrubService(
@@ -127,6 +135,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<OrcidApiClient>(),
             npiModelService,
             cs,
+            sp.GetRequiredService<ILogger<InvestigatorEnrichmentService>>(),
             pollIntervalSeconds: 30));
 
         // Medicare Utilization enrichment
@@ -140,6 +149,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<CmsMedicareClient>(),
             cs,
+            sp.GetRequiredService<ILogger<MedicareUtilizationService>>(),
             pollIntervalSeconds: 30,
             dataYear: medicareDataYear));
 
@@ -149,6 +159,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<CmsOpenPaymentsClient>(),
             cs,
+            sp.GetRequiredService<ILogger<OpenPaymentsService>>(),
             pollIntervalSeconds: 30));
 
         // Investigator Metrics enrichment (Semantic Scholar h-index and citations)
@@ -157,6 +168,7 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<SemanticScholarClient>(),
             cs,
+            sp.GetRequiredService<ILogger<InvestigatorMetricsService>>(),
             pollIntervalSeconds: 30));
     })
     .Build();

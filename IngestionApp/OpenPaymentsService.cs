@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services.Enrichment;
@@ -10,11 +11,18 @@ namespace IngestionApp;
 
 internal sealed class OpenPaymentsService : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1, "OpenPaymentsLoopError"),
+            "OpenPaymentsService error");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly CmsOpenPaymentsClient _cmsClient;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
+    private readonly ILogger<OpenPaymentsService> _logger;
 
     private static readonly HashSet<string> AllYears = [.. Enumerable.Range(2023, 3).Select(y => y.ToString(CultureInfo.InvariantCulture))];
 
@@ -22,11 +30,13 @@ internal sealed class OpenPaymentsService : BackgroundService
         IEventQueueService eventQueueService,
         CmsOpenPaymentsClient cmsClient,
         string connectionString,
+        ILogger<OpenPaymentsService> logger,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _cmsClient = cmsClient ?? throw new ArgumentNullException(nameof(cmsClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{Environment.MachineName}-openpayments-{Environment.ProcessId}";
     }
@@ -66,7 +76,7 @@ internal sealed class OpenPaymentsService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"OpenPaymentsService error: {ex}");
+                LogLoopError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }

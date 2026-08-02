@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
+    <ProjectReference Include="..\IngestionApp\IngestionApp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

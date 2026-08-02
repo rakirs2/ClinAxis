@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers.Services.EventQueue;
 
 namespace IngestionApp;
@@ -9,14 +10,35 @@ namespace IngestionApp;
 /// </summary>
 internal sealed class DeadLetterProcessingService : BackgroundService
 {
+    private static readonly Action<ILogger, int, Exception?> LogDeadLetterCount =
+        LoggerMessage.Define<int>(
+            LogLevel.Warning,
+            new EventId(1, "DeadLetterCount"),
+            "Dead-letter queue has {Count} events requiring manual intervention");
+
+    private static readonly Action<ILogger, int, string, string, Exception?> LogDeadLetterSample =
+        LoggerMessage.Define<int, string, string>(
+            LogLevel.Warning,
+            new EventId(2, "DeadLetterSample"),
+            "Dead-letter event {EventId}: {EventType} - {ErrorMessage}");
+
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(3, "DeadLetterMonitorError"),
+            "DeadLetterProcessingService error");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly int _checkIntervalMinutes;
+    private readonly ILogger<DeadLetterProcessingService> _logger;
 
     public DeadLetterProcessingService(
         IEventQueueService eventQueueService,
+        ILogger<DeadLetterProcessingService> logger,
         int checkIntervalMinutes = 5)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _checkIntervalMinutes = checkIntervalMinutes;
     }
 
@@ -31,13 +53,16 @@ internal sealed class DeadLetterProcessingService : BackgroundService
 
                 if (deadLetterEvents.Count > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"⚠️ Dead-letter queue has {deadLetterEvents.Count} events requiring manual intervention");
+                    LogDeadLetterCount(_logger, deadLetterEvents.Count, null);
 
                     foreach (var @event in deadLetterEvents.Take(5))
                     {
-                        System.Diagnostics.Debug.WriteLine(
-                            $"  - Event {@event.Id}: {@event.EventType} - {@event.ErrorMessage}");
+                        LogDeadLetterSample(
+                            _logger,
+                            @event.Id,
+                            @event.EventType,
+                            @event.ErrorMessage ?? string.Empty,
+                            null);
                     }
                 }
 
@@ -49,7 +74,7 @@ internal sealed class DeadLetterProcessingService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"DeadLetterProcessingService error: {ex}");
+                LogLoopError(_logger, ex);
             }
         }
     }
