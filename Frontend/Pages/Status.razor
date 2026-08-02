@@ -68,6 +68,20 @@ else
                         Last checked: @scraperProgress.lastChecked.ToString("HH:mm 'UTC'")
                     </small>
                 </div>
+                @if (scraperProgress.estimatedCompletionUtc.HasValue)
+                {
+                    <small>
+                        Ingesting at <strong>@scraperProgress.ingestRatePerHour?.ToString("N0") studies/hr</strong> —
+                        estimated completion: <strong>@FormatDate(scraperProgress.estimatedCompletionUtc)</strong>
+                        (@scraperProgress.remainingStudies?.ToString("N0") studies remaining)
+                    </small>
+                }
+                else
+                {
+                    <small class="text-muted">
+                        No completed ingest run yet — ETA unavailable until the first run finishes.
+                    </small>
+                }
             }
         </div>
         <div class="col-md-6">
@@ -575,6 +589,9 @@ else
         public int totalAvailable { get; set; }
         public int totalInDb { get; set; }
         public double percentScraped { get; set; }
+        public double? ingestRatePerHour { get; set; }
+        public int? remainingStudies { get; set; }
+        public DateTime? estimatedCompletionUtc { get; set; }
         public DateTime lastChecked { get; set; }
     }
 
