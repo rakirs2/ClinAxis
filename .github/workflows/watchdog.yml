@@ -1,0 +1,98 @@
+name: Watchdog (stall/DLQ alerts)
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Fetch instance health endpoints
+        id: fetch
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          SSH_KEY_FILE=$(mktemp)
+          echo "$DEPLOY_SSH_KEY" > "$SSH_KEY_FILE"
+          chmod 600 "$SSH_KEY_FILE"
+
+          remote() {
+            ssh -i "$SSH_KEY_FILE" -o ConnectTimeout=15 -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no \
+              "$DEPLOY_USER@$DEPLOY_HOST" "$@"
+          }
+
+          mkdir -p /tmp/watchdog
+          remote 'curl -sf --max-time 30 http://localhost:5003/api/event-queue/stats' \
+            > /tmp/watchdog/event-queue.json || echo "event-queue" >> /tmp/watchdog/failures
+          remote 'curl -sf --max-time 30 http://localhost:5003/api/data-source-state' \
+            > /tmp/watchdog/data-source.json || echo "data-source" >> /tmp/watchdog/failures
+          remote 'curl -sf --max-time 30 http://localhost:5003/api/scraper-progress' \
+            > /tmp/watchdog/scraper-progress.json || echo "scraper-progress" >> /tmp/watchdog/failures
+
+          if [[ -f /tmp/watchdog/failures ]]; then
+            echo "Fetch failed for: $(tr '\n' ' ' < /tmp/watchdog/failures)"
+          fi
+
+      - name: Evaluate thresholds
+        id: evaluate
+        env:
+          WATCHDOG_DLQ_THRESHOLD: ${{ vars.WATCHDOG_DLQ_THRESHOLD || '10' }}
+          WATCHDOG_STALE_HOURS: ${{ vars.WATCHDOG_STALE_HOURS || '48' }}
+          WATCHDOG_STALL_HOURS: ${{ vars.WATCHDOG_STALL_HOURS || '6' }}
+        run: |
+          set -euo pipefail
+          if bash scripts/health-check.sh \
+            --event-queue /tmp/watchdog/event-queue.json \
+            --data-source /tmp/watchdog/data-source.json \
+            --scraper-progress /tmp/watchdog/scraper-progress.json \
+            --alert-file /tmp/watchdog/alert.md; then
+            echo "ALERT=0" >> "$GITHUB_ENV"
+          else
+            echo "ALERT=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Open alert issue
+        if: env.ALERT == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OPEN=$(gh issue list --label watchdog --state open --json number --jq 'length')
+          if [ "$OPEN" -eq 0 ]; then
+            gh label create watchdog --force 2>/dev/null || true
+            gh issue create --title "Watchdog: pipeline stalled or DLQ over threshold" \
+              --label watchdog --body-file /tmp/watchdog/alert.md
+            echo "Alert issue created"
+          else
+            echo "Alert issue already open - quiet period active"
+          fi
+
+      - name: Close resolved alert issue
+        if: env.ALERT == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OPEN=$(gh issue list --label watchdog --state open --json number --jq '.[].number')
+          if [ -n "$OPEN" ]; then
+            for n in $OPEN; do
+              gh issue close "$n" --comment "Watchdog: instance healthy again"
+            done
+            echo "Closed resolved alert issue(s)"
+          else
+            echo "No open alert issues"
+          fi
