@@ -102,6 +102,47 @@ public sealed class ClinicalTrialsGovClientTests
         }
     }
 
+    [TestMethod]
+    public async Task CountStudiesAsync_ReturnsTotalCountFromApi()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse("""{"totalCount": 4123, "studies": []}""");
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        var count = await client.CountStudiesAsync();
+
+        Assert.AreEqual(4123, count);
+        Assert.AreEqual(1, handler.Requests.Count, "Count should make a single lightweight request.");
+        StringAssert.Contains(handler.Requests[0].Query, "pageSize=1", StringComparison.Ordinal);
+        StringAssert.Contains(handler.Requests[0].Query, "countTotal=true", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task CountStudiesAsync_NoTotalCount_FallsBackToPageStudyCount()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse("""{"studies": [{}, {}]}""");
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        var count = await client.CountStudiesAsync();
+
+        Assert.AreEqual(2, count);
+    }
+
+    [TestMethod]
+    public async Task CountStudiesAsync_WithLastUpdatedPost_AddsFilter()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse("""{"totalCount": 5, "studies": []}""");
+
+        var since = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        ClinicalTrialsGov client = CreateClient(handler);
+        var count = await client.CountStudiesAsync(lastUpdatedPost: since);
+
+        Assert.AreEqual(5, count);
+        StringAssert.Contains(handler.Requests[0].Query, "filter.updatedDate=", StringComparison.Ordinal);
+    }
+
     private static JsonElement GetProperty(JsonElement source, string name)
     {
         if (!source.TryGetProperty(name, out JsonElement value))
