@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
@@ -16,21 +17,36 @@ namespace IngestionApp;
 /// </summary>
 internal sealed class InvestigatorMetricsService : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1, "MetricsLoopError"),
+            "InvestigatorMetricsService error");
+
+    private static readonly Action<ILogger, string, Exception> LogLookupFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(2, "MetricsLookupFailed"),
+            "Metrics lookup failed for {PersonName}");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly SemanticScholarClient _semanticScholarClient;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
+    private readonly ILogger<InvestigatorMetricsService> _logger;
 
     public InvestigatorMetricsService(
         IEventQueueService eventQueueService,
         SemanticScholarClient semanticScholarClient,
         string connectionString,
+        ILogger<InvestigatorMetricsService> logger,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _semanticScholarClient = semanticScholarClient ?? throw new ArgumentNullException(nameof(semanticScholarClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{System.Environment.MachineName}-metrics-{System.Environment.ProcessId}";
     }
@@ -77,7 +93,7 @@ internal sealed class InvestigatorMetricsService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"InvestigatorMetricsService error: {ex}");
+                LogLoopError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }
@@ -110,7 +126,7 @@ internal sealed class InvestigatorMetricsService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Metrics lookup failed for {person.FullName}: {ex.Message}");
+                LogLookupFailed(_logger, person.FullName, ex);
                 // Store error but don't crash the loop
                 var existingMetric = context.InvestigatorMetrics.FirstOrDefault(m => m.InvestigatorPersonId == person.Id && m.Source == "SemanticScholar");
                 if (existingMetric != null)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
@@ -11,23 +12,38 @@ namespace IngestionApp;
 
 internal sealed class MedicareUtilizationService : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(1, "MedicareLoopError"),
+            "MedicareUtilizationService error");
+
+    private static readonly Action<ILogger, string, Exception> LogLookupFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(2, "MedicareLookupFailed"),
+            "Medicare lookup failed for {PersonName}");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly CmsMedicareClient _cmsClient;
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
     private readonly int _dataYear;
+    private readonly ILogger<MedicareUtilizationService> _logger;
 
     public MedicareUtilizationService(
         IEventQueueService eventQueueService,
         CmsMedicareClient cmsClient,
         string connectionString,
+        ILogger<MedicareUtilizationService> logger,
         int pollIntervalSeconds = 30,
         int dataYear = 0)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _cmsClient = cmsClient ?? throw new ArgumentNullException(nameof(cmsClient));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pollIntervalSeconds = pollIntervalSeconds;
         _dataYear = dataYear > 0 ? dataYear : DateTime.UtcNow.Year;
         _serviceInstanceId = $"{System.Environment.MachineName}-medicare-{System.Environment.ProcessId}";
@@ -72,7 +88,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"MedicareUtilizationService error: {ex}");
+                LogLoopError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }
@@ -97,7 +113,7 @@ internal sealed class MedicareUtilizationService : BackgroundService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Medicare lookup failed for {person.FullName}: {ex.Message}");
+                LogLookupFailed(_logger, person.FullName, ex);
                 person.MedicareLookupResult = "error";
                 person.MedicareLookupAttemptedAt = DateTime.UtcNow;
                 person.UpdatedAt = DateTime.UtcNow;

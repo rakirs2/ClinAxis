@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
@@ -11,6 +12,24 @@ namespace IngestionApp;
 
 internal sealed class InvestigatorEnrichmentService : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> LogLoopNetworkError =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(1, "EnrichmentNetworkError"),
+            "Investigator enrichment loop failed with a network error");
+
+    private static readonly Action<ILogger, Exception?> LogLoopError =
+        LoggerMessage.Define(
+            LogLevel.Error,
+            new EventId(2, "EnrichmentLoopError"),
+            "Investigator enrichment loop failed");
+
+    private static readonly Action<ILogger, string, Exception> LogNppesLookupFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(3, "NppesLookupFailed"),
+            "NPPES lookup failed for {PersonName}");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly NppesNpiRegistryClient _npiClient;
     private readonly OrcidApiClient _orcidClient;
@@ -18,6 +37,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
     private readonly string _connectionString;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
+    private readonly ILogger<InvestigatorEnrichmentService> _logger;
 
     public InvestigatorEnrichmentService(
         IEventQueueService eventQueueService,
@@ -25,6 +45,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         OrcidApiClient orcidClient,
         NpiModelService? modelService,
         string connectionString,
+        ILogger<InvestigatorEnrichmentService> logger,
         int pollIntervalSeconds = 30)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
@@ -32,6 +53,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         _orcidClient = orcidClient ?? throw new ArgumentNullException(nameof(orcidClient));
         _modelService = modelService;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pollIntervalSeconds = pollIntervalSeconds;
         _serviceInstanceId = $"{System.Environment.MachineName}-enrichment-{System.Environment.ProcessId}";
     }
@@ -86,12 +108,14 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
             {
                 break;
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
+                LogLoopNetworkError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                LogLoopError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSeconds), stoppingToken).ConfigureAwait(false);
             }
         }
@@ -244,7 +268,7 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
             }
             catch (HttpRequestException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"NPPES lookup failed for {person.FullName}: {ex.Message}");
+                LogNppesLookupFailed(_logger, person.FullName, ex);
                 person.NpiEnrichmentResult = "error";
             }
         }

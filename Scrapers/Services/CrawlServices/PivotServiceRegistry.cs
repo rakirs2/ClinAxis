@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Scrapers.Services.CrawlServices;
 
@@ -9,12 +10,20 @@ namespace Scrapers.Services.CrawlServices;
 /// </summary>
 public sealed class PivotServiceRegistry
 {
+    private static readonly Action<ILogger, string, Exception> LogPivotInstantiationFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(1, "PivotInstantiationFailed"),
+            "Failed to instantiate pivot {PivotType}");
+
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<PivotServiceRegistry> _logger;
     private readonly Dictionary<string, IPivotEnricherService> _registeredPivots = new();
 
-    public PivotServiceRegistry(IServiceProvider serviceProvider)
+    public PivotServiceRegistry(IServiceProvider serviceProvider, ILogger<PivotServiceRegistry> logger)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         DiscoverPivots();
     }
 
@@ -38,7 +47,7 @@ public sealed class PivotServiceRegistry
             catch (InvalidOperationException ex)
             {
                 // Log but continue discovering other pivots
-                System.Diagnostics.Debug.WriteLine($"Failed to instantiate pivot {implementationType.Name}: {ex.Message}");
+                LogPivotInstantiationFailed(_logger, implementationType.Name, ex);
             }
         }
     }

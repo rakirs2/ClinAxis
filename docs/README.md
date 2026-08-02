@@ -135,6 +135,30 @@ POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=clinical_trial_dat
   dotnet run --project Scrapers.Validation -- 3000 --truncate
 ```
 
+## Ingestion Logs
+
+IngestionApp writes **structured JSON logs** (`AddJsonConsole`) from all background services
+(EventProcessing, DeadLetterProcessing, enrichment, Medicare, OpenPayments, metrics,
+publication scrub, pivots). Levels are configurable at runtime via `Logging__LogLevel__*`
+env vars — no rebuild needed, e.g.:
+
+```bash
+# docker-compose env on the droplet
+Logging__LogLevel__IngestionApp=Debug
+Logging__LogLevel__Microsoft.EntityFrameworkCore=Warning
+```
+
+**Viewing logs on the droplet** (deployed via Docker with `network_mode: host`):
+
+```bash
+sudo docker logs clinicaltrialdata-ingestion --tail 200 --since 1h
+sudo docker logs -f clinicaltrialdata-ingestion        # follow
+sudo docker logs clinicaltrialdata-ingestion 2>&1 | rg '"EventId"|dead-letter|DeadLetter'   # filter
+```
+
+Key triage fields in each JSON log line: `EventId`, `PersonName` (lookup failures),
+`Count` (dead-letter queue size), `Exception` (message + stack trace).
+
 ## Code Style
 
 All style rules are in `.editorconfig` - this is the single source of truth. If a rule fires, fix the code—do not suppress it. No `#pragma` directives, no `<NoWarn>` in `.csproj` files.
