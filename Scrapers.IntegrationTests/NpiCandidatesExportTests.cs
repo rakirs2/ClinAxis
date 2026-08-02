@@ -50,6 +50,10 @@ public sealed class NpiCandidatesExportTests
         "rule_score", "label",
     ];
 
+    // The export window is UTC (endExclusive = to+1 00:00 UTC) and `to` is validated
+    // against local today. Candidates are seeded with UTC timestamps from the previous
+    // day so they land inside the window in every timezone (e.g. CDT 20:00 is 01:00 UTC
+    // next day — DateTime.UtcNow would fall outside a window ending at local today).
     private static string Today => DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     [TestMethod]
@@ -121,7 +125,7 @@ public sealed class NpiCandidatesExportTests
                     SourceStatus = "A",
                     RuleScore = 0.85,
                     IsAutoApproved = true,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
                 },
                 new PersonIdentifierCandidateEntity
                 {
@@ -134,7 +138,7 @@ public sealed class NpiCandidatesExportTests
                     SourceStatus = "A",
                     RuleScore = 0.35,
                     IsAutoApproved = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
                 },
                 new PersonIdentifierCandidateEntity
                 {
@@ -146,7 +150,7 @@ public sealed class NpiCandidatesExportTests
                     SourceStatus = "A",
                     RuleScore = 0.5,
                     IsAutoApproved = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
                 },
                 new PersonIdentifierCandidateEntity
                 {
@@ -158,7 +162,7 @@ public sealed class NpiCandidatesExportTests
                     SourceStatus = "A",
                     RuleScore = 0.6,
                     IsAutoApproved = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
                 });
             await ctx.SaveChangesAsync();
         }
