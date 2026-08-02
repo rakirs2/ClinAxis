@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Services;
 using Scrapers.Services.EventQueue;
 
 namespace DataApi.Endpoints;
@@ -176,16 +177,23 @@ internal static class StatsEndpoints
         app.MapGet("/api/data-source-state", async () =>
         {
             var dataSourceService = new DataSourceStateService(connectionString);
+            var repo = new StudyRepository(connectionString);
             var states = await dataSourceService.GetAllStatesAsync();
-            return Results.Ok(states.Select(s => new
+            var recentEvents = await repo.GetRecentScrapeEventsAsync(limit: 500);
+            return Results.Ok(states.Select(s =>
             {
-                s.SourceName,
-                s.LastSyncTimestamp,
-                s.Status,
-                s.ErrorMessage,
-                s.UpdatedAt,
-                s.RejectedKeywordsTotal,
-                s.NextScheduledRun
+                var progress = ScrapeProgressAggregator.Summarize(recentEvents, s.SourceName);
+                return new
+                {
+                    s.SourceName,
+                    s.LastSyncTimestamp,
+                    s.Status,
+                    s.ErrorMessage,
+                    s.UpdatedAt,
+                    s.RejectedKeywordsTotal,
+                    s.NextScheduledRun,
+                    scrapeProgress = progress
+                };
             }));
         });
     }
