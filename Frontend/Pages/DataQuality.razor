@@ -222,10 +222,36 @@ else if (activeTab == 2)
     {
         <p class="text-muted">Showing @nmEvents.Count of @nmTotal rejected investigator names</p>
 
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-0">Reason</label>
+                <input class="form-control form-control-sm" @bind="nmFilterReason" placeholder="e.g. OrgKeywords:UNIVERSITY" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0">Role</label>
+                <input class="form-control form-control-sm" @bind="nmFilterRole" placeholder="e.g. SPONSOR" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0">Affiliation</label>
+                <input class="form-control form-control-sm" @bind="nmFilterAffiliation" placeholder="contains..." />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0">NCT ID</label>
+                <input class="form-control form-control-sm" @bind="nmFilterNctId" placeholder="NCT00000001" />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" @onclick="() => ApplyNmFilters()">Filter</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ResetNmFilters()">Reset</button>
+            </div>
+        </div>
+
         <table class="table table-sm table-striped" style="max-width: 100%">
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Role</th>
+                    <th>Affiliation</th>
+                    <th>Reason</th>
                     <th>Study NCT ID</th>
                     <th>Rejected At</th>
                 </tr>
@@ -235,6 +261,9 @@ else if (activeTab == 2)
                 {
                     <tr>
                         <td><code>@item.value</code></td>
+                        <td>@item.role</td>
+                        <td>@item.affiliation</td>
+                        <td><code>@item.rejectionReason</code></td>
                         <td>@item.studyNctId</td>
                         <td>@DataQualityFormatting.FormatDate(item.rejectedAt)</td>
                     </tr>
@@ -460,6 +489,10 @@ else if (activeTab == 3)
     private int nmTotalPages;
     private bool nmLoading;
     private string? nmError;
+    private string? nmFilterReason;
+    private string? nmFilterRole;
+    private string? nmFilterAffiliation;
+    private string? nmFilterNctId;
 
     private async Task LoadRejectedPage(string entityType, int page)
     {
@@ -478,8 +511,26 @@ else if (activeTab == 3)
 
         try
         {
-            var response = await Client.GetFromJsonAsync<RejectedEntityListResponse>(
-                $"/api/rejected-entities?type={entityType}&page={page}&pageSize=50");
+            var query = $"/api/rejected-entities?type={entityType}&page={page}&pageSize=50";
+            if (entityType == "investigator_name")
+            {
+                var filters = new (string Name, string? Value)[]
+                {
+                    ("reason", nmFilterReason),
+                    ("role", nmFilterRole),
+                    ("affiliation", nmFilterAffiliation),
+                    ("nctId", nmFilterNctId)
+                };
+                foreach (var (name, value) in filters)
+                {
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        query += $"&{name}={Uri.EscapeDataString(value)}";
+                    }
+                }
+            }
+
+            var response = await Client.GetFromJsonAsync<RejectedEntityListResponse>(query);
             if (response is not null)
             {
                 if (entityType == "keyword")
@@ -520,6 +571,17 @@ else if (activeTab == 3)
 
     private async Task LoadKwPage(int page) => await LoadRejectedPage("keyword", page);
     private async Task LoadNmPage(int page) => await LoadRejectedPage("investigator_name", page);
+
+    private async Task ApplyNmFilters() => await LoadRejectedPage("investigator_name", 1);
+
+    private async Task ResetNmFilters()
+    {
+        nmFilterReason = null;
+        nmFilterRole = null;
+        nmFilterAffiliation = null;
+        nmFilterNctId = null;
+        await LoadRejectedPage("investigator_name", 1);
+    }
 
     // ============== NPI Enrichment Tab ==============
 
@@ -575,6 +637,9 @@ else if (activeTab == 3)
         public string? entityType { get; set; }
         public string? value { get; set; }
         public string? studyNctId { get; set; }
+        public string? role { get; set; }
+        public string? affiliation { get; set; }
+        public string? rejectionReason { get; set; }
         public DateTime rejectedAt { get; set; }
     }
 

@@ -82,6 +82,20 @@ public sealed class SchemaGuardTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
+    public async Task RejectedEntitiesTable_HasInvestigatorContextColumns()
+    {
+        var columns = await GetColumnsAsync("rejected_entities");
+
+        Assert.IsTrue(columns.Any(c => c.Name == "entity_type"), "entity_type column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "value"), "value column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "study_nct_id"), "study_nct_id column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "role" && c.Nullable), "role column missing or not nullable");
+        Assert.IsTrue(columns.Any(c => c.Name == "affiliation" && c.Nullable), "affiliation column missing or not nullable");
+        Assert.IsTrue(columns.Any(c => c.Name == "rejection_reason" && c.Nullable), "rejection_reason column missing or not nullable");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
     public async Task StudiesTable_HasRemediatedScalarColumns()
     {
         var columns = await GetColumnsAsync("studies");

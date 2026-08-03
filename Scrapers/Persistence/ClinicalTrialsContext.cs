@@ -471,6 +471,9 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50);
                 entity.Property(e => e.Value).HasColumnName("value");
                 entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
+                entity.Property(e => e.Role).HasColumnName("role");
+                entity.Property(e => e.Affiliation).HasColumnName("affiliation");
+                entity.Property(e => e.RejectionReason).HasColumnName("rejection_reason");
                 entity.Property(e => e.RejectedAt).HasColumnName("rejected_at");
 
                 entity.HasIndex(e => e.EntityType);
