@@ -140,7 +140,7 @@ public sealed class ClinicalTrialsGovClientTests
         var count = await client.CountStudiesAsync(lastUpdatedPost: since);
 
         Assert.AreEqual(5, count);
-        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate%3Aasc", StringComparison.Ordinal);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate:asc", StringComparison.Ordinal);
         StringAssert.Contains(
             handler.Requests[0].Query,
             "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-07-01%2CMAX%5D",
@@ -162,7 +162,7 @@ public sealed class ClinicalTrialsGovClientTests
             lastUpdatedPost: since);
 
         Assert.AreEqual(2, fetched);
-        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate%3Aasc", StringComparison.Ordinal);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate:asc", StringComparison.Ordinal);
         StringAssert.Contains(
             handler.Requests[0].Query,
             "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-08-01%2CMAX%5D",
