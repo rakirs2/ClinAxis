@@ -36,7 +36,19 @@ public class ClinicalTrialsIngestionService
         _logger = logger;
     }
 
-    public async Task<int> IngestAsync(int count, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Fetches up to <paramref name="count"/> studies and upserts them.
+    /// </summary>
+    /// <param name="count">Upper bound of records to fetch.</param>
+    /// <param name="lastUpdatedPost">When set, fetches only studies updated since this date.
+    /// Used by the incremental loop.</param>
+    /// <param name="lastUpdatedPostTo">When set together with <paramref name="lastUpdatedPost"/>,
+    /// fetches only studies updated in the inclusive window — used by backfill chunk events.</param>
+    public async Task<int> IngestAsync(
+        int count,
+        DateTime? lastUpdatedPost = null,
+        DateTime? lastUpdatedPostTo = null,
+        CancellationToken cancellationToken = default)
     {
         if (count <= 0)
         {
@@ -76,7 +88,7 @@ public class ClinicalTrialsIngestionService
                     .ReportBatchCompletedAsync(new IngestBatchInfo(batchNumber, batch.Count, batchSw.Elapsed, nctIds), cancellationToken)
                     .ConfigureAwait(false);
             }
-        }, lastUpdatedPost: null, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }, lastUpdatedPost: lastUpdatedPost, lastUpdatedPostTo: lastUpdatedPostTo, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         runSw.Stop();
         if (_progressReporter != null)

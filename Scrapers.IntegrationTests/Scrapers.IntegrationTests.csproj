@@ -26,6 +26,12 @@
     <None Include="..\Scrapers.Tests\Data\NppesNpi\search-multiple-results.json"
           Link="Data\NppesNpi\search-multiple-results.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Scrapers.Tests\Data\ClinicalTrialsGov\studies-page1.json"
+          Link="Data\ClinicalTrialsGov\studies-page1.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Scrapers.Tests\Data\ClinicalTrialsGov\studies-page2.json"
+          Link="Data\ClinicalTrialsGov\studies-page2.json"
+          CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Scrapers\Resources\mesh\**"
           Link="Resources\mesh\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />

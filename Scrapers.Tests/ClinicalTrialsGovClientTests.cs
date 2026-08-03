@@ -169,6 +169,50 @@ public sealed class ClinicalTrialsGovClientTests
             StringComparison.Ordinal);
     }
 
+    [TestMethod]
+    public async Task CountStudiesAsync_WithToBound_AddsWindowedFilter()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse("""{"totalCount": 7, "studies": []}""");
+
+        var from = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        ClinicalTrialsGov client = CreateClient(handler);
+        var count = await client.CountStudiesAsync(lastUpdatedPost: from, lastUpdatedPostTo: to);
+
+        Assert.AreEqual(7, count);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate:asc", StringComparison.Ordinal);
+        StringAssert.Contains(
+            handler.Requests[0].Query,
+            "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-07-01%2C2026-08-01%5D",
+            StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_WithToBound_AddsWindowedFilter()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page2.json"));
+
+        var from = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        ClinicalTrialsGov client = CreateClient(handler);
+        int fetched = 0;
+        await client.GetTrialRecordsBatchedAsync(
+            count: 4,
+            onBatch: batch => { fetched += batch.Count; return Task.CompletedTask; },
+            lastUpdatedPost: from,
+            lastUpdatedPostTo: to);
+
+        Assert.AreEqual(4, fetched);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate:asc", StringComparison.Ordinal);
+        StringAssert.Contains(
+            handler.Requests[0].Query,
+            "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-07-01%2C2026-08-01%5D",
+            StringComparison.Ordinal);
+    }
+
     private static JsonElement GetProperty(JsonElement source, string name)
     {
         if (!source.TryGetProperty(name, out JsonElement value))
