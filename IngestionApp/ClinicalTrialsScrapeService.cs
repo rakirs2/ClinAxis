@@ -87,7 +87,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         var lastSyncTimestamp = state?.LastSyncTimestamp;
 
         // Count new/updated studies from CT.gov API since last sync (lightweight countTotal call)
-        var studyCount = await ctClient.CountStudiesAsync(lastSyncTimestamp, ct).ConfigureAwait(false);
+        var studyCount = await ctClient.CountStudiesAsync(lastUpdatedPost: lastSyncTimestamp, cancellationToken: ct).ConfigureAwait(false);
 
         if (_progressReporter != null)
         {

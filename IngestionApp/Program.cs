@@ -46,7 +46,10 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         // Event queue infrastructure
-        services.AddSingleton<IEventQueueService>(new EventQueueService(cs));
+        var backfillClaimTimeoutHours = int.TryParse(Environment.GetEnvironmentVariable("BACKFILL_CLAIM_TIMEOUT_HOURS"), out var backfillClaimTimeout)
+            ? backfillClaimTimeout
+            : 12;
+        services.AddSingleton<IEventQueueService>(new EventQueueService(cs, backfillClaimTimeoutHours));
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
         services.AddSingleton<INgestionProgressReporter>(new ScrapeEventProgressReporter(cs, "ClinicalTrials.gov"));
 
@@ -83,6 +86,9 @@ var host = Host.CreateDefaultBuilder(args)
         var ingestTimeoutMinutes = int.TryParse(Environment.GetEnvironmentVariable("INGEST_TIMEOUT_MINUTES"), out var ingestTimeout)
             ? ingestTimeout
             : 60;
+        var backfillIngestTimeoutHours = int.TryParse(Environment.GetEnvironmentVariable("BACKFILL_INGEST_TIMEOUT_HOURS"), out var backfillIngestTimeout)
+            ? backfillIngestTimeout
+            : 10;
 
         services.AddHostedService(sp => new ClinicalTrialsScrapeService(
             sp.GetRequiredService<IEventQueueService>(),
@@ -95,7 +101,8 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<ClinicalTrialsIngestionService>(),
             pollIntervalSeconds: 10,
             claimedEventTimeoutMinutes: 30,
-            ingestTimeoutMinutes: ingestTimeoutMinutes));
+            ingestTimeoutMinutes: ingestTimeoutMinutes,
+            backfillIngestTimeoutHours: backfillIngestTimeoutHours));
 
         services.AddHostedService(sp => new DeadLetterProcessingService(
             sp.GetRequiredService<IEventQueueService>(),

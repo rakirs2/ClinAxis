@@ -13,11 +13,19 @@ public sealed class EventQueueService : IEventQueueService
     private readonly string _connectionString;
     private const int MaxRetries = 3;
     private const int ClaimedEventTimeoutMinutes = 30;
+    private const int DefaultBackfillClaimTimeoutHours = 12;
     private static readonly SemaphoreSlim ClaimLock = new(1, 1);
 
-    public EventQueueService(string connectionString)
+    private readonly TimeSpan _backfillClaimTimeout;
+
+    public EventQueueService(string connectionString, int backfillClaimTimeoutHours = DefaultBackfillClaimTimeoutHours)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        if (backfillClaimTimeoutHours <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(backfillClaimTimeoutHours), "backfillClaimTimeoutHours must be greater than 0.");
+        }
+        _backfillClaimTimeout = TimeSpan.FromHours(backfillClaimTimeoutHours);
     }
 
     public async Task EnqueueAsync(string eventType, string? data = null, CancellationToken ct = default)
@@ -466,12 +474,23 @@ public sealed class EventQueueService : IEventQueueService
                 .ConfigureNpgsql(_connectionString)
                 .Options);
 
-        var threshold = DateTime.UtcNow - claimTimeout;
+        // Backfill chunks run for hours; their claims must not be released by the
+        // short default timeout used by the other services' loops.
+        var longestTimeout = claimTimeout > _backfillClaimTimeout ? claimTimeout : _backfillClaimTimeout;
+        var threshold = DateTime.UtcNow - longestTimeout;
 
-        var stuckEvents = await context.PipelineEvents
+        var stuckCandidates = await context.PipelineEvents
             .Where(e => e.Status == "processing" && e.ClaimedAt.HasValue && e.ClaimedAt < threshold)
             .ToListAsync(ct)
             .ConfigureAwait(false);
+
+        var stuckEvents = stuckCandidates
+            .Where(e =>
+            {
+                var cutoff = e.EventType == "studies.backfill" ? _backfillClaimTimeout : claimTimeout;
+                return e.ClaimedAt!.Value < DateTime.UtcNow - cutoff;
+            })
+            .ToList();
 
         foreach (var @event in stuckEvents)
         {

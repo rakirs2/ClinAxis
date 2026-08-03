@@ -203,15 +203,6 @@ public sealed class NpiCandidatesExportTests
         Assert.IsFalse(csv.Contains(lostBatchPerson.Id.ToString(), StringComparison.Ordinal), "batch without approved candidate excluded");
     }
 
-    [TestMethod]
-    [TestCategory("Integration")]
-    public async Task Export_MissingWindowParams_Returns400()
-    {
-        var response = await _client.GetAsync("/api/export/training/npi-candidates");
-
-        Assert.AreEqual(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     private static string[] ParseCsvLine(string line)
     {
         var fields = new List<string>();

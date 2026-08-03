@@ -50,14 +50,17 @@ public class ClinicalTrialsGov
     /// Lightweight count of studies matching the given criteria, using the API's
     /// <c>countTotal=true</c> response field with <c>pageSize=1</c> to avoid downloading records.
     /// </summary>
-    /// <param name="lastUpdatedPost">When set, counts only studies updated since this timestamp.</param>
+    /// <param name="lastUpdatedPost">When set, counts only studies updated since this date.</param>
+    /// <param name="lastUpdatedPostTo">When set together with <paramref name="lastUpdatedPost"/>,
+    /// counts only studies updated in the inclusive date window <c>[lastUpdatedPost, lastUpdatedPostTo]</c>.</param>
     /// <returns>The total number of matching studies, or the number of studies in the first page if
     /// the API does not return <c>totalCount</c>.</returns>
-    public async Task<int> CountStudiesAsync(DateTime? lastUpdatedPost = null, CancellationToken cancellationToken = default)
+    public async Task<int> CountStudiesAsync(DateTime? lastUpdatedPost = null, DateTime? lastUpdatedPostTo = null, CancellationToken cancellationToken = default)
     {
         StudyListResponse response = await FetchPageAsync(
             pageToken: null,
             lastUpdatedPost: lastUpdatedPost,
+            lastUpdatedPostTo: lastUpdatedPostTo,
             pageSize: 1,
             countTotal: true,
             cancellationToken).ConfigureAwait(false);
@@ -65,7 +68,12 @@ public class ClinicalTrialsGov
         return response.TotalCount ?? response.Studies?.Count ?? 0;
     }
 
-    public async Task<int> GetTrialRecordsBatchedAsync(int count, Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch, DateTime? lastUpdatedPost = null, CancellationToken cancellationToken = default)
+    public async Task<int> GetTrialRecordsBatchedAsync(
+        int count,
+        Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch,
+        DateTime? lastUpdatedPost = null,
+        DateTime? lastUpdatedPostTo = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onBatch);
 
@@ -79,7 +87,7 @@ public class ClinicalTrialsGov
 
         while (totalFetched < count)
         {
-            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost, pageSize: null, countTotal: false, cancellationToken).ConfigureAwait(false);
+            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost, lastUpdatedPostTo, pageSize: null, countTotal: false, cancellationToken).ConfigureAwait(false);
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
             if (studies.Count == 0)
             {
@@ -130,7 +138,7 @@ public class ClinicalTrialsGov
 
         while (collected.Count < count)
         {
-            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost: null, pageSize: null, countTotal: false, cancellationToken).ConfigureAwait(false);
+            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost: null, lastUpdatedPostTo: null, pageSize: null, countTotal: false, cancellationToken).ConfigureAwait(false);
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
 
             foreach (StudyListResponse.StudyPayload studyPayload in studies)
@@ -159,9 +167,9 @@ public class ClinicalTrialsGov
         return collected;
     }
 
-    private async Task<StudyListResponse> FetchPageAsync(string? pageToken, DateTime? lastUpdatedPost, int? pageSize, bool countTotal, CancellationToken cancellationToken)
+    private async Task<StudyListResponse> FetchPageAsync(string? pageToken, DateTime? lastUpdatedPost, DateTime? lastUpdatedPostTo, int? pageSize, bool countTotal, CancellationToken cancellationToken)
     {
-        var requestUri = BuildRequestUri(pageToken, lastUpdatedPost, pageSize, countTotal);
+        var requestUri = BuildRequestUri(pageToken, lastUpdatedPost, lastUpdatedPostTo, pageSize, countTotal);
         TimeSpan delay = _initialBackoff;
 
         for (var attempt = 1; attempt <= MaxRetryAttempts; attempt++)
@@ -206,7 +214,7 @@ public class ClinicalTrialsGov
         throw new InvalidOperationException("Unable to reach ClinicalTrials.gov after multiple attempts.");
     }
 
-    private string BuildRequestUri(string? pageToken, DateTime? lastUpdatedPost = null, int? pageSize = null, bool countTotal = false)
+    private string BuildRequestUri(string? pageToken, DateTime? lastUpdatedPost = null, DateTime? lastUpdatedPostTo = null, int? pageSize = null, bool countTotal = false)
     {
         var effectivePageSize = pageSize ?? _pageSize;
         var query = $"?format=json&pageSize={effectivePageSize}";
@@ -221,8 +229,11 @@ public class ClinicalTrialsGov
             // Date-only granularity re-fetches the boundary day on the next sync — harmless,
             // since ingest upserts are idempotent.
             var since = lastUpdatedPost.Value.ToUniversalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var upperBound = lastUpdatedPostTo.HasValue
+                ? lastUpdatedPostTo.Value.ToUniversalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : "MAX";
             query += "&sort=LastUpdatePostDate:asc&filter.advanced=" +
-                Uri.EscapeDataString($"AREA[LastUpdatePostDate]RANGE[{since},MAX]");
+                Uri.EscapeDataString($"AREA[LastUpdatePostDate]RANGE[{since},{upperBound}]");
         }
         if (!string.IsNullOrWhiteSpace(pageToken))
         {

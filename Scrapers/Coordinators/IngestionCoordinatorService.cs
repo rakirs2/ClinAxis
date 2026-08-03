@@ -17,7 +17,7 @@ namespace Scrapers.Coordinators
 
         public async Task FullScraperPipelineAsync(int clinicalTrialsCount = 10, CancellationToken cancellationToken = default)
         {
-            await _clinicalTrialsService.IngestAsync(clinicalTrialsCount, cancellationToken).ConfigureAwait(false);
+            await _clinicalTrialsService.IngestAsync(clinicalTrialsCount, cancellationToken: cancellationToken).ConfigureAwait(false);
             await _pubMedScraperService.IngestPubMedPapersAsync(cancellationToken).ConfigureAwait(false);
         }
     }
