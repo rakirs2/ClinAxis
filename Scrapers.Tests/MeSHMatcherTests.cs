@@ -16,7 +16,7 @@ public sealed class MeSHMatcherTests
             var modelPath = Path.Combine(tempDir, "model.onnx");
             File.WriteAllBytes(modelPath, [0, 0, 0, 0, 0, 0, 0, 0]);
 
-            Assert.ThrowsException<Microsoft.ML.OnnxRuntime.OnnxRuntimeException>(
+            Assert.Throws<Microsoft.ML.OnnxRuntime.OnnxRuntimeException>(
                 () => new MeSHMatcher(tempDir));
         }
         finally

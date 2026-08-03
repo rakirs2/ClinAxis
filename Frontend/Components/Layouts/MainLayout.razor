@@ -1,4 +1,8 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject HttpClient Client
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
 
 <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
     <div class="container">
@@ -20,9 +24,105 @@
     @Body
 </div>
 <footer class="border-top mt-5 py-3 text-center text-muted small">
+    @if (footerStats is not null)
+    {
+        <span>Visitors today: <strong>@footerStats.TotalViews</strong> (<strong>@footerStats.UniqueVisitors</strong> unique)</span>
+        <br />
+    }
     <span>Support clinical trial research — <a href="https://ko-fi.com/rakirs2" target="_blank" rel="noopener noreferrer"><i class="bi bi-cup-hot-fill me-1"></i>Donate on Ko-fi</a></span>
     <br />
     <span class="badge bg-warning text-dark">Grand Overlord Uma Mylavarapu</span>
     <br />
     <span>Created by <a href="https://github.com/rakirs2" target="_blank" rel="noopener noreferrer"><i class="bi bi-github me-1"></i>Srikar Mylavarapu</a> — <a href="https://linkedin.com/in/srikarmylavarapu" target="_blank" rel="noopener noreferrer"><i class="bi bi-linkedin me-1"></i>LinkedIn</a></span>
 </footer>
+
+@code {
+    private FooterVisitorStats? footerStats;
+    private string? _lastLoggedPath;
+    private CancellationTokenSource? _debounceCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFooterStatsAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Navigation.LocationChanged += OnLocationChanged;
+            _ = ReportViewAsync();
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = ReportViewAsync();
+    }
+
+    private async Task ReportViewAsync()
+    {
+        try
+        {
+            var path = new Uri(Navigation.Uri).PathAndQuery;
+            if (string.IsNullOrEmpty(path) || path == _lastLoggedPath)
+            {
+                return;
+            }
+
+            var sessionId = await JsRuntime.InvokeAsync<string>("visitorSession.get");
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return;
+            }
+
+            _lastLoggedPath = path;
+            _debounceCts?.Cancel();
+            _debounceCts = new CancellationTokenSource();
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), _debounceCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            await Client.PostAsJsonAsync("/api/page-views", new { path, sessionId });
+        }
+        catch
+        {
+            // Best-effort visitor tracking — never block navigation or rendering.
+        }
+    }
+
+    private async Task LoadFooterStatsAsync()
+    {
+        try
+        {
+            footerStats = await Client.GetFromJsonAsync<FooterVisitorStats>("/api/page-views/stats?period=day");
+            if (footerStats is not null)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Best-effort — footer visitor line is hidden when unavailable.
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+    }
+
+    private sealed class FooterVisitorStats
+    {
+        public int TotalViews { get; set; }
+
+        public int UniqueVisitors { get; set; }
+    }
+}

@@ -110,6 +110,16 @@ else
                 </tbody>
             </table>
         </div>
+        <div class="col-md-6">
+            <h3 class="mt-4">Visitors</h3>
+            <table class="table table-sm" style="max-width: 400px">
+                <tbody>
+                    <tr><th>Today</th><td>@(pageViewsDay?.totalViews ?? 0) views, @(pageViewsDay?.uniqueVisitors ?? 0) unique</td></tr>
+                    <tr><th>This week</th><td>@(pageViewsWeek?.totalViews ?? 0) views, @(pageViewsWeek?.uniqueVisitors ?? 0) unique</td></tr>
+                    <tr><th>This month</th><td>@(pageViewsMonth?.totalViews ?? 0) views, @(pageViewsMonth?.uniqueVisitors ?? 0) unique</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <h3 class="mt-4">Rejected Investigator Names</h3>
@@ -403,6 +413,9 @@ else
     private ScraperProgressItem? scraperProgress;
     private string lastUpdated = "";
     private Timer? _timer;
+    private PageViewsStatsItem? pageViewsDay;
+    private PageViewsStatsItem? pageViewsWeek;
+    private PageViewsStatsItem? pageViewsMonth;
 
     protected override async Task OnInitializedAsync()
     {
@@ -426,6 +439,9 @@ else
             queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
             rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
             scraperProgress = await Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress");
+            pageViewsDay = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day");
+            pageViewsWeek = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week");
+            pageViewsMonth = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=month");
             lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
         }
         catch
@@ -509,6 +525,12 @@ else
         public int totalInvestigators { get; set; }
         public int totalPubmedPapers { get; set; }
         public int totalKeywords { get; set; }
+    }
+
+    private class PageViewsStatsItem
+    {
+        public int totalViews { get; set; }
+        public int uniqueVisitors { get; set; }
     }
 
     private class PipelineRunItem

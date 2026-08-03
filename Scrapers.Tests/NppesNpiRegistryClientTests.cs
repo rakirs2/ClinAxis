@@ -69,7 +69,7 @@ public sealed class NppesNpiRegistryClientTests
         handler.EnqueueJsonResponse("", HttpStatusCode.InternalServerError);
 
         var client = CreateClient(handler);
-        await Assert.ThrowsExceptionAsync<HttpRequestException>(() =>
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
             client.SearchByNameAsync("John", "Smith"));
     }
 
