@@ -21,6 +21,9 @@ namespace Scrapers.Persistence
         private readonly LocationMeshMatcher? _locationMatcher;
         private readonly Dictionary<string, int> _meshDescriptorIdCache = new();
 
+        private readonly record struct RejectedInvestigatorContext(
+            string NctId, string Name, string? Role, string? Affiliation, string? Reason);
+
         public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null, LocationMeshMatcher? locationMatcher = null)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
@@ -59,7 +62,7 @@ namespace Scrapers.Persistence
             using ClinicalTrialsContext context = CreateContext();
             var batchPersons = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
             var batchAffiliations = new Dictionary<(Guid PersonId, string Institution), InvestigatorAffiliationEntity>();
-            var rejectedNames = new List<string>();
+            var rejectedInvestigatorContexts = new List<RejectedInvestigatorContext>();
             var rejectedKeywords = new List<string>();
             var rejectedAffiliations = new List<string>();
             var rejectedConditions = new List<string>();
@@ -104,9 +107,17 @@ namespace Scrapers.Persistence
 
                 if (allOfficials != null && officials != null)
                 {
-                    rejectedNames.AddRange(allOfficials
-                        .Where(o => !officials.Any(f => f.Name == o.Name))
-                        .Select(o => $"{record.NctId}: {o.Name}"));
+                    foreach (var o in allOfficials)
+                    {
+                        if (officials.Any(f => f.Name == o.Name))
+                        {
+                            continue;
+                        }
+
+                        var result = NameFilter.IsHumanName(o.Name, o.Role);
+                        rejectedInvestigatorContexts.Add(new RejectedInvestigatorContext(
+                            record.NctId!, o.Name, o.Role, o.Affiliation, result.RejectionReason));
+                    }
                 }
 
                 if (officials == null || officials.Count == 0)
@@ -396,14 +407,16 @@ namespace Scrapers.Persistence
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            foreach (var entry in rejectedNames)
+            foreach (var r in rejectedInvestigatorContexts)
             {
-                var parts = entry.Split(": ", 2);
                 context.RejectedEntities.Add(new RejectedEntityEntity
                 {
                     EntityType = "investigator_name",
-                    Value = parts.Length > 1 ? parts[1] : entry,
-                    StudyNctId = parts.Length > 0 ? parts[0] : "",
+                    Value = r.Name,
+                    StudyNctId = r.NctId,
+                    Role = r.Role,
+                    Affiliation = r.Affiliation,
+                    RejectionReason = r.Reason,
                     RejectedAt = DateTime.UtcNow
                 });
             }
@@ -434,7 +447,7 @@ namespace Scrapers.Persistence
 
 
 
-            if (rejectedNames.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0)
+            if (rejectedInvestigatorContexts.Count > 0 || rejectedKeywords.Count > 0 || rejectedAffiliations.Count > 0)
             {
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -657,10 +670,31 @@ namespace Scrapers.Persistence
         }
 
         public async Task<(List<RejectedEntityEntity> Items, int Total)> GetRejectedEntitiesPagedAsync(
-            string entityType, int page, int pageSize, CancellationToken cancellationToken = default)
+            string entityType, int page, int pageSize, string? reason = null, string? role = null,
+            string? affiliation = null, string? nctId = null, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
             var query = context.RejectedEntities.Where(r => r.EntityType == entityType);
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                query = query.Where(r => r.RejectionReason == reason);
+            }
+
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                query = query.Where(r => r.Role == role);
+            }
+
+            if (!string.IsNullOrWhiteSpace(affiliation))
+            {
+                query = query.Where(r => r.Affiliation != null && r.Affiliation.Contains(affiliation));
+            }
+
+            if (!string.IsNullOrWhiteSpace(nctId))
+            {
+                query = query.Where(r => r.StudyNctId == nctId);
+            }
+
             var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
             var items = await query
                 .OrderByDescending(r => r.RejectedAt)

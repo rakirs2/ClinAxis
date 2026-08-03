@@ -29,12 +29,13 @@ internal static class PipelineEndpoints
             return Results.Ok(names);
         });
 
-        app.MapGet("/api/rejected-entities", async (string type, int? page, int? pageSize) =>
+        app.MapGet("/api/rejected-entities", async (string type, int? page, int? pageSize,
+            string? reason, string? role, string? affiliation, string? nctId) =>
         {
             var repo = new StudyRepository(connectionString);
             var p = Math.Max(1, page ?? 1);
             var ps = Math.Clamp(pageSize ?? 50, 1, 200);
-            var (items, total) = await repo.GetRejectedEntitiesPagedAsync(type, p, ps);
+            var (items, total) = await repo.GetRejectedEntitiesPagedAsync(type, p, ps, reason, role, affiliation, nctId);
             return Results.Ok(new
             {
                 data = items.Select(e => new
@@ -43,6 +44,9 @@ internal static class PipelineEndpoints
                     e.EntityType,
                     e.Value,
                     e.StudyNctId,
+                    e.Role,
+                    e.Affiliation,
+                    e.RejectionReason,
                     e.RejectedAt
                 }),
                 total,

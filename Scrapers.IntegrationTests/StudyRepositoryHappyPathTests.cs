@@ -31,7 +31,10 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
                     new Investigator { Name = "Bob Jones", Affiliation = "Acme Research", Role = "SUB_INVESTIGATOR" }
                 ]),
             CreateRecord("NCT00000002", "Aspirin Cardiovascular Prevention Study", "COMPLETED",
-                [new Investigator { Name = "Carol White", Affiliation = "Health Org", Role = "STUDY_DIRECTOR" }])
+                [
+                    new Investigator { Name = "Carol White", Affiliation = "Health Org", Role = "STUDY_DIRECTOR" },
+                    new Investigator { Name = "University of California", Affiliation = "Acme Pharma", Role = "SPONSOR" }
+                ])
         ];
 
         var ingested = await _repo.UpdateStudiesWithClinicalTrialsAsync(records);
@@ -47,6 +50,24 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
         var byStatus = await _repo.GetStudiesPagedAsync(1, 10, status: "RECRUITING");
         Assert.AreEqual(1, byStatus.Count);
         Assert.AreEqual("NCT00000001", byStatus[0].NctId);
+
+        var (rejected, total) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 50);
+        Assert.AreEqual(1, total);
+        Assert.AreEqual("University of California", rejected[0].Value);
+        Assert.AreEqual("NCT00000002", rejected[0].StudyNctId);
+        Assert.AreEqual("SPONSOR", rejected[0].Role);
+        Assert.AreEqual("Acme Pharma", rejected[0].Affiliation);
+        Assert.AreEqual("OrgKeywords:UNIVERSITY", rejected[0].RejectionReason);
+
+        var (filtered, filteredTotal) = await _repo.GetRejectedEntitiesPagedAsync(
+            "investigator_name", 1, 50, reason: "OrgKeywords:UNIVERSITY", nctId: "NCT00000002");
+        Assert.AreEqual(1, filteredTotal);
+        Assert.AreEqual("University of California", filtered[0].Value);
+
+        var (empty, emptyTotal) = await _repo.GetRejectedEntitiesPagedAsync(
+            "investigator_name", 1, 50, role: "PRINCIPAL_INVESTIGATOR");
+        Assert.AreEqual(0, emptyTotal);
+        Assert.AreEqual(0, empty.Count);
     }
 
     [TestMethod]
