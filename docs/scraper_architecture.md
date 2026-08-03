@@ -34,10 +34,7 @@ To enable this, the scraper must:
 
 ### 2.3 Future Sources (Extensible)
 
-The `IPivotEnricherService` interface in `Scrapers/Services/CrawlServices/` provides a pluggable enricher pattern for future data sources. Each enricher:
-- Is auto-discovered via reflection by `PivotServiceRegistry`
-- Can be enabled/disabled via the `scraper_pivots` database table
-- Enriches individual studies or investigators with additional data
+New data sources are added as enrichment services (e.g., `MedicareUtilizationService`, `OpenPaymentsService`, `InvestigatorMetricsService`) wired directly in `IngestionApp/Program.cs`. An earlier pluggable pivot-enricher framework (`IPivotEnricherService` + `PivotServiceRegistry` + `scraper_pivots` table) was removed in 2026-08 as dead code — it had no implementations and no consumers.
 
 ---
 
@@ -295,10 +292,10 @@ Stores every API result from NPPES NPI Registry during enrichment, regardless of
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ AggregationService                                         │
-│ → Recompute PiAggregationEntity rows                       │
-│ → Recompute CategoryAggregationEntity rows                 │
-│ (Full delete + replace — currently synchronous)            │
+│ (Aggregation phase removed 2026-08 — AggregationService,   │
+│ pi_aggregations, category_aggregations were dead code:     │
+│ only reachable via the un-called PipelineRunner.           │
+│ PI/category stats are computed on demand by DataApi.)      │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -446,9 +443,30 @@ None. All API fields must be persisted.
 
 ---
 
-## 8. Test Strategy
+## 8. Operational Table Inventory (issue #351)
 
-### 8.1 Three Database Testing Modes
+Decisions from the 2026-08 dead-table audit (commit `feature/drop-dead-tables`).
+
+| Table | Writer | Reader / surfaced | Status |
+|-------|--------|-------------------|--------|
+| `pipeline_runs` | `AddPipelineRunAsync` — only via dead `PipelineRunner.cs` (no callers) | `/api/pipeline-runs`, telemetry, Status/History pages | **DELETED** — no production writer; UI showed empty state forever |
+| `pi_aggregations` | `AggregationService` — only via dead `PipelineRunner` | `/api/aggregations` (no frontend caller) | **DELETED** — dead end-to-end |
+| `category_aggregations` | `AggregationService` — same dead wiring | `/api/aggregations` (no frontend caller) | **DELETED** — dead end-to-end |
+| `scraper_pivots` | Nothing (no seeder; zero `IPivotEnricherService` implementations) | `PivotConfigurationService` (registered, never consumed) | **DELETED** — entire pivot subsystem removed as dead code |
+| `source_fetch_histories` | `SourceFetchHistoryService` — `RecordFetchAsync`/`ShouldFetchAsync` have zero callers | Nothing | **DELETED** — was scaffolding for issue #213; rebuild when that feature is implemented |
+| `scrape_events` | `ScrapeEventProgressReporter` (wired in `IngestionApp/Program.cs`) | `/api/telemetry`, `/api/scraper-progress`, `/api/data-source-state`, Status page | **KEPT** — alive; the #351 audit's "no production callers" claim was stale |
+| `study_papers` | `PubMedScraperService` | Study detail, aggregations | **KEPT** — healthy |
+| `rejected_investigator_names` | `Scrapers.Validation` CLI (manual) | `/api/rejected-names`, Status page | **KEPT** — in use; review/override workflow tracked in #344/#345 |
+
+Related removals: `PipelineRunner.cs`, `AggregationService.cs`, `PivotConfigurationService.cs`, `PivotServiceRegistry.cs`, `IPivotEnricherService.cs`, `SourceFetchHistoryService.cs` + `ISourceFetchHistoryService.cs`, the `/api/pipeline-runs` and `/api/aggregations` endpoints, telemetry `pipelineRuns` field, and the frontend `PipelineHistory` page + "History" nav link.
+
+> Note: `docs/GLOSSARY.md` still contains stale `pipeline_runs` entries — that file is human-maintained (AGENTS.md) and needs a human-authored PR to update.
+
+---
+
+## 9. Test Strategy
+
+### 9.1 Three Database Testing Modes
 
 | Mode | Class | Use Case |
 |------|-------|----------|
@@ -456,7 +474,7 @@ None. All API fields must be persisted.
 | **Snapshot** | `SnapshotDb` | Container seeded with known golden data. Deterministic assertions. |
 | **Persistent/fiddle** | `SnapshotDb(persist: true)` | Same as snapshot but no rollback — DB stays for manual inspection. |
 
-### 8.2 Per-API Test Coverage
+### 9.2 Per-API Test Coverage
 
 | Test Type | Class Pattern | Example |
 |-----------|--------------|---------|
@@ -464,20 +482,20 @@ None. All API fields must be persisted.
 | **Live API smoke** | `*IntegrationTests.cs` | `ClinicalTrialsGovIntegrationTests` |
 | **Schema guard** (JSON shape validation) | `*SchemaGuardTests.cs` | `DataApiSchemaGuardTests` |
 
-### 8.3 Data Loss Verification
+### 9.3 Data Loss Verification
 
 Every scraper integration test must verify:
 - Row counts in dependent tables match API data (e.g., if API returns 3 locations, assert `study_locations` has 3 rows for that study)
 - No data is silently dropped during mapping
 - Full field coverage is tested via assertions or schema guards
 
-### 8.4 Test Utilities
+### 9.4 Test Utilities
 
 Live in `Scrapers/Testing/`, shared via `InternalsVisibleTo`. Never duplicated.
 
 ---
 
-## 9. PR Sequence
+## 10. PR Sequence
 
 | PR | Scope | Description |
 |----|-------|-------------|

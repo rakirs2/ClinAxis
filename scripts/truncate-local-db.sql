@@ -3,7 +3,6 @@
 -- Or:  psql "$POSTGRES_CONNECTION_STRING" -f scripts/truncate-local-db.sql
 --
 -- Tables intentionally NOT truncated:
---   scraper_pivots        — scraper configuration (enabled, batch size, etc.)
 --   __EFMigrationsHistory — EF Core migration tracking
 
 TRUNCATE TABLE
@@ -22,12 +21,8 @@ TRUNCATE TABLE
     study_phases,
     studies,
     pipeline_events,
-    pipeline_runs,
     scrape_events,
-    pi_aggregations,
-    category_aggregations,
     data_source_state,
-    source_fetch_history,
     rejected_entities,
     rejected_investigator_names
 RESTART IDENTITY CASCADE;

@@ -44,7 +44,6 @@ internal static class StatsEndpoints
             var pubmedPapers = await repo.CountPubmedPapersAsync();
             var keywords = await repo.CountKeywordsAsync();
 
-            List<PipelineRunEntity> recentRuns = await repo.GetPipelineRunsAsync(1, 5);
             IReadOnlyList<ScrapeEventEntity> recentEvents = await repo.GetRecentScrapeEventsAsync(20);
 
             var totalInvestigatorsForCoverage = investigators > 0 ? investigators : 1;
@@ -71,11 +70,9 @@ internal static class StatsEndpoints
                     notAttempted,
                     npiCoveragePct = Math.Round((double)withNpi / totalInvestigatorsForCoverage * 100, 1)
                 },
-                pipelineRuns = recentRuns.Select(r => StudyMapper.ToPipelineRun(r)),
                 recentEvents = recentEvents.Select(e => new
                 {
                     id = e.Id,
-                    pipelineRunId = e.PipelineRunId,
                     timestamp = e.Timestamp,
                     source = e.Source,
                     eventType = e.EventType,
@@ -85,24 +82,6 @@ internal static class StatsEndpoints
                     message = e.Message,
                     httpStatusCode = e.HttpStatusCode
                 }),
-            });
-        });
-
-        app.MapGet("/api/aggregations", async () =>
-        {
-            var repo = new StudyRepository(connectionString);
-            var piCount = await repo.CountPiAggregationsAsync();
-            IReadOnlyList<CategoryTypeCount> categoryByType = await repo.CountCategoryAggregationsByTypeAsync();
-            Dictionary<string, int> categoryDict = new();
-            foreach (CategoryTypeCount c in categoryByType)
-            {
-                categoryDict[c.CategoryType] = c.Count;
-            }
-            return Results.Ok(new
-            {
-                piAggregationCount = piCount,
-                categoryAggregationCount = categoryByType.Sum(c => c.Count),
-                categoryAggregationsByType = categoryDict
             });
         });
 

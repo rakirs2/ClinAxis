@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Services;
-using Scrapers.Services.CrawlServices;
 using Scrapers.Services.Enrichment;
 using Scrapers.Services.EventQueue;
 using Scrapers.Utilities;
@@ -49,7 +48,6 @@ var host = Host.CreateDefaultBuilder(args)
         // Event queue infrastructure
         services.AddSingleton<IEventQueueService>(new EventQueueService(cs));
         services.AddSingleton<IDataSourceStateService>(new DataSourceStateService(cs));
-        services.AddSingleton<ISourceFetchHistoryService>(new SourceFetchHistoryService(cs));
         services.AddSingleton<INgestionProgressReporter>(new ScrapeEventProgressReporter(cs, "ClinicalTrials.gov"));
 
         // MeSH Matcher for A/B testing
@@ -80,10 +78,6 @@ var host = Host.CreateDefaultBuilder(args)
         // ClinicalTrials.gov ingestion pipeline
         services.AddSingleton<ClinicalTrialsGov>();
         services.AddSingleton<ClinicalTrialsIngestionService>();
-
-        // Pivot services
-        services.AddSingleton<PivotServiceRegistry>();
-        services.AddSingleton<PivotConfigurationService>(new PivotConfigurationService(cs));
 
         // Background services for scraping and event processing
         var ingestTimeoutMinutes = int.TryParse(Environment.GetEnvironmentVariable("INGEST_TIMEOUT_MINUTES"), out var ingestTimeout)

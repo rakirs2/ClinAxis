@@ -42,21 +42,6 @@ public sealed class SchemaGuardTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
-    public async Task PiAggregationsTable_HasRequiredColumns()
-    {
-        var columns = await GetColumnsAsync("pi_aggregations");
-
-        Assert.IsTrue(columns.Any(c => c.Name == "id" && c.Type == "integer"), "id column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "investigator_name" && c.Type == "character varying"), "investigator_name column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "study_count" && c.Type == "integer"), "study_count column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "pubmed_paper_count" && c.Type == "integer"), "pubmed_paper_count column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "study_nct_ids" && c.Type == "text"), "study_nct_ids column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "computed_at" && c.Type == "timestamp with time zone"), "computed_at column missing or wrong type");
-        Assert.IsTrue(columns.Any(c => c.Name == "affiliation" && c.Type == "text" && c.Nullable), "affiliation column missing, wrong type, or not nullable");
-    }
-
-    [TestMethod]
-    [TestCategory("Integration")]
     public async Task PageViewsTable_HasRequiredColumnsAndIndexes()
     {
         var columns = await GetColumnsAsync("page_views");

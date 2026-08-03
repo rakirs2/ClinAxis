@@ -9,15 +9,6 @@ internal static class PipelineEndpoints
 {
     internal static void MapPipelineEndpoints(this WebApplication app, string connectionString)
     {
-        app.MapGet("/api/pipeline-runs", async (int? page, int? pageSize) =>
-        {
-            var repo = new StudyRepository(connectionString);
-            var p = Math.Max(1, page ?? 1);
-            var ps = Math.Clamp(pageSize ?? 20, 1, 100);
-            List<PipelineRunEntity> runs = await repo.GetPipelineRunsAsync(p, ps);
-            return Results.Ok(new { data = runs.Select(r => StudyMapper.ToPipelineRun(r)) });
-        });
-
         app.MapGet("/api/rejected-names", async () =>
         {
             using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()

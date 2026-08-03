@@ -52,7 +52,6 @@ public sealed class FrontendE2ETests
         Assert.IsTrue(html.Contains("Study Search", StringComparison.Ordinal), "Page should contain title");
         Assert.IsTrue(html.Contains("class=\"form-control\"", StringComparison.Ordinal), "Page should contain search input");
         Assert.IsTrue(html.Contains("blazor.web.js", StringComparison.Ordinal), "Page should reference Blazor script");
-        Assert.IsTrue(html.Contains("/pipeline-runs", StringComparison.Ordinal), "Should link to pipeline history");
         Assert.IsTrue(html.Contains("/status", StringComparison.Ordinal), "Should link to status page");
     }
 }

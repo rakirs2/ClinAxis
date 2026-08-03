@@ -140,9 +140,7 @@ public sealed class StatusPageTests
             .Respond("application/json", JsonSerializer.Serialize(new
             {
                 db = new { totalStudies = 100, totalInvestigators = 50, totalPubmedPapers = 20, totalKeywords = 200, totalAuthors = 0 },
-                pipelineRuns = Array.Empty<object>(),
-                recentEvents = Array.Empty<object>(),
-                aggregations = new { piAggregationCount = 10, categoryAggregationCount = 5 }
+                recentEvents = Array.Empty<object>()
             }, JsonOptions));
 
         mockHttp.When("http://localhost:5003/api/data-source-state")

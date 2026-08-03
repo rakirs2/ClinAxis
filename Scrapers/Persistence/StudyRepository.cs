@@ -681,16 +681,6 @@ namespace Scrapers.Persistence
             return counts.ToDictionary(c => c.Result, c => c.Count);
         }
 
-        public async Task<int> AddPipelineRunAsync(PipelineRunEntity run, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(run);
-
-            using ClinicalTrialsContext context = CreateContext();
-            context.PipelineRuns.Add(run);
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return run.Id;
-        }
-
         public async Task<int> AddPageViewAsync(PageViewEntity view, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(view);
@@ -711,41 +701,9 @@ namespace Scrapers.Persistence
                 .ConfigureAwait(false);
         }
 
-        public async Task CompletePipelineRunAsync(int runId, string status, int? studies = null, int? investigators = null,
-            int? pubmedPapers = null, int? keywords = null, int? authors = null, string? errorMessage = null,
-            CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            PipelineRunEntity? run = await context.PipelineRuns.FindAsync(new object[] { runId }, cancellationToken).ConfigureAwait(false);
-            if (run != null)
-            {
-                run.CompletedAt = DateTime.UtcNow;
-                run.Status = status;
-                run.TotalStudies = studies;
-                run.TotalInvestigators = investigators;
-                run.TotalPubmedPapers = pubmedPapers;
-                run.TotalKeywords = keywords;
-                run.TotalAuthors = authors;
-                run.ErrorMessage = errorMessage;
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        public async Task<List<PipelineRunEntity>> GetPipelineRunsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.PipelineRuns
-                .OrderByDescending(r => r.StartedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
         public async Task ClearAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
-            context.PiAggregations.RemoveRange(context.PiAggregations);
-            context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
             context.StudyKeywords.RemoveRange(context.StudyKeywords);
             context.StudyConditions.RemoveRange(context.StudyConditions);
             context.StudyPhases.RemoveRange(context.StudyPhases);
@@ -1546,40 +1504,6 @@ namespace Scrapers.Persistence
                 .FirstOrDefaultAsync(s => s.NctId == nctId, cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> CountPiAggregationsAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.PiAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<IReadOnlyList<CategoryTypeCount>> CountCategoryAggregationsByTypeAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            var raw = await context.CategoryAggregations
-                .GroupBy(c => c.CategoryType)
-                .Select(g => new { categoryType = g.Key, count = g.Count() })
-                .AsNoTracking()
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-            return raw.Select(r => new CategoryTypeCount(r.categoryType, r.count)).ToList();
-        }
-
-        public async Task ReplacePiAggregationsAsync(IReadOnlyList<PiAggregationEntity> aggregations, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            context.PiAggregations.RemoveRange(context.PiAggregations);
-            context.PiAggregations.AddRange(aggregations);
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task ReplaceCategoryAggregationsAsync(IReadOnlyList<CategoryAggregationEntity> aggregations, CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            context.CategoryAggregations.RemoveRange(context.CategoryAggregations);
-            context.CategoryAggregations.AddRange(aggregations);
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
-
         public async Task AddScrapeEventAsync(ScrapeEventEntity evt, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(evt);
@@ -1603,16 +1527,6 @@ namespace Scrapers.Persistence
                 .Take(limit)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<DateTime?> GetLastSuccessfulPipelineRunDateAsync(CancellationToken cancellationToken = default)
-        {
-            using ClinicalTrialsContext context = CreateContext();
-            return await context.PipelineRuns
-                .Where(r => r.Status == "Completed" || r.Status == "CompletedWithErrors")
-                .OrderByDescending(r => r.StartedAt)
-                .Select(r => (DateTime?)r.StartedAt)
-                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<InvestigatorPersonSummary>> GetInvestigatorPersonsPagedAsync(
@@ -2110,19 +2024,14 @@ namespace Scrapers.Persistence
             var studyReferencesCount = await context.StudyReferences.CountAsync(cancellationToken).ConfigureAwait(false);
             var studyOutcomesCount = await context.StudyOutcomes.CountAsync(cancellationToken).ConfigureAwait(false);
             var studyArmGroupsCount = await context.StudyArmGroups.CountAsync(cancellationToken).ConfigureAwait(false);
-            var pipelineRunsCount = await context.PipelineRuns.CountAsync(cancellationToken).ConfigureAwait(false);
             var scrapeEventsCount = await context.ScrapeEvents.CountAsync(cancellationToken).ConfigureAwait(false);
             var pipelineEventsCount = await context.PipelineEvents.CountAsync(cancellationToken).ConfigureAwait(false);
-            var piAggregationsCount = await context.PiAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
-            var categoryAggregationsCount = await context.CategoryAggregations.CountAsync(cancellationToken).ConfigureAwait(false);
             var dataSourceStatesCount = await context.DataSourceStates.CountAsync(cancellationToken).ConfigureAwait(false);
             var rejectedEntitiesCount = await context.RejectedEntities.CountAsync(cancellationToken).ConfigureAwait(false);
             var rejectedNamesCount = await context.RejectedInvestigatorNames.CountAsync(cancellationToken).ConfigureAwait(false);
             var personCandidatesCount = await context.PersonIdentifierCandidates.CountAsync(cancellationToken).ConfigureAwait(false);
             var medicareUtilizationsCount = await context.MedicareUtilizations.CountAsync(cancellationToken).ConfigureAwait(false);
             var investigatorMetricsCount = await context.InvestigatorMetrics.CountAsync(cancellationToken).ConfigureAwait(false);
-            var sourceFetchHistoriesCount = await context.SourceFetchHistories.CountAsync(cancellationToken).ConfigureAwait(false);
-            var scraperPivotsCount = await context.ScraperPivots.CountAsync(cancellationToken).ConfigureAwait(false);
             var entityAliasesCount = await context.EntityAliases.CountAsync(cancellationToken).ConfigureAwait(false);
 
             return new List<TableRowCount>
@@ -2140,19 +2049,14 @@ namespace Scrapers.Persistence
                 new() { Name = "study_references", RowCount = studyReferencesCount },
                 new() { Name = "study_outcomes", RowCount = studyOutcomesCount },
                 new() { Name = "study_arm_groups", RowCount = studyArmGroupsCount },
-                new() { Name = "pipeline_runs", RowCount = pipelineRunsCount },
                 new() { Name = "scrape_events", RowCount = scrapeEventsCount },
                 new() { Name = "pipeline_events", RowCount = pipelineEventsCount },
-                new() { Name = "pi_aggregations", RowCount = piAggregationsCount },
-                new() { Name = "category_aggregations", RowCount = categoryAggregationsCount },
                 new() { Name = "data_source_states", RowCount = dataSourceStatesCount },
                 new() { Name = "rejected_entities", RowCount = rejectedEntitiesCount },
                 new() { Name = "rejected_investigator_names", RowCount = rejectedNamesCount },
                 new() { Name = "person_identifier_candidates", RowCount = personCandidatesCount },
                 new() { Name = "medicare_utilizations", RowCount = medicareUtilizationsCount },
                 new() { Name = "investigator_metrics", RowCount = investigatorMetricsCount },
-                new() { Name = "source_fetch_histories", RowCount = sourceFetchHistoriesCount },
-                new() { Name = "scraper_pivots", RowCount = scraperPivotsCount },
                 new() { Name = "entity_aliases", RowCount = entityAliasesCount }
             };
         }
@@ -2261,20 +2165,6 @@ namespace Scrapers.Persistence
     {
         public string Name { get; set; } = string.Empty;
         public long RowCount { get; set; }
-    }
-
-
-
-    public class CategoryTypeCount
-    {
-        public string CategoryType { get; }
-        public int Count { get; }
-
-        public CategoryTypeCount(string categoryType, int count)
-        {
-            CategoryType = categoryType;
-            Count = count;
-        }
     }
 
     public class InvestigatorPersonSummary
