@@ -175,6 +175,30 @@ jobs:
             sleep 3
           done"
 
+          echo "--- Validate pipeline scrape ---"
+          # The ingestion scrape loop runs at startup, so lastSyncTimestamp must advance
+          # within ~2 minutes. Catches scraper regressions that /health (liveness) misses.
+          sleep 120
+          remote 'curl -sf --max-time 30 http://localhost:5003/api/data-source-state' \
+            > /tmp/data-source-state.json
+          python3 - <<'EOF'
+          import json, datetime
+
+          now = datetime.datetime.now(datetime.timezone.utc)
+          for s in json.load(open("/tmp/data-source-state.json")):
+              if s.get("sourceName") != "ClinicalTrials.gov":
+                  continue
+              ts = s.get("lastSyncTimestamp")
+              if not ts:
+                  raise SystemExit("FATAL: ClinicalTrials.gov has no lastSyncTimestamp after deploy")
+              dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+              age_min = (now - dt).total_seconds() / 60
+              if age_min > 30:
+                  raise SystemExit(
+                      f"FATAL: lastSyncTimestamp {ts} is {age_min:.0f}m old (>30m) after deploy")
+              print(f"Pipeline scrape OK: lastSyncTimestamp {ts} is {age_min:.0f}m old")
+          EOF
+
           echo "--- Cleanup old images ---"
           remote "sudo docker image prune -f 2>/dev/null || true"
 

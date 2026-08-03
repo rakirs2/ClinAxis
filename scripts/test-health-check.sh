@@ -62,6 +62,7 @@ EVENT_QUEUE_DLQ="$WORK_DIR/event-queue-dlq.json"
 DATA_SOURCE_OK="$WORK_DIR/data-source-ok.json"
 DATA_SOURCE_STALE="$WORK_DIR/data-source-stale.json"
 DATA_SOURCE_STUCK="$WORK_DIR/data-source-stuck.json"
+DATA_SOURCE_SPINNING="$WORK_DIR/data-source-spinning.json"
 SCRAPER_PROGRESS="$WORK_DIR/scraper-progress.json"
 
 printf '{"deadLetterCount": 3, "pendingCount": 5, "failureRate": 0.02}' > "$EVENT_QUEUE_OK"
@@ -78,7 +79,10 @@ cat > "$DATA_SOURCE_STALE" <<EOF
 [{"sourceName": "ClinicalTrials.gov", "status": "idle", "lastSyncTimestamp": "$old", "updatedAt": "$fresh"}]
 EOF
 cat > "$DATA_SOURCE_STUCK" <<EOF
-[{"sourceName": "ClinicalTrials.gov", "status": "syncing", "lastSyncTimestamp": "$fresh", "updatedAt": "$stuck_since"}]
+[{"sourceName": "ClinicalTrials.gov", "status": "syncing", "lastSyncTimestamp": "$stuck_since", "updatedAt": "$fresh"}]
+EOF
+cat > "$DATA_SOURCE_SPINNING" <<EOF
+[{"sourceName": "ClinicalTrials.gov", "status": "syncing", "lastSyncTimestamp": "$fresh", "updatedAt": "$fresh"}]
 EOF
 printf '{"totalAvailable": 600000, "totalInDb": 37477, "percentScraped": 6.2}' > "$SCRAPER_PROGRESS"
 
@@ -97,8 +101,11 @@ assert_clean "$(WATCHDOG_STALE_HOURS=200 check_stale_sync "$DATA_SOURCE_STALE")"
 
 echo "== check_stuck =="
 assert_clean "$(check_stuck "$DATA_SOURCE_OK")"
+# A stuck loop (fresh updatedAt but stale lastSyncTimestamp) must still alert.
 assert_finding "stuck: ClinicalTrials.gov status=syncing" "$(check_stuck "$DATA_SOURCE_STUCK")"
 assert_clean "$(WATCHDOG_STALL_HOURS=24 check_stuck "$DATA_SOURCE_STUCK")"
+# A sync in progress (fresh lastSyncTimestamp) must not alert.
+assert_clean "$(check_stuck "$DATA_SOURCE_SPINNING")"
 
 echo "== full script: healthy =="
 output=$("$SCRIPT_DIR/health-check.sh" --event-queue "$EVENT_QUEUE_OK" --data-source "$DATA_SOURCE_OK")
