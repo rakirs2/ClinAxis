@@ -31,11 +31,12 @@ public sealed class KeywordFilterTests
             ],
             conditions: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cancer" });
 
-        Assert.AreEqual(4, cleaned.Count, "Only LUNG CANCER, HUMAN IMMUNODEFICIENCY VIRUS, PARKINSON'S DISEASE, EXERCISE should remain");
+        Assert.AreEqual(5, cleaned.Count, "Only LUNG CANCER, HUMAN IMMUNODEFICIENCY VIRUS, PARKINSON'S DISEASE, EXERCISE, CLINICAL TRIAL should remain");
         CollectionAssert.Contains(cleaned, "LUNG CANCER");
         CollectionAssert.Contains(cleaned, "HUMAN IMMUNODEFICIENCY VIRUS");
         CollectionAssert.Contains(cleaned, "PARKINSON'S DISEASE");
         CollectionAssert.Contains(cleaned, "EXERCISE");
+        CollectionAssert.Contains(cleaned, "CLINICAL TRIAL");
 
         Assert.IsFalse(rejected.Contains("CANCER"), "Condition-duplicate keyword should not be rejected");
         CollectionAssert.Contains(rejected, "TREATMENT");
@@ -43,7 +44,6 @@ public sealed class KeywordFilterTests
         CollectionAssert.Contains(rejected, "DIAGNOSIS");
         CollectionAssert.Contains(rejected, "THERAPY");
         CollectionAssert.Contains(rejected, "HEALTHY SUBJECTS");
-        CollectionAssert.Contains(rejected, "CLINICAL TRIAL");
     }
 
     [TestMethod]
@@ -195,5 +195,88 @@ public sealed class KeywordFilterTests
 
         Assert.AreEqual(0, cleaned.Count);
         Assert.AreEqual(0, rejected.Count);
+    }
+
+    [TestMethod]
+    public void Filter_DesignDescriptors_AreKeptDespiteBlocklist()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(
+            ["Randomised Controlled Trial", "pilot study", "open label", "phase 3", "cohort study", "case-control", "crossover study"],
+            null);
+
+        Assert.AreEqual(7, cleaned.Count);
+        CollectionAssert.Contains(cleaned, "RANDOMISED CONTROLLED TRIAL");
+        CollectionAssert.Contains(cleaned, "PILOT STUDY");
+        CollectionAssert.Contains(cleaned, "OPEN LABEL");
+        CollectionAssert.Contains(cleaned, "PHASE 3");
+        CollectionAssert.Contains(cleaned, "COHORT STUDY");
+        CollectionAssert.Contains(cleaned, "CASE-CONTROL");
+        CollectionAssert.Contains(cleaned, "CROSSOVER STUDY");
+        Assert.AreEqual(0, rejected.Count);
+    }
+
+    [TestMethod]
+    public void Filter_GenericJunk_StillRejected()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(
+            ["safety", "treatment", "efficacy", "outcomes", "patient", "multicenter"],
+            null);
+
+        Assert.AreEqual(0, cleaned.Count);
+        Assert.AreEqual(6, rejected.Count);
+    }
+
+    [TestMethod]
+    public void Normalize_TrimsTrailingPunctuationAndUpperCases()
+    {
+        Assert.AreEqual("CANCER", KeywordFilter.Normalize("  cancer, "));
+        Assert.AreEqual("EXERCISE", KeywordFilter.Normalize("exercise!"));
+        Assert.AreEqual("TYPE 2 DIABETES", KeywordFilter.Normalize("  type 2 diabetes "));
+    }
+
+    [TestMethod]
+    public void ApplyMeSHGate_MovesMatchedRejectedKeywordsToAccepted()
+    {
+        var (accepted, rejected) = KeywordFilter.ApplyMeSHGate(
+            rejected: ["CVA", "DIABETES"],
+            meshMatchedKeywords: ["DIABETES"]);
+
+        CollectionAssert.Contains(accepted, "DIABETES");
+        Assert.AreEqual(1, rejected.Count);
+        CollectionAssert.Contains(rejected, "CVA");
+    }
+
+    [TestMethod]
+    public void ApplyMeSHGate_IsCaseInsensitive()
+    {
+        var (accepted, rejected) = KeywordFilter.ApplyMeSHGate(
+            rejected: ["diabetes"],
+            meshMatchedKeywords: ["DIABETES"]);
+
+        Assert.AreEqual(1, accepted.Count);
+        Assert.AreEqual(0, rejected.Count);
+    }
+
+    [TestMethod]
+    public void ApplyMeSHGate_NoMatches_KeepsAllRejected()
+    {
+        var (accepted, rejected) = KeywordFilter.ApplyMeSHGate(
+            rejected: ["SAFETY", "TREATMENT"],
+            meshMatchedKeywords: []);
+
+        Assert.AreEqual(0, accepted.Count);
+        Assert.AreEqual(2, rejected.Count);
+    }
+
+    [TestMethod]
+    public void IsJunkBlocked_OnlyGenericJunkNotAllowlisted()
+    {
+        Assert.IsTrue(KeywordFilter.IsJunkBlocked("TREATMENT"));
+        Assert.IsTrue(KeywordFilter.IsJunkBlocked("safety"));
+        Assert.IsTrue(KeywordFilter.IsJunkBlocked("efficacy"));
+
+        Assert.IsFalse(KeywordFilter.IsJunkBlocked("PILOT STUDY"), "Design descriptors bypass the blocklist");
+        Assert.IsFalse(KeywordFilter.IsJunkBlocked("RANDOMISED CONTROLLED TRIAL"));
+        Assert.IsFalse(KeywordFilter.IsJunkBlocked("CANCER"), "Non-blocklisted keywords are not junk");
     }
 }

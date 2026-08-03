@@ -247,10 +247,10 @@ namespace Scrapers.Persistence
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                         var (cleanedKeywords, rejected) = KeywordFilter.Filter(record.Keywords, conditions);
-                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         if (_meshMatcher != null)
                         {
+                            var meshMatchedKeywords = new List<string>();
                             foreach (var rawKw in record.Keywords)
                             {
                                 if (!string.IsNullOrWhiteSpace(rawKw))
@@ -268,9 +268,24 @@ namespace Scrapers.Persistence
 
                                     var match = _meshMatcher.Match(trimmed, "keyword", record.NctId!);
                                     meshMatchResults.Add(match);
+                                    if (match.SideBMatched)
+                                    {
+                                        meshMatchedKeywords.Add(KeywordFilter.Normalize(trimmed));
+                                    }
                                 }
                             }
+
+                            // MeSH gate (issue #343): structural rejections (short
+                            // acronyms, punctuation, length) that still match a
+                            // descriptor are kept; generic junk never is.
+                            var junk = rejected.Where(KeywordFilter.IsJunkBlocked).ToList();
+                            var structural = rejected.Where(k => !KeywordFilter.IsJunkBlocked(k)).ToList();
+                            var (gateAccepted, stillRejected) = KeywordFilter.ApplyMeSHGate(structural, meshMatchedKeywords);
+                            cleanedKeywords.AddRange(gateAccepted);
+                            rejected = junk.Concat(stillRejected).ToList();
                         }
+
+                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         foreach (var kw in cleanedKeywords)
                         {

@@ -354,6 +354,80 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
         CollectionAssert.AreEquivalent(new[] { "30001001", "30001002" }, linkedPmids);
     }
 
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_AcceptsDesignDescriptors_RejectsOnlyJunk()
+    {
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000009",
+            BriefTitle = "Design Descriptor Keywords Study",
+            OverallStatus = "RECRUITING",
+            Conditions = ["Diabetes"],
+            OverallOfficials =
+            [
+                new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "PRINCIPAL_INVESTIGATOR" }
+            ],
+            Keywords = ["Pilot Study", "Randomised Controlled Trial", "safety", "treatment", "Diabetes"]
+        };
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var keywords = await Context.StudyKeywords
+            .Where(k => k.StudyNctId == "NCT00000009")
+            .Select(k => k.Keyword)
+            .ToListAsync();
+        CollectionAssert.Contains(keywords, "PILOT STUDY");
+        CollectionAssert.Contains(keywords, "RANDOMISED CONTROLLED TRIAL");
+        Assert.AreEqual(2, keywords.Count, "Condition-duplicate DIABETES is stored as a condition, not a keyword");
+        Assert.IsFalse(keywords.Contains("SAFETY"), "Junk keyword must not be persisted");
+        Assert.IsFalse(keywords.Contains("TREATMENT"), "Junk keyword must not be persisted");
+
+        var (rejected, total) = await _repo.GetRejectedEntitiesPagedAsync("keyword", 1, 50);
+        Assert.AreEqual(2, total, "Only SAFETY and TREATMENT are rejected");
+        CollectionAssert.AreEquivalent(
+            new[] { "SAFETY", "TREATMENT" },
+            rejected.Select(r => r.Value).ToList());
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_MeSHGate_RescuesNothingJunk()
+    {
+        var meshResourcesPath = Path.Combine(AppContext.BaseDirectory, "Resources", "mesh");
+        using var matcher = new Scrapers.Services.MeSHMatcher(meshResourcesPath);
+        var repo = new StudyRepository(ConnectionString, matcher);
+
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000010",
+            BriefTitle = "MeSH Gate Keywords Study",
+            OverallStatus = "RECRUITING",
+            OverallOfficials =
+            [
+                new Investigator { Name = "Eve Adams", Affiliation = "Wellness Org", Role = "PRINCIPAL_INVESTIGATOR" }
+            ],
+            Keywords = ["treatment", "prognosis", "CVA", "Pilot Study"]
+        };
+
+        await repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var keywords = await Context.StudyKeywords
+            .Where(k => k.StudyNctId == "NCT00000010")
+            .Select(k => k.Keyword)
+            .ToListAsync();
+        Assert.AreEqual(2, keywords.Count,
+            "Allowlisted design descriptor + acronym-expanded CVA are kept (issue #355: CVA -> cerebrovascular accident)");
+        CollectionAssert.Contains(keywords, "PILOT STUDY");
+        CollectionAssert.Contains(keywords, "CEREBROVASCULAR ACCIDENT");
+
+        var (rejected, total) = await repo.GetRejectedEntitiesPagedAsync("keyword", 1, 50);
+        Assert.AreEqual(2, total, "Junk stays rejected even when it matches MeSH");
+        CollectionAssert.AreEquivalent(
+            new[] { "TREATMENT", "PROGNOSIS" },
+            rejected.Select(r => r.Value).ToList());
+    }
+
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,
         Investigator[]? investigators, List<ClinicalTrialRecord.Reference>? references = null,
         DateOnly? startDate = null)
