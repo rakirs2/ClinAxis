@@ -3,6 +3,7 @@
   <Project Path="Scrapers.Tests/Scrapers.Tests.csproj" />
   <Project Path="Scrapers.IntegrationTests/Scrapers.IntegrationTests.csproj" />
   <Project Path="DataApi/DataApi.csproj" />
+  <Project Path="DataApi.Tests/DataApi.Tests.csproj" />
   <Project Path="Frontend/Frontend.csproj" />
   <Project Path="Frontend.Tests/Frontend.Tests.csproj" />
   <Project Path="IngestionApp/IngestionApp.csproj" />
