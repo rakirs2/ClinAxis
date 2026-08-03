@@ -13,24 +13,6 @@ namespace Scrapers.Persistence.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "category_aggregations",
-                columns: table => new
-                {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    category_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    category_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    study_count = table.Column<int>(type: "integer", nullable: false),
-                    pubmed_paper_count = table.Column<int>(type: "integer", nullable: false),
-                    study_nct_ids = table.Column<string>(type: "text", nullable: false),
-                    computed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_category_aggregations", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "data_source_state",
                 columns: table => new
                 {
@@ -43,7 +25,11 @@ namespace Scrapers.Persistence.Migrations
                     error_message = table.Column<string>(type: "text", nullable: true),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     rejected_keywords_total = table.Column<int>(type: "integer", nullable: false),
-                    next_scheduled_run = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    next_scheduled_run = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    backfill_status = table.Column<string>(type: "text", nullable: true),
+                    backfill_remaining_studies = table.Column<int>(type: "integer", nullable: true),
+                    backfill_started_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    backfill_completed_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -111,21 +97,18 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "pi_aggregations",
+                name: "page_views",
                 columns: table => new
                 {
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    investigator_name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    affiliation = table.Column<string>(type: "text", nullable: true),
-                    study_count = table.Column<int>(type: "integer", nullable: false),
-                    pubmed_paper_count = table.Column<int>(type: "integer", nullable: false),
-                    study_nct_ids = table.Column<string>(type: "text", nullable: false),
-                    computed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    path = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    session_id = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: false),
+                    viewed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_pi_aggregations", x => x.id);
+                    table.PrimaryKey("PK_page_views", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -149,27 +132,6 @@ namespace Scrapers.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_pipeline_events", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "pipeline_runs",
-                columns: table => new
-                {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    started_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    total_studies = table.Column<int>(type: "integer", nullable: true),
-                    total_investigators = table.Column<int>(type: "integer", nullable: true),
-                    total_pubmed_papers = table.Column<int>(type: "integer", nullable: true),
-                    total_keywords = table.Column<int>(type: "integer", nullable: true),
-                    total_authors = table.Column<int>(type: "integer", nullable: true),
-                    error_message = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_pipeline_runs", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -203,6 +165,9 @@ namespace Scrapers.Persistence.Migrations
                     entity_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     value = table.Column<string>(type: "text", nullable: false),
                     study_nct_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    role = table.Column<string>(type: "text", nullable: true),
+                    affiliation = table.Column<string>(type: "text", nullable: true),
+                    rejection_reason = table.Column<string>(type: "text", nullable: true),
                     rejected_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -254,40 +219,23 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "scraper_pivots",
+                name: "scrape_events",
                 columns: table => new
                 {
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    service_type = table.Column<string>(type: "text", nullable: false),
-                    enabled = table.Column<bool>(type: "boolean", nullable: false),
-                    cache_ttl_days = table.Column<int>(type: "integer", nullable: false),
-                    batch_size = table.Column<int>(type: "integer", nullable: false),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    event_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    level = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    duration_ms = table.Column<long>(type: "bigint", nullable: true),
+                    records_affected = table.Column<int>(type: "integer", nullable: true),
+                    message = table.Column<string>(type: "text", nullable: true),
+                    http_status_code = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_scraper_pivots", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "source_fetch_history",
-                columns: table => new
-                {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    study_nct_id = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    source_type = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    last_fetch_timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    content_hash = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_source_fetch_history", x => x.id);
+                    table.PrimaryKey("PK_scrape_events", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -319,7 +267,9 @@ namespace Scrapers.Persistence.Migrations
                     source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     is_incomplete = table.Column<bool>(type: "boolean", nullable: false),
-                    rejected_conditions = table.Column<string>(type: "jsonb", nullable: true)
+                    rejected_conditions = table.Column<string>(type: "jsonb", nullable: true),
+                    last_seen_in_sweep_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    removed_from_source_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -505,6 +455,18 @@ namespace Scrapers.Persistence.Migrations
                     matched_full_name = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     matched_affiliation = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     matched_state = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    matched_city = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    matched_middle_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    matched_credential = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    matched_name_prefix = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    matched_gender = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    matched_taxonomy_desc = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    matched_taxonomy_state = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    matched_taxonomy_license = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    matched_other_names_json = table.Column<string>(type: "text", nullable: true),
+                    matched_identifiers_json = table.Column<string>(type: "text", nullable: true),
+                    rule_score = table.Column<double>(type: "double precision", nullable: true),
+                    model_score = table.Column<double>(type: "double precision", nullable: true),
                     source_status = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
                     source_deactivated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     is_auto_approved = table.Column<bool>(type: "boolean", nullable: false),
@@ -540,33 +502,6 @@ namespace Scrapers.Persistence.Migrations
                         principalTable: "mesh_descriptors",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "scrape_events",
-                columns: table => new
-                {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    pipeline_run_id = table.Column<int>(type: "integer", nullable: true),
-                    timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    source = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    event_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    level = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    duration_ms = table.Column<long>(type: "bigint", nullable: true),
-                    records_affected = table.Column<int>(type: "integer", nullable: true),
-                    message = table.Column<string>(type: "text", nullable: true),
-                    http_status_code = table.Column<int>(type: "integer", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_scrape_events", x => x.id);
-                    table.ForeignKey(
-                        name: "FK_scrape_events_pipeline_runs_pipeline_run_id",
-                        column: x => x.pipeline_run_id,
-                        principalTable: "pipeline_runs",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -842,16 +777,6 @@ namespace Scrapers.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_category_aggregations_category_name",
-                table: "category_aggregations",
-                column: "category_name");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_category_aggregations_category_type",
-                table: "category_aggregations",
-                column: "category_type");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_data_source_state_source_name",
                 table: "data_source_state",
                 column: "source_name",
@@ -982,6 +907,16 @@ namespace Scrapers.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_page_views_path",
+                table: "page_views",
+                column: "path");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_page_views_viewed_at",
+                table: "page_views",
+                column: "viewed_at");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_person_identifier_candidates_person_id",
                 table: "person_identifier_candidates",
                 column: "person_id");
@@ -990,11 +925,6 @@ namespace Scrapers.Persistence.Migrations
                 name: "IX_person_identifier_candidates_person_id_identifier_type",
                 table: "person_identifier_candidates",
                 columns: new[] { "person_id", "identifier_type" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_pi_aggregations_investigator_name",
-                table: "pi_aggregations",
-                column: "investigator_name");
 
             migrationBuilder.CreateIndex(
                 name: "IX_pipeline_events_created_at",
@@ -1054,11 +984,6 @@ namespace Scrapers.Persistence.Migrations
                 column: "event_type");
 
             migrationBuilder.CreateIndex(
-                name: "IX_scrape_events_pipeline_run_id",
-                table: "scrape_events",
-                column: "pipeline_run_id");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_scrape_events_source",
                 table: "scrape_events",
                 column: "source");
@@ -1067,23 +992,6 @@ namespace Scrapers.Persistence.Migrations
                 name: "IX_scrape_events_timestamp",
                 table: "scrape_events",
                 column: "timestamp");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_scraper_pivots_name",
-                table: "scraper_pivots",
-                column: "name",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_source_fetch_history_study_nct_id",
-                table: "source_fetch_history",
-                column: "study_nct_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_source_fetch_history_study_nct_id_source_type",
-                table: "source_fetch_history",
-                columns: new[] { "study_nct_id", "source_type" },
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_studies_enrollment_count",
@@ -1200,9 +1108,6 @@ namespace Scrapers.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "category_aggregations");
-
-            migrationBuilder.DropTable(
                 name: "data_source_state");
 
             migrationBuilder.DropTable(
@@ -1230,10 +1135,10 @@ namespace Scrapers.Persistence.Migrations
                 name: "open_payments");
 
             migrationBuilder.DropTable(
-                name: "person_identifier_candidates");
+                name: "page_views");
 
             migrationBuilder.DropTable(
-                name: "pi_aggregations");
+                name: "person_identifier_candidates");
 
             migrationBuilder.DropTable(
                 name: "pipeline_events");
@@ -1249,12 +1154,6 @@ namespace Scrapers.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "scrape_events");
-
-            migrationBuilder.DropTable(
-                name: "scraper_pivots");
-
-            migrationBuilder.DropTable(
-                name: "source_fetch_history");
 
             migrationBuilder.DropTable(
                 name: "study_arm_groups");
@@ -1285,9 +1184,6 @@ namespace Scrapers.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "study_references");
-
-            migrationBuilder.DropTable(
-                name: "pipeline_runs");
 
             migrationBuilder.DropTable(
                 name: "investigator_persons");
