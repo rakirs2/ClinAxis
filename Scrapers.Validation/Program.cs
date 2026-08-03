@@ -109,6 +109,12 @@ var allPersons = await context.InvestigatorPersons
     .ToListAsync();
 var totalPersons = allPersons.Count;
 
+// Overridden names are authoritative: they must not be re-flagged as leaks or purged.
+var overriddenNames = await context.RejectedInvestigatorNames
+    .Where(n => n.IsHumanOverride == true)
+    .Select(n => n.FullName)
+    .ToListAsync();
+
 var nonHumanCount = allPersons.Count(p => !p.IsHuman);
 await Console.Out.WriteLineAsync($"Total investigator persons stored: {totalPersons}");
 await Console.Out.WriteLineAsync($"  IsHuman=true:  {totalPersons - nonHumanCount}");
@@ -119,7 +125,7 @@ var leaks = new List<(string Name, Guid Id, int StudyCount, bool IsHuman)>();
 foreach (var person in allPersons)
 {
     var result = NameFilter.IsHumanName(person.FullName, null);
-    if (!result.IsHuman)
+    if (!result.IsHuman && !overriddenNames.Contains(person.FullName, StringComparer.OrdinalIgnoreCase))
     {
         leaks.Add((person.FullName, person.Id, person.StudyInvestigators?.Count ?? 0, person.IsHuman));
 
@@ -139,47 +145,27 @@ foreach (var person in allPersons)
 using (var upsertCtx = new ClinicalTrialsContext(opts))
 {
     var existingRejected = await upsertCtx.Set<RejectedInvestigatorNameEntity>().ToListAsync();
-    var existingByName = new Dictionary<string, RejectedInvestigatorNameEntity>(StringComparer.OrdinalIgnoreCase);
-    foreach (var r in existingRejected)
+    var failing = rejectedByFilter.ToDictionary(
+        kvp => kvp.Key,
+        kvp => new RejectedNameStats(kvp.Value.Reason, kvp.Value.PersonCount, kvp.Value.StudyCount),
+        StringComparer.OrdinalIgnoreCase);
+
+    var plan = RejectedNameSync.Plan(existingRejected, failing, overriddenNames);
+
+    foreach (var add in plan.ToAdd)
     {
-        existingByName[r.FullName] = r;
+        upsertCtx.Set<RejectedInvestigatorNameEntity>().Add(add);
     }
 
-    foreach (var kvp in rejectedByFilter)
+    foreach (var remove in plan.ToRemove)
     {
-        var (reason, personCount, studyCount) = kvp.Value;
-        if (existingByName.TryGetValue(kvp.Key, out var entity))
-        {
-            entity.OccurrenceCount = personCount;
-            entity.StudyCount = studyCount;
-            entity.RejectionReason = reason;
-            entity.UpdatedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            upsertCtx.Set<RejectedInvestigatorNameEntity>().Add(new RejectedInvestigatorNameEntity
-            {
-                Id = Guid.NewGuid(),
-                FullName = kvp.Key,
-                OccurrenceCount = personCount,
-                StudyCount = studyCount,
-                RejectionReason = reason,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-        }
-    }
-
-    // Remove entries that no longer fail the filter
-    var toRemove = existingRejected
-        .Where(e => !rejectedByFilter.ContainsKey(e.FullName))
-        .ToList();
-    foreach (var r in toRemove)
-    {
-        upsertCtx.Set<RejectedInvestigatorNameEntity>().Remove(r);
+        upsertCtx.Set<RejectedInvestigatorNameEntity>().Remove(remove);
     }
 
     await upsertCtx.SaveChangesAsync();
+
+    var preservedOverrides = existingRejected.Count(e => e.IsHumanOverride == true);
+    await Console.Out.WriteLineAsync($"Rejected names sync: +{plan.ToAdd.Count} added, {plan.ToUpdate.Count} updated, {plan.ToRemove.Count} removed ({preservedOverrides} override entries preserved).");
 }
 
 if (leaks.Count == 0)
@@ -208,7 +194,7 @@ else
     {
         await Console.Out.WriteLineAsync($"    \"{entry.Key}\" — reason={entry.Value.Reason}, {entry.Value.StudyCount} studies, {entry.Value.PersonCount} occurrences");
     }
-    await Console.Out.WriteLineAsync("\nUpdate NameFilter.cs to catch these patterns, commit, then re-run.");
+    await Console.Out.WriteLineAsync("\nBefore adding new NameFilter rules: mark real names as human via the review UI (Status page), then re-run to confirm only non-human entries remain.");
 }
 
 if (container != null)
