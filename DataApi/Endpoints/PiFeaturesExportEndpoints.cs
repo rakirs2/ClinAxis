@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Scrapers;
 using Scrapers.Persistence;
+using DataApi.Services;
 
 namespace DataApi.Endpoints;
 
@@ -28,17 +29,6 @@ internal static class PiFeaturesExportEndpoints
     private const string DateFormat = "yyyy-MM-dd";
     private const string PrincipalInvestigatorRole = "PRINCIPAL_INVESTIGATOR";
     private const string SemanticScholarSource = "SemanticScholar";
-    private const string Found = "found";
-
-    private static readonly string[] Header =
-    [
-        "study_nct_id", "person_id", "full_name", "overall_status", "label",
-        "prior_study_count", "prior_completed_count", "prior_enrollment_total", "prior_completion_rate",
-        "papers_before_start", "papers_per_year_before_start",
-        "medicare_beneficiaries", "medicare_services", "medicare_payments", "medicare_risk_score", "has_medicare",
-        "research_payments", "general_payments", "payor_count", "has_payments",
-        "current_h_index", "citation_count", "i10_index", "total_papers", "has_metrics",
-    ];
 
     internal static void MapPiFeaturesExportEndpoints(this WebApplication app, string connectionString)
     {
@@ -91,23 +81,8 @@ internal static class PiFeaturesExportEndpoints
                 .GroupBy(h => h.InvestigatorPersonId)
                 .ToDictionary(
                     g => g.Key,
-                    g =>
-                    {
-                        var studies = g
-                            .GroupBy(s => s.StudyNctId)
-                            .Select(s => new
-                            {
-                                s.Key,
-                                Completed = s.Any(x => x.OverallStatus == "COMPLETED"),
-                                Enrollment = s.Max(x => x.EnrollmentCount) ?? 0
-                            })
-                            .ToList();
-                        var studyCount = studies.Count;
-                        var completed = studies.Count(s => s.Completed);
-                        var enrollmentTotal = studies.Sum(s => s.Enrollment);
-                        var completionRate = studyCount > 0 ? (double)completed / studyCount : 0.0;
-                        return new HistoryFeatures(studyCount, completed, enrollmentTotal, completionRate);
-                    });
+                    g => PiFeatureRowBuilder.ComputeHistoryFeatures(
+                        g.Select(x => new HistoryStudyRow(x.StudyNctId, x.OverallStatus, x.EnrollmentCount))));
 
             var papersByPerson = (await (
                 from ip in ctx.InvestigatorPapers
@@ -133,7 +108,10 @@ internal static class PiFeaturesExportEndpoints
                 .AsNoTracking()
                 .ToListAsync())
                 .GroupBy(m => m.InvestigatorPersonId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+                .ToDictionary(g => g.Key, g => g
+                    .Select(m => new MedicareRow(
+                        m.DataYear, m.TotalBeneficiaries, m.TotalServices, m.TotalMedicarePaymentAmount, m.AvgRiskScore))
+                    .ToList());
 
             var openPaymentsByPerson = (await ctx.OpenPayments
                 .Where(o => personIds.Contains(o.InvestigatorPersonId))
@@ -141,7 +119,9 @@ internal static class PiFeaturesExportEndpoints
                 .AsNoTracking()
                 .ToListAsync())
                 .GroupBy(o => o.InvestigatorPersonId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+                .ToDictionary(g => g.Key, g => g
+                    .Select(o => new OpenPaymentRow(o.DataYear, o.PaymentType, o.PaymentAmount, o.PayorName))
+                    .ToList());
 
             var metricsByPerson = (await ctx.InvestigatorMetrics
                 .Where(m => personIds.Contains(m.InvestigatorPersonId) && m.Source == SemanticScholarSource)
@@ -149,80 +129,23 @@ internal static class PiFeaturesExportEndpoints
                 .AsNoTracking()
                 .ToListAsync())
                 .GroupBy(m => m.InvestigatorPersonId)
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g
+                    .Select(m => new MetricsRow(m.HIndex, m.CitationCount, m.I10Index, m.TotalPapers, m.LookupResult))
+                    .First());
 
             response.ContentType = "text/csv";
             response.Headers["Content-Disposition"] = "attachment; filename=\"pi-features.csv\"";
-            await response.WriteAsync(string.Join(",", Header) + "\n");
+            await response.WriteAsync(string.Join(",", PiFeatureRowBuilder.Header) + "\n");
 
             foreach (var t in targets)
             {
-                var h = historyByPerson.GetValueOrDefault(t.PersonId, HistoryFeatures.Empty);
-                var label = t.OverallStatus == "COMPLETED" ? 1 : 0;
-
-                var papers = papersByPerson.GetValueOrDefault(t.PersonId, []);
-                var papersBefore = papers.Count(p => p < t.StartDate);
-                var firstPaperYear = papers.Count > 0 ? papers[0].Year : (int?)null;
-                var papersPerYear = papersBefore > 0 && firstPaperYear.HasValue
-                    ? (double)papersBefore / Math.Max(1, t.StartDate.Year - firstPaperYear.Value + 1)
-                    : 0.0;
-
-                var medicare = medicareByPerson.GetValueOrDefault(t.PersonId, []);
-                var mRows = medicare.Where(m => m.DataYear <= t.StartDate.Year).ToList();
-                var hasMedicare = mRows.Count > 0;
-                var beneficiaries = mRows.Sum(m => (long?)m.TotalBeneficiaries) ?? 0L;
-                var services = mRows.Sum(m => m.TotalServices) ?? 0L;
-                var payments = mRows.Sum(m => (double?)m.TotalMedicarePaymentAmount) ?? 0.0;
-                var risks = mRows.Where(m => m.AvgRiskScore.HasValue).Select(m => (double)m.AvgRiskScore!.Value).ToList();
-                var riskScore = risks.Count > 0 ? risks.Average() : 0.0;
-
-                var paymentsRows = openPaymentsByPerson.GetValueOrDefault(t.PersonId, [])
-                    .Where(o => o.DataYear <= t.StartDate.Year)
-                    .ToList();
-                var hasPayments = paymentsRows.Count > 0;
-                var research = paymentsRows
-                    .Where(o => o.PaymentType == "research")
-                    .Sum(o => (double?)o.PaymentAmount) ?? 0.0;
-                var general = paymentsRows
-                    .Where(o => o.PaymentType != "research")
-                    .Sum(o => (double?)o.PaymentAmount) ?? 0.0;
-                var payorCount = paymentsRows
-                    .Select(o => o.PayorName)
-                    .Where(n => !string.IsNullOrWhiteSpace(n))
-                    .Distinct()
-                    .Count();
-
-                var metric = metricsByPerson.GetValueOrDefault(t.PersonId);
-                var hasMetrics = metric?.LookupResult == Found;
-
-                var cols = new string[]
-                {
-                    t.StudyNctId,
-                    t.PersonId.ToString(),
-                    Quote(t.FullName ?? string.Empty),
-                    t.OverallStatus,
-                    label.ToString(CultureInfo.InvariantCulture),
-                    h.StudyCount.ToString(CultureInfo.InvariantCulture),
-                    h.CompletedCount.ToString(CultureInfo.InvariantCulture),
-                    h.EnrollmentTotal.ToString(CultureInfo.InvariantCulture),
-                    Fmt(h.CompletionRate),
-                    papersBefore.ToString(CultureInfo.InvariantCulture),
-                    Fmt(papersPerYear),
-                    beneficiaries.ToString(CultureInfo.InvariantCulture),
-                    services.ToString(CultureInfo.InvariantCulture),
-                    Fmt(payments),
-                    Fmt(riskScore),
-                    Bool(hasMedicare),
-                    Fmt(research),
-                    Fmt(general),
-                    payorCount.ToString(CultureInfo.InvariantCulture),
-                    Bool(hasPayments),
-                    (metric?.HIndex ?? 0).ToString(CultureInfo.InvariantCulture),
-                    (metric?.CitationCount ?? 0).ToString(CultureInfo.InvariantCulture),
-                    (metric?.I10Index ?? 0).ToString(CultureInfo.InvariantCulture),
-                    (metric?.TotalPapers ?? 0).ToString(CultureInfo.InvariantCulture),
-                    Bool(hasMetrics),
-                };
+                var cols = PiFeatureRowBuilder.BuildRow(
+                    t,
+                    historyByPerson.GetValueOrDefault(t.PersonId, HistoryFeatures.Empty),
+                    papersByPerson.GetValueOrDefault(t.PersonId, []),
+                    medicareByPerson.GetValueOrDefault(t.PersonId, []),
+                    openPaymentsByPerson.GetValueOrDefault(t.PersonId, []),
+                    metricsByPerson.GetValueOrDefault(t.PersonId));
                 await response.WriteAsync(string.Join(",", cols) + "\n");
             }
         });
@@ -277,27 +200,5 @@ internal static class PiFeaturesExportEndpoints
         }
 
         return null;
-    }
-
-    private static string Quote(string value)
-    {
-        return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-    }
-
-    private static string Fmt(double value)
-    {
-        return value.ToString("0.######", CultureInfo.InvariantCulture);
-    }
-
-    private static string Bool(bool value)
-    {
-        return value ? "1" : "0";
-    }
-
-    private sealed record TargetRow(string StudyNctId, Guid PersonId, string? FullName, DateOnly StartDate, string OverallStatus, int? EnrollmentCount);
-
-    private sealed record HistoryFeatures(int StudyCount, int CompletedCount, long EnrollmentTotal, double CompletionRate)
-    {
-        public static HistoryFeatures Empty { get; } = new(0, 0, 0, 0.0);
     }
 }

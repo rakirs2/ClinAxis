@@ -62,14 +62,14 @@
                     <tr class="table-danger">
                         <td>@evt.id</td>
                         <td><code>@evt.eventType</code></td>
-                        <td><small>@TruncatePayload(evt.data)</small></td>
-                        <td>@FormatDate(evt.createdAt)</td>
+                        <td><small>@DataQualityFormatting.TruncatePayload(evt.data)</small></td>
+                        <td>@DataQualityFormatting.FormatDate(evt.createdAt)</td>
                         <td>@evt.retryCount</td>
                         <td>
                             @if (!string.IsNullOrEmpty(evt.errorMessage) && evt.errorMessage.Length > 80)
                             {
                                 <details>
-                                    <summary style="cursor:pointer"><small>@TruncateText(evt.errorMessage, 80)</small></summary>
+                                    <summary style="cursor:pointer"><small>@DataQualityFormatting.TruncateText(evt.errorMessage, 80)</small></summary>
                                     <pre class="mt-1 p-2 bg-light border rounded" style="max-height:300px; overflow-y:auto; font-size:0.75rem; white-space:pre-wrap">@evt.errorMessage</pre>
                                 </details>
                             }
@@ -159,7 +159,7 @@ else if (activeTab == 1)
                     <tr>
                         <td><code>@item.value</code></td>
                         <td>@item.studyNctId</td>
-                        <td>@FormatDate(item.rejectedAt)</td>
+                        <td>@DataQualityFormatting.FormatDate(item.rejectedAt)</td>
                     </tr>
                 }
             </tbody>
@@ -236,7 +236,7 @@ else if (activeTab == 2)
                     <tr>
                         <td><code>@item.value</code></td>
                         <td>@item.studyNctId</td>
-                        <td>@FormatDate(item.rejectedAt)</td>
+                        <td>@DataQualityFormatting.FormatDate(item.rejectedAt)</td>
                     </tr>
                 }
             </tbody>
@@ -297,7 +297,7 @@ else if (activeTab == 3)
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-success">
                     <div class="card-body text-center">
-                        <h5 class="card-title display-6">@GetCount("assigned")</h5>
+                        <h5 class="card-title display-6">@DataQualityFormatting.GetCount(enrichmentBreakdown, "assigned")</h5>
                         <p class="card-text">Assigned</p>
                     </div>
                 </div>
@@ -305,7 +305,7 @@ else if (activeTab == 3)
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-warning">
                     <div class="card-body text-center">
-                        <h5 class="card-title display-6">@GetCount("ambiguous")</h5>
+                        <h5 class="card-title display-6">@DataQualityFormatting.GetCount(enrichmentBreakdown, "ambiguous")</h5>
                         <p class="card-text">Ambiguous</p>
                     </div>
                 </div>
@@ -313,7 +313,7 @@ else if (activeTab == 3)
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-secondary">
                     <div class="card-body text-center">
-                        <h5 class="card-title display-6">@GetCount("not_found")</h5>
+                        <h5 class="card-title display-6">@DataQualityFormatting.GetCount(enrichmentBreakdown, "not_found")</h5>
                         <p class="card-text">Not Found</p>
                     </div>
                 </div>
@@ -321,7 +321,7 @@ else if (activeTab == 3)
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-danger">
                     <div class="card-body text-center">
-                        <h5 class="card-title display-6">@GetCount("error")</h5>
+                        <h5 class="card-title display-6">@DataQualityFormatting.GetCount(enrichmentBreakdown, "error")</h5>
                         <p class="card-text">Error</p>
                     </div>
                 </div>
@@ -329,7 +329,7 @@ else if (activeTab == 3)
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-info">
                     <div class="card-body text-center">
-                        <h5 class="card-title display-6">@GetCount("pending")</h5>
+                        <h5 class="card-title display-6">@DataQualityFormatting.GetCount(enrichmentBreakdown, "pending")</h5>
                         <p class="card-text">Pending</p>
                     </div>
                 </div>
@@ -527,9 +527,6 @@ else if (activeTab == 3)
     private bool enrichmentLoading;
     private string? enrichmentError;
 
-    private int GetCount(string key) =>
-        enrichmentBreakdown is not null && enrichmentBreakdown.TryGetValue(key, out var count) ? count : 0;
-
     private async Task LoadEnrichmentBreakdown()
     {
         enrichmentLoading = true;
@@ -547,23 +544,6 @@ else if (activeTab == 3)
         {
             enrichmentLoading = false;
         }
-    }
-
-    // ============== Shared ==============
-
-    private static string FormatDate(DateTime dt) =>
-        dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
-
-    private static string TruncatePayload(string? data)
-    {
-        if (string.IsNullOrEmpty(data)) return "--";
-        return data.Length > 50 ? data[..50] + "..." : data;
-    }
-
-    private static string TruncateText(string? text, int maxLen)
-    {
-        if (string.IsNullOrEmpty(text)) return "";
-        return text.Length > maxLen ? text[..maxLen] + "..." : text;
     }
 
     // ============== DTOs ==============
