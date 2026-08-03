@@ -1,16 +1,28 @@
+using System.Net;
+using System.Text.Json;
 using Bunit;
 using Frontend.Components.Layouts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using RichardSzalay.MockHttp;
 
 namespace Frontend.Tests;
 
 [TestClass]
 public sealed class NavBarTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     [TestMethod]
-    public void NavigationHasSixTabs()
+    public void NavigationHasSevenTabs()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -22,6 +34,9 @@ public sealed class NavBarTests
     public void NavigationTabLabelsAreCorrect()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -39,6 +54,9 @@ public sealed class NavBarTests
     public void NavigationTabHrefsAreCorrect()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -50,5 +68,21 @@ public sealed class NavBarTests
         Assert.AreEqual("/data-quality", cut.FindAll(".nav-link")[4].GetAttribute("href"));
         Assert.AreEqual("/blog", cut.FindAll(".nav-link")[5].GetAttribute("href"));
         Assert.AreEqual("/status", cut.FindAll(".nav-link")[6].GetAttribute("href"));
+    }
+
+    private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
+    {
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        return client;
+    }
+
+    private static void MockMainLayout(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/page-views/stats?period=day")
+            .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 42, uniqueVisitors = 7 }, JsonOptions));
+
+        mockHttp.When(HttpMethod.Post, "http://localhost:5003/api/page-views")
+            .Respond(HttpStatusCode.OK, "application/json", "{\"id\": 1}");
     }
 }

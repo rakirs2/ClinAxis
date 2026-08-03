@@ -1,16 +1,28 @@
+using System.Net;
+using System.Text.Json;
 using Bunit;
 using Frontend.Components.Layouts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using RichardSzalay.MockHttp;
 
 namespace Frontend.Tests;
 
 [TestClass]
 public sealed class FooterTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     [TestMethod]
     public void FooterRendersDonationText()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -22,6 +34,9 @@ public sealed class FooterTests
     public void FooterRendersKoFiLink()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -36,6 +51,9 @@ public sealed class FooterTests
     public void FooterRendersCreditText()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -47,6 +65,9 @@ public sealed class FooterTests
     public void FooterRendersGitHubLink()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -61,6 +82,9 @@ public sealed class FooterTests
     public void FooterRendersLinkedInLink()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -75,6 +99,9 @@ public sealed class FooterTests
     public void FooterRendersKoFiIcon()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -89,6 +116,9 @@ public sealed class FooterTests
     public void FooterRendersGitHubIcon()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -103,6 +133,9 @@ public sealed class FooterTests
     public void FooterRendersLinkedInIcon()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -117,6 +150,9 @@ public sealed class FooterTests
     public void FooterRendersGrandOverlordBadge()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -128,9 +164,29 @@ public sealed class FooterTests
     }
 
     [TestMethod]
+    public void FooterRendersVisitorCountWhenStatsAvailable()
+    {
+        using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
+
+        IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
+            parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
+
+        cut.WaitForState(() => cut.Markup.Contains("Visitors today:", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        var footer = cut.Find("footer");
+        Assert.IsTrue(footer.TextContent.Contains("42", StringComparison.Ordinal), "Footer should show total views");
+        Assert.IsTrue(footer.TextContent.Contains('7', StringComparison.Ordinal), "Footer should show unique visitors");
+    }
+
+    [TestMethod]
     public void FooterIsOutsideContainer()
     {
         using BunitContext ctx = new();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockMainLayout(mockHttp);
+        ctx.Services.AddSingleton(BuildClient(mockHttp));
 
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
@@ -145,5 +201,21 @@ public sealed class FooterTests
         int lastContainerEnd = html.LastIndexOf("</div>", StringComparison.Ordinal);
         int footerStart = html.IndexOf("<footer", StringComparison.Ordinal);
         Assert.IsTrue(footerStart > lastContainerEnd, "Footer markup should appear after the last container div");
+    }
+
+    private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
+    {
+        var client = mockHttp.ToHttpClient();
+        client.BaseAddress = new Uri("http://localhost:5003");
+        return client;
+    }
+
+    private static void MockMainLayout(MockHttpMessageHandler mockHttp)
+    {
+        mockHttp.When("http://localhost:5003/api/page-views/stats?period=day")
+            .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 42, uniqueVisitors = 7 }, JsonOptions));
+
+        mockHttp.When(HttpMethod.Post, "http://localhost:5003/api/page-views")
+            .Respond(HttpStatusCode.OK, "application/json", "{\"id\": 1}");
     }
 }

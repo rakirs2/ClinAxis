@@ -57,6 +57,26 @@ public sealed class SchemaGuardTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
+    public async Task PageViewsTable_HasRequiredColumnsAndIndexes()
+    {
+        var columns = await GetColumnsAsync("page_views");
+
+        Assert.IsTrue(columns.Any(c => c.Name == "id" && c.Type == "integer"), "id column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "path" && c.Type == "character varying"), "path column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "session_id" && c.Type == "character varying"), "session_id column missing or wrong type");
+        Assert.IsTrue(columns.Any(c => c.Name == "viewed_at" && c.Type == "timestamp with time zone"), "viewed_at column missing or wrong type");
+
+        var indexes = await GetIndexesAsync("page_views", "IX_page_views_");
+        Assert.IsNotNull(indexes.FirstOrDefault(i => i.Contains("viewed_at", StringComparison.Ordinal)),
+            "Missing index on page_views(viewed_at). " +
+            $"Found indexes: {string.Join(", ", indexes)}");
+        Assert.IsNotNull(indexes.FirstOrDefault(i => i.Contains("path", StringComparison.Ordinal)),
+            "Missing index on page_views(path). " +
+            $"Found indexes: {string.Join(", ", indexes)}");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
     public async Task PersonIdentifierCandidatesTable_HasEnrichmentFeatureColumns()
     {
         var columns = await GetColumnsAsync("person_identifier_candidates");

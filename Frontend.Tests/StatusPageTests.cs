@@ -109,6 +109,24 @@ public sealed class StatusPageTests
         Assert.IsTrue(markup.Contains("Failure Rate", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void StatusPageRendersVisitorCounts()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Visitors", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        var markup = cut.Markup;
+        Assert.IsTrue(markup.Contains("10 views", StringComparison.Ordinal), "Should show total views");
+        Assert.IsTrue(markup.Contains("4 unique", StringComparison.Ordinal), "Should show unique visitors");
+        Assert.IsTrue(markup.Contains("This week", StringComparison.Ordinal));
+        Assert.IsTrue(markup.Contains("This month", StringComparison.Ordinal));
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();
@@ -132,5 +150,38 @@ public sealed class StatusPageTests
 
         mockHttp.When("http://localhost:5003/api/event-queue/dead-letter")
             .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+    }
+
+    private static void MockDefaultsWithStats(MockHttpMessageHandler mockHttp)
+    {
+        MockDefaults(mockHttp);
+
+        mockHttp.When("http://localhost:5003/api/event-queue/stats")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                pendingCount = 0,
+                processingCount = 0,
+                completedCount = 50,
+                deadLetterCount = 0,
+                failedCount = 0,
+                averageProcessingTimeMs = 0.0,
+                failureRate = 0.0,
+                estimatedTimeRemainingMs = (double?)null
+            }, JsonOptions));
+
+        mockHttp.When("http://localhost:5003/api/rejected-names")
+            .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+
+        mockHttp.When("http://localhost:5003/api/scraper-progress")
+            .Respond("application/json", JsonSerializer.Serialize(new { }, JsonOptions));
+
+        mockHttp.When("http://localhost:5003/api/page-views/stats?period=day")
+            .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 10, uniqueVisitors = 4 }, JsonOptions));
+
+        mockHttp.When("http://localhost:5003/api/page-views/stats?period=week")
+            .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 25, uniqueVisitors = 9 }, JsonOptions));
+
+        mockHttp.When("http://localhost:5003/api/page-views/stats?period=month")
+            .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 100, uniqueVisitors = 20 }, JsonOptions));
     }
 }
