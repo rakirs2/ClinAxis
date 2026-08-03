@@ -31,9 +31,9 @@ public sealed class KeywordFilterTests
             ],
             conditions: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cancer" });
 
-        Assert.AreEqual(4, cleaned.Count, "Only LUNG CANCER, HIV, PARKINSON'S DISEASE, EXERCISE should remain");
+        Assert.AreEqual(4, cleaned.Count, "Only LUNG CANCER, HUMAN IMMUNODEFICIENCY VIRUS, PARKINSON'S DISEASE, EXERCISE should remain");
         CollectionAssert.Contains(cleaned, "LUNG CANCER");
-        CollectionAssert.Contains(cleaned, "HIV");
+        CollectionAssert.Contains(cleaned, "HUMAN IMMUNODEFICIENCY VIRUS");
         CollectionAssert.Contains(cleaned, "PARKINSON'S DISEASE");
         CollectionAssert.Contains(cleaned, "EXERCISE");
 
@@ -60,7 +60,85 @@ public sealed class KeywordFilterTests
     {
         var (cleaned, _) = KeywordFilter.Filter(["HIV"], null);
 
-        CollectionAssert.Contains(cleaned, "HIV");
+        CollectionAssert.Contains(cleaned, "HUMAN IMMUNODEFICIENCY VIRUS");
+    }
+
+    [TestMethod]
+    public void Filter_Acronym_IsExpandedToFullTerm()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(["MI", "CVA", "DKA", "PE", "DVT", "ARDS", "MRSA", "AF", "HF"], null);
+
+        Assert.AreEqual(9, cleaned.Count);
+        CollectionAssert.Contains(cleaned, "MYOCARDIAL INFARCTION");
+        CollectionAssert.Contains(cleaned, "CEREBROVASCULAR ACCIDENT");
+        CollectionAssert.Contains(cleaned, "DIABETIC KETOACIDOSIS");
+        CollectionAssert.Contains(cleaned, "PULMONARY EMBOLISM");
+        CollectionAssert.Contains(cleaned, "DEEP VEIN THROMBOSIS");
+        CollectionAssert.Contains(cleaned, "ACUTE RESPIRATORY DISTRESS SYNDROME");
+        CollectionAssert.Contains(cleaned, "METHICILLIN-RESISTANT STAPHYLOCOCCUS AUREUS");
+        CollectionAssert.Contains(cleaned, "ATRIAL FIBRILLATION");
+        CollectionAssert.Contains(cleaned, "HEART FAILURE");
+        Assert.AreEqual(0, rejected.Count);
+    }
+
+    [TestMethod]
+    public void ExpandAcronym_IsCaseInsensitive()
+    {
+        Assert.AreEqual("myocardial infarction", KeywordFilter.ExpandAcronym("MI"));
+        Assert.AreEqual("myocardial infarction", KeywordFilter.ExpandAcronym("mi"));
+        Assert.AreEqual("myocardial infarction", KeywordFilter.ExpandAcronym("  MI  "));
+    }
+
+    [TestMethod]
+    public void ExpandAcronym_NonAcronym_IsUnchanged()
+    {
+        Assert.AreEqual("cancer", KeywordFilter.ExpandAcronym("cancer"));
+        Assert.AreEqual("lung cancer", KeywordFilter.ExpandAcronym("lung cancer"));
+        Assert.AreEqual("", KeywordFilter.ExpandAcronym(""));
+    }
+
+    [TestMethod]
+    public void ExpandAcronym_MultiWordKeyword_IsUnchanged()
+    {
+        Assert.AreEqual("MI protocol", KeywordFilter.ExpandAcronym("MI protocol"));
+    }
+
+    [TestMethod]
+    public void Filter_UnknownShortAcronym_IsStillRejected()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(["XZ"], null);
+
+        Assert.AreEqual(0, cleaned.Count);
+        CollectionAssert.Contains(rejected, "XZ");
+    }
+
+    [TestMethod]
+    public void Filter_ExpandedAcronym_DeduplicatesAgainstFullTerm()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(["MI", "myocardial infarction"], null);
+
+        Assert.AreEqual(1, cleaned.Count);
+        CollectionAssert.Contains(cleaned, "MYOCARDIAL INFARCTION");
+        Assert.AreEqual(0, rejected.Count);
+    }
+
+    [TestMethod]
+    public void Filter_ExpandedAcronym_DroppedWhenConditionAlreadyCoversIt()
+    {
+        var (cleaned, rejected) = KeywordFilter.Filter(
+            ["MI"],
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "myocardial infarction" });
+
+        Assert.AreEqual(0, cleaned.Count, "Expanded term is a condition duplicate");
+        Assert.AreEqual(0, rejected.Count, "Condition-duplicate keywords are not rejected");
+    }
+
+    [TestMethod]
+    public void Filter_ShortListFallback_StillKeepsNonExpandedTerms()
+    {
+        var (cleaned, _) = KeywordFilter.Filter(["ICU"], null);
+
+        CollectionAssert.Contains(cleaned, "ICU");
     }
 
     [TestMethod]
