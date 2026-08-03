@@ -260,6 +260,53 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_NormalizesLocationFreeText()
+    {
+        // Issue #380: country aliases -> canonical, US states -> 2-letter codes,
+        // city/facility trimmed and whitespace-collapsed.
+        ClinicalTrialRecord record = CreateRecord("NCT00000006", "Location Normalization Study", "RECRUITING",
+            [
+                new Investigator { Name = "George Hale", Affiliation = "Med Center", Role = "PRINCIPAL_INVESTIGATOR" }
+            ]);
+        record.Locations =
+        [
+            new StudyListResponse.Location
+            {
+                Facility = "  Johns  Hopkins   Hospital ",
+                City = "  Baltimore  ",
+                State = "Maryland",
+                Country = "U.S.A."
+            },
+            new StudyListResponse.Location
+            {
+                Facility = "Berlin  Clinic",
+                City = " Berlin ",
+                State = " Berlin ",
+                Country = " Germany "
+            }
+        ];
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var stored = await Context.StudyLocations
+            .Where(l => l.StudyNctId == "NCT00000006")
+            .OrderBy(l => l.Facility)
+            .ToListAsync();
+        Assert.AreEqual(2, stored.Count);
+
+        var us = stored.First(l => l.Country == "United States");
+        Assert.AreEqual("Johns Hopkins Hospital", us.Facility);
+        Assert.AreEqual("Baltimore", us.City);
+        Assert.AreEqual("MD", us.State, "US state full name must become its 2-letter code");
+
+        var de = stored.First(l => l.Country == "Germany");
+        Assert.AreEqual("Berlin Clinic", de.Facility);
+        Assert.AreEqual("Berlin", de.City);
+        Assert.AreEqual("Berlin", de.State, "Non-US state/province preserved as-is");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
     public async Task ScrubInvestigatorPapersAsync_OnlyScopesToPersonsOwnStudies()
     {
         // Regression test for issue #334: the scrub previously scanned every distinct

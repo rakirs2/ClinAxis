@@ -329,7 +329,11 @@ namespace Scrapers.Persistence
                         }
                     }
 
-                    // Populate locations from API response (fix data loss bug)
+                    // Populate locations from API response (fix data loss bug).
+                    // Fields are normalized (issue #380): country aliases ->
+                    // canonical name, US states -> 2-letter codes, trim/collapse
+                    // whitespace. The normalized values feed the MeSH Z-geographical
+                    // match so "U.S.A." resolves to the "United States" descriptor.
                     entity.Locations!.Clear();
                     if (record.Locations != null && record.Locations.Count > 0)
                     {
@@ -337,14 +341,16 @@ namespace Scrapers.Persistence
                         {
                             if (location != null)
                             {
-                                var locDescriptorId = _locationMatcher?.Match(location.Country, location.State);
+                                var country = LocationNormalizer.NormalizeCountry(location.Country);
+                                var state = LocationNormalizer.NormalizeState(location.State);
+                                var locDescriptorId = _locationMatcher?.Match(country, state);
                                 entity.Locations.Add(new StudyLocationEntity
                                 {
                                     StudyNctId = record.NctId!,
-                                    Facility = location.Facility,
-                                    City = location.City,
-                                    State = location.State,
-                                    Country = location.Country,
+                                    Facility = LocationNormalizer.NormalizeFacility(location.Facility),
+                                    City = LocationNormalizer.NormalizeCity(location.City),
+                                    State = state,
+                                    Country = country,
                                     MeshDescriptorId = locDescriptorId
                                 });
                             }
