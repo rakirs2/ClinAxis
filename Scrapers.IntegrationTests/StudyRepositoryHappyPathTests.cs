@@ -1,9 +1,13 @@
+using System;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Services;
 using Scrapers.Testing;
 
 namespace Scrapers.IntegrationTests;
@@ -307,6 +311,50 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
 
     [TestMethod]
     [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_ExpandsAcronyms_PersistsFullTermsAndRecordsEvaluations()
+    {
+        // Issue #355: whole-keyword acronyms expand to canonical medical terms
+        // BEFORE the length/blocklist rules, so MI/CVA/DKA/PE are persisted.
+        using var matcher = new MeSHMatcher(Path.Combine(AppContext.BaseDirectory, "Resources", "mesh"));
+        var repo = new StudyRepository(ConnectionString, meshMatcher: matcher);
+
+        ClinicalTrialRecord record = CreateRecord("NCT00000005", "Acronym Keyword Study", "RECRUITING",
+            [
+                new Investigator { Name = "Fiona Grant", Affiliation = "Med Center", Role = "PRINCIPAL_INVESTIGATOR" }
+            ]);
+        record.Keywords = ["MI", "CVA", "DKA", "PE", "XZ"];
+
+        var ingested = await repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+        Assert.AreEqual(1, ingested);
+
+        var storedKeywords = await Context.StudyKeywords
+            .Where(k => k.StudyNctId == "NCT00000005")
+            .Select(k => k.Keyword)
+            .OrderBy(k => k)
+            .ToListAsync();
+        CollectionAssert.AreEquivalent(
+            new[] { "CEREBROVASCULAR ACCIDENT", "DIABETIC KETOACIDOSIS", "MYOCARDIAL INFARCTION", "PULMONARY EMBOLISM" },
+            storedKeywords,
+            "Acronyms must be persisted as their expanded canonical terms; unknown acronym XZ stays rejected");
+
+        var evaluations = await Context.RejectedTerms
+            .Where(t => t.StudyNctId == "NCT00000005" && t.Source == "keyword")
+            .ToListAsync();
+        Assert.AreEqual(9, evaluations.Count, "5 raw + 4 expanded keyword evaluations recorded (XZ has no expansion)");
+        CollectionAssert.Contains(
+            evaluations.Select(e => e.Value).ToList(),
+            "myocardial infarction",
+            "Expanded form must be recorded for analysis");
+        var expandedMatch = evaluations.First(e => e.Value == "myocardial infarction");
+        Assert.IsTrue(expandedMatch.SideBMatched, "Expanded term resolves to its MeSH descriptor (>= 0.8)");
+        Assert.AreEqual("Myocardial Infarction", expandedMatch.SideBMeshTerm);
+        var rawMi = evaluations.First(e => e.Value == "MI");
+        Assert.IsFalse(rawMi.SideBMatched, "Raw acronym scores below the 0.8 threshold — expansion is what rescues it");
+        Assert.AreEqual(4, evaluations.Count(e => e.SideBMatched), "Only the 4 expanded canonical terms match MeSH");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
     public async Task ScrubInvestigatorPapersAsync_OnlyScopesToPersonsOwnStudies()
     {
         // Regression test for issue #334: the scrub previously scanned every distinct
@@ -351,6 +399,80 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
             .Select(ip => ip.PubmedPaper!.Pmid)
             .ToListAsync();
         CollectionAssert.AreEquivalent(new[] { "30001001", "30001002" }, linkedPmids);
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_AcceptsDesignDescriptors_RejectsOnlyJunk()
+    {
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000009",
+            BriefTitle = "Design Descriptor Keywords Study",
+            OverallStatus = "RECRUITING",
+            Conditions = ["Diabetes"],
+            OverallOfficials =
+            [
+                new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "PRINCIPAL_INVESTIGATOR" }
+            ],
+            Keywords = ["Pilot Study", "Randomised Controlled Trial", "safety", "treatment", "Diabetes"]
+        };
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var keywords = await Context.StudyKeywords
+            .Where(k => k.StudyNctId == "NCT00000009")
+            .Select(k => k.Keyword)
+            .ToListAsync();
+        CollectionAssert.Contains(keywords, "PILOT STUDY");
+        CollectionAssert.Contains(keywords, "RANDOMISED CONTROLLED TRIAL");
+        Assert.AreEqual(2, keywords.Count, "Condition-duplicate DIABETES is stored as a condition, not a keyword");
+        Assert.IsFalse(keywords.Contains("SAFETY"), "Junk keyword must not be persisted");
+        Assert.IsFalse(keywords.Contains("TREATMENT"), "Junk keyword must not be persisted");
+
+        var (rejected, total) = await _repo.GetRejectedEntitiesPagedAsync("keyword", 1, 50);
+        Assert.AreEqual(2, total, "Only SAFETY and TREATMENT are rejected");
+        CollectionAssert.AreEquivalent(
+            new[] { "SAFETY", "TREATMENT" },
+            rejected.Select(r => r.Value).ToList());
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_MeSHGate_RescuesNothingJunk()
+    {
+        var meshResourcesPath = Path.Combine(AppContext.BaseDirectory, "Resources", "mesh");
+        using var matcher = new Scrapers.Services.MeSHMatcher(meshResourcesPath);
+        var repo = new StudyRepository(ConnectionString, matcher);
+
+        var record = new ClinicalTrialRecord
+        {
+            NctId = "NCT00000010",
+            BriefTitle = "MeSH Gate Keywords Study",
+            OverallStatus = "RECRUITING",
+            OverallOfficials =
+            [
+                new Investigator { Name = "Eve Adams", Affiliation = "Wellness Org", Role = "PRINCIPAL_INVESTIGATOR" }
+            ],
+            Keywords = ["treatment", "prognosis", "CVA", "Pilot Study"]
+        };
+
+        await repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var keywords = await Context.StudyKeywords
+            .Where(k => k.StudyNctId == "NCT00000010")
+            .Select(k => k.Keyword)
+            .ToListAsync();
+        Assert.AreEqual(2, keywords.Count,
+            "Allowlisted design descriptor + acronym-expanded CVA are kept (issue #355: CVA -> cerebrovascular accident)");
+        CollectionAssert.Contains(keywords, "PILOT STUDY");
+        CollectionAssert.Contains(keywords, "CEREBROVASCULAR ACCIDENT");
+
+        var (rejected, total) = await repo.GetRejectedEntitiesPagedAsync("keyword", 1, 50);
+        Assert.AreEqual(2, total, "Junk stays rejected even when it matches MeSH");
+        CollectionAssert.AreEquivalent(
+            new[] { "TREATMENT", "PROGNOSIS" },
+            rejected.Select(r => r.Value).ToList());
     }
 
     private static ClinicalTrialRecord CreateRecord(string nctId, string title, string status,

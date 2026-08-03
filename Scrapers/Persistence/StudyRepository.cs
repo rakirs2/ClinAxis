@@ -247,20 +247,45 @@ namespace Scrapers.Persistence
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                         var (cleanedKeywords, rejected) = KeywordFilter.Filter(record.Keywords, conditions);
-                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         if (_meshMatcher != null)
                         {
+                            var meshMatchedKeywords = new List<string>();
                             foreach (var rawKw in record.Keywords)
                             {
                                 if (!string.IsNullOrWhiteSpace(rawKw))
                                 {
                                     var trimmed = rawKw.Trim();
+                                    var expanded = KeywordFilter.ExpandAcronym(trimmed);
+                                    if (!string.Equals(expanded, trimmed, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        // Acronym expanded (issue #355): record the canonical
+                                        // term's evaluation so the acceptance is analyzable in
+                                        // rejected_terms (raw acronym scores < 0.8, expanded
+                                        // form scores 1.0 on its MeSH descriptor).
+                                        meshMatchResults.Add(_meshMatcher.Match(expanded, "keyword", record.NctId!));
+                                    }
+
                                     var match = _meshMatcher.Match(trimmed, "keyword", record.NctId!);
                                     meshMatchResults.Add(match);
+                                    if (match.SideBMatched)
+                                    {
+                                        meshMatchedKeywords.Add(KeywordFilter.Normalize(trimmed));
+                                    }
                                 }
                             }
+
+                            // MeSH gate (issue #343): structural rejections (short
+                            // acronyms, punctuation, length) that still match a
+                            // descriptor are kept; generic junk never is.
+                            var junk = rejected.Where(KeywordFilter.IsJunkBlocked).ToList();
+                            var structural = rejected.Where(k => !KeywordFilter.IsJunkBlocked(k)).ToList();
+                            var (gateAccepted, stillRejected) = KeywordFilter.ApplyMeSHGate(structural, meshMatchedKeywords);
+                            cleanedKeywords.AddRange(gateAccepted);
+                            rejected = junk.Concat(stillRejected).ToList();
                         }
+
+                        rejectedKeywords.AddRange(rejected.Select(kw => $"{record.NctId}: {kw}"));
 
                         foreach (var kw in cleanedKeywords)
                         {
