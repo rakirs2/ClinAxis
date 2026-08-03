@@ -12,12 +12,14 @@ internal sealed class MeSHMatchCache
     private const int MaxEntries = 50_000;
 
     private readonly Dictionary<string, (int BestIdx, float BestScore)> _entries =
-        new(StringComparer.OrdinalIgnoreCase);
+        new(StringComparer.Ordinal);
 
     /// <summary>Total cache hits since construction (never reset on eviction).</summary>
     public int CacheHits { get; private set; }
 
-    public static string NormalizeKey(string value) => value.Trim().ToLowerInvariant();
+    // Case-sensitive: the BioBERT model is cased, so "MI" and "mi" tokenize to
+    // different embeddings and must not share a cache entry (issue #355 P4-e).
+    public static string NormalizeKey(string value) => value.Trim();
 
     public bool TryGet(string normalizedKey, out int bestIdx, out float bestScore)
     {

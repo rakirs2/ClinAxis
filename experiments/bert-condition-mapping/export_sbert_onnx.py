@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Export all-MiniLM-L6-v2 to ONNX + pre-compute MeSH embeddings.
+Export S-PubMedBert-MS-MARCO (biomedical Sentence-BERT) to ONNX + pre-compute
+MeSH embeddings (issue #355 P4-e; supersedes all-MiniLM-L6-v2).
 
 Outputs to Scrapers/Resources/mesh/:
   - model.onnx          Sentence-BERT transformer backbone
   - tokenizer.json      HuggingFace tokenizer
   - vocab.txt           BERT vocab for C# tokenizer
   - mesh_terms.bin      Pickled dict with names, cuis, tree_numbers, categories
-  - mesh_embeddings.bin Raw float32 array (num_terms x 384)
+  - mesh_embeddings.bin Raw float32 array (num_terms x 768)
 """
 
 import json
@@ -24,10 +25,10 @@ from transformers import AutoTokenizer
 sys.path.insert(0, os.path.dirname(__file__))
 from config import MESH_INDEX_FILE, MESH_DIR
 
-SBERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+SBERT_MODEL = "pritamdeka/S-BioBert-snli-multinli-stsb"
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "Scrapers", "Resources", "mesh")
 MAX_SEQ_LEN = 128
-EMBED_DIM = 384
+EMBED_DIM = 768
 
 
 def export_onnx():
@@ -113,7 +114,14 @@ def compute_mesh_embeddings():
     print(f"  Duplication ratio: {len(names) / len(unique_names):.1f}x")
 
     print(f"Encoding {len(unique_names)} unique MeSH terms ...")
-    unique_embeddings = model.encode(unique_names, show_progress_bar=True, convert_to_numpy=True)
+    # normalize_embeddings=True is REQUIRED: the C# MeSHMatcher.CosineSimilarity
+    # is a raw dot product that assumes unit vectors (both query and stored).
+    unique_embeddings = model.encode(
+        unique_names,
+        show_progress_bar=True,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
     print(f"  Embeddings shape: {unique_embeddings.shape}")
 
     # Build index: for each of the 267K names, which embedding row to use
