@@ -51,7 +51,7 @@ jobs:
         id: evaluate
         env:
           WATCHDOG_DLQ_THRESHOLD: ${{ vars.WATCHDOG_DLQ_THRESHOLD || '10' }}
-          WATCHDOG_STALE_HOURS: ${{ vars.WATCHDOG_STALE_HOURS || '48' }}
+          WATCHDOG_STALE_HOURS: ${{ vars.WATCHDOG_STALE_HOURS || '6' }}
           WATCHDOG_STALL_HOURS: ${{ vars.WATCHDOG_STALL_HOURS || '6' }}
         run: |
           set -euo pipefail

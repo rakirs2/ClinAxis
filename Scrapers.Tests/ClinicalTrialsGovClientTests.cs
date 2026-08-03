@@ -140,7 +140,33 @@ public sealed class ClinicalTrialsGovClientTests
         var count = await client.CountStudiesAsync(lastUpdatedPost: since);
 
         Assert.AreEqual(5, count);
-        StringAssert.Contains(handler.Requests[0].Query, "filter.updatedDate=", StringComparison.Ordinal);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate%3Aasc", StringComparison.Ordinal);
+        StringAssert.Contains(
+            handler.Requests[0].Query,
+            "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-07-01%2CMAX%5D",
+            StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_WithLastUpdatedPost_AddsFilter()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+
+        var since = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        ClinicalTrialsGov client = CreateClient(handler);
+        int fetched = 0;
+        await client.GetTrialRecordsBatchedAsync(
+            count: 2,
+            onBatch: batch => { fetched += batch.Count; return Task.CompletedTask; },
+            lastUpdatedPost: since);
+
+        Assert.AreEqual(2, fetched);
+        StringAssert.Contains(handler.Requests[0].Query, "sort=LastUpdatePostDate%3Aasc", StringComparison.Ordinal);
+        StringAssert.Contains(
+            handler.Requests[0].Query,
+            "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-08-01%2CMAX%5D",
+            StringComparison.Ordinal);
     }
 
     private static JsonElement GetProperty(JsonElement source, string name)

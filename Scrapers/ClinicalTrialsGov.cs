@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Scrapers.Models.ClinicalTrialsGov;
 
@@ -215,8 +216,13 @@ public class ClinicalTrialsGov
         }
         if (lastUpdatedPost.HasValue)
         {
-            var since = lastUpdatedPost.Value.ToUniversalTime().ToString("O");
-            query += $"&sort=@lastupdateposteddate:asc&filter.updatedDate=range({Uri.EscapeDataString(since)},)";
+            // API v2 accepts date-only bounds (YYYY-MM-DD) in filter.advanced AREA[]RANGE[];
+            // full ISO timestamps and filter.updatedDate are rejected with HTTP 400.
+            // Date-only granularity re-fetches the boundary day on the next sync — harmless,
+            // since ingest upserts are idempotent.
+            var since = lastUpdatedPost.Value.ToUniversalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            query += "&sort=LastUpdatePostDate:asc&filter.advanced=" +
+                Uri.EscapeDataString($"AREA[LastUpdatePostDate]RANGE[{since},MAX]");
         }
         if (!string.IsNullOrWhiteSpace(pageToken))
         {

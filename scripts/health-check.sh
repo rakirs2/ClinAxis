@@ -4,7 +4,9 @@
 # Evaluates DataApi endpoint payloads against alert thresholds:
 #   1. DLQ:   event-queue JSON  -> deadLetterCount > WATCHDOG_DLQ_THRESHOLD
 #   2. Stale: data-source JSON  -> lastSyncTimestamp older than WATCHDOG_STALE_HOURS
-#   3. Stuck: data-source JSON  -> status != "idle" and updatedAt older than WATCHDOG_STALL_HOURS
+#   3. Stuck: data-source JSON  -> status != "idle" and lastSyncTimestamp older than
+#      WATCHDOG_STALL_HOURS. lastSyncTimestamp (not updatedAt) measures pipeline progress:
+#      the scrape loop rewrites updatedAt every ~10s even while stalled.
 #
 # Endpoint JSON is read from files (the workflow fetches them over SSH; tests use fixtures).
 # Exit codes: 0 = healthy, 1 = alert (alert body written to --alert-file or stdout).
@@ -12,7 +14,7 @@
 set -euo pipefail
 
 WATCHDOG_DLQ_THRESHOLD="${WATCHDOG_DLQ_THRESHOLD:-10}"
-WATCHDOG_STALE_HOURS="${WATCHDOG_STALE_HOURS:-48}"
+WATCHDOG_STALE_HOURS="${WATCHDOG_STALE_HOURS:-6}"
 WATCHDOG_STALL_HOURS="${WATCHDOG_STALL_HOURS:-6}"
 
 usage() {
@@ -24,8 +26,8 @@ Usage: health-check.sh [options]
   --scraper-progress FILE   JSON payload of /api/scraper-progress (optional; included in alert body)
   --alert-file FILE         write the alert body to FILE (default: stdout)
   --dlq-threshold N         dead-letter alert threshold (default: 10)
-  --stale-hours N           max age of lastSyncTimestamp in hours (default: 48)
-  --stall-hours N           max age of a non-idle status in hours (default: 6)
+  --stale-hours N           max age of lastSyncTimestamp in hours (default: 6)
+  --stall-hours N           max age of lastSyncTimestamp while status != idle (default: 6)
 
 Env overrides: WATCHDOG_DLQ_THRESHOLD, WATCHDOG_STALE_HOURS, WATCHDOG_STALL_HOURS
 EOF
@@ -116,12 +118,14 @@ for s in states:
     status = s.get('status') or ''
     if status == 'idle':
         continue
-    ts = parse(s.get('updatedAt'))
+    ts = parse(s.get('lastSyncTimestamp'))
     if ts is None:
+        print(f"stuck: {name} status={status} has no lastSyncTimestamp (never progressed)")
         continue
     age_h = (now - ts).total_seconds() / 3600.0
     if age_h > stall_h:
-        print(f"stuck: {name} status={status} unchanged for {age_h:.1f}h (>{stall_h:g}h)")
+        print(f"stuck: {name} status={status} lastSyncTimestamp={s.get('lastSyncTimestamp')} "
+              f"is {age_h:.1f}h old (>{stall_h:g}h)")
 PYEOF
 }
 
