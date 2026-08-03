@@ -12,7 +12,7 @@ using Scrapers.Persistence;
 namespace Scrapers.Persistence.Migrations
 {
     [DbContext(typeof(ClinicalTrialsContext))]
-    [Migration("20260730010222_InitialCreate")]
+    [Migration("20260803190823_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -25,53 +25,6 @@ namespace Scrapers.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Scrapers.Persistence.Entities.CategoryAggregationEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CategoryName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("category_name");
-
-                    b.Property<string>("CategoryType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("category_type");
-
-                    b.Property<DateTime>("ComputedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("computed_at");
-
-                    b.Property<int>("PubmedPaperCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("pubmed_paper_count");
-
-                    b.Property<int>("StudyCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("study_count");
-
-                    b.Property<string>("StudyNctIds")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("study_nct_ids");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryName");
-
-                    b.HasIndex("CategoryType");
-
-                    b.ToTable("category_aggregations", (string)null);
-                });
-
             modelBuilder.Entity("Scrapers.Persistence.Entities.DataSourceStateEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -80,6 +33,22 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("BackfillCompletedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("backfill_completed_utc");
+
+                    b.Property<int?>("BackfillRemainingStudies")
+                        .HasColumnType("integer")
+                        .HasColumnName("backfill_remaining_studies");
+
+                    b.Property<DateTime?>("BackfillStartedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("backfill_started_utc");
+
+                    b.Property<string>("BackfillStatus")
+                        .HasColumnType("text")
+                        .HasColumnName("backfill_status");
 
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("text")
@@ -803,6 +772,40 @@ namespace Scrapers.Persistence.Migrations
                     b.ToTable("open_payments", (string)null);
                 });
 
+            modelBuilder.Entity("Scrapers.Persistence.Entities.PageViewEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("path");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)")
+                        .HasColumnName("session_id");
+
+                    b.Property<DateTime>("ViewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("viewed_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Path");
+
+                    b.HasIndex("ViewedAt");
+
+                    b.ToTable("page_views", (string)null);
+                });
+
             modelBuilder.Entity("Scrapers.Persistence.Entities.PersonIdentifierCandidateEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -839,19 +842,75 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("matched_affiliation");
 
+                    b.Property<string>("MatchedCity")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("matched_city");
+
+                    b.Property<string>("MatchedCredential")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("matched_credential");
+
                     b.Property<string>("MatchedFullName")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
                         .HasColumnName("matched_full_name");
+
+                    b.Property<string>("MatchedGender")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("matched_gender");
+
+                    b.Property<string>("MatchedIdentifiersJson")
+                        .HasColumnType("text")
+                        .HasColumnName("matched_identifiers_json");
+
+                    b.Property<string>("MatchedMiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("matched_middle_name");
+
+                    b.Property<string>("MatchedNamePrefix")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("matched_name_prefix");
+
+                    b.Property<string>("MatchedOtherNamesJson")
+                        .HasColumnType("text")
+                        .HasColumnName("matched_other_names_json");
 
                     b.Property<string>("MatchedState")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("matched_state");
 
+                    b.Property<string>("MatchedTaxonomyDesc")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("matched_taxonomy_desc");
+
+                    b.Property<string>("MatchedTaxonomyLicense")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("matched_taxonomy_license");
+
+                    b.Property<string>("MatchedTaxonomyState")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("matched_taxonomy_state");
+
+                    b.Property<double?>("ModelScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("model_score");
+
                     b.Property<Guid>("PersonId")
                         .HasColumnType("uuid")
                         .HasColumnName("person_id");
+
+                    b.Property<double?>("RuleScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rule_score");
 
                     b.Property<DateTime?>("SourceDeactivatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -875,49 +934,6 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("PersonId", "IdentifierType");
 
                     b.ToTable("person_identifier_candidates", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PiAggregationEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Affiliation")
-                        .HasColumnType("text")
-                        .HasColumnName("affiliation");
-
-                    b.Property<DateTime>("ComputedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("computed_at");
-
-                    b.Property<string>("InvestigatorName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("investigator_name");
-
-                    b.Property<int>("PubmedPaperCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("pubmed_paper_count");
-
-                    b.Property<int>("StudyCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("study_count");
-
-                    b.Property<string>("StudyNctIds")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("study_nct_ids");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvestigatorName");
-
-                    b.ToTable("pi_aggregations", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineEventEntity", b =>
@@ -987,58 +1003,6 @@ namespace Scrapers.Persistence.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("pipeline_events", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.PipelineRunEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text")
-                        .HasColumnName("error_message");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("started_at");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<int?>("TotalAuthors")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_authors");
-
-                    b.Property<int?>("TotalInvestigators")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_investigators");
-
-                    b.Property<int?>("TotalKeywords")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_keywords");
-
-                    b.Property<int?>("TotalPubmedPapers")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_pubmed_papers");
-
-                    b.Property<int?>("TotalStudies")
-                        .HasColumnType("integer")
-                        .HasColumnName("total_studies");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("pipeline_runs", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.PubmedPaperEntity", b =>
@@ -1114,6 +1078,10 @@ namespace Scrapers.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Affiliation")
+                        .HasColumnType("text")
+                        .HasColumnName("affiliation");
+
                     b.Property<string>("EntityType")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1123,6 +1091,14 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<DateTime>("RejectedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("text")
+                        .HasColumnName("role");
 
                     b.Property<string>("StudyNctId")
                         .IsRequired()
@@ -1309,10 +1285,6 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("message");
 
-                    b.Property<int?>("PipelineRunId")
-                        .HasColumnType("integer")
-                        .HasColumnName("pipeline_run_id");
-
                     b.Property<int?>("RecordsAffected")
                         .HasColumnType("integer")
                         .HasColumnName("records_affected");
@@ -1331,109 +1303,11 @@ namespace Scrapers.Persistence.Migrations
 
                     b.HasIndex("EventType");
 
-                    b.HasIndex("PipelineRunId");
-
                     b.HasIndex("Source");
 
                     b.HasIndex("Timestamp");
 
                     b.ToTable("scrape_events", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.ScraperPivotEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BatchSize")
-                        .HasColumnType("integer")
-                        .HasColumnName("batch_size");
-
-                    b.Property<int>("CacheTtlDays")
-                        .HasColumnType("integer")
-                        .HasColumnName("cache_ttl_days");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean")
-                        .HasColumnName("enabled");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("name");
-
-                    b.Property<string>("ServiceType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("service_type");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("scraper_pivots", (string)null);
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.SourceFetchHistoryEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ContentHash")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("content_hash");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateTime?>("LastFetchTimestamp")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_fetch_timestamp");
-
-                    b.Property<string>("SourceType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("source_type");
-
-                    b.Property<string>("StudyNctId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("study_nct_id");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudyNctId");
-
-                    b.HasIndex("StudyNctId", "SourceType")
-                        .IsUnique();
-
-                    b.ToTable("source_fetch_history", (string)null);
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyArmGroupEntity", b =>
@@ -1549,6 +1423,10 @@ namespace Scrapers.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_incomplete");
 
+                    b.Property<DateTime?>("LastSeenInSweepUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_in_sweep_utc");
+
                     b.Property<string>("LeadSponsorName")
                         .HasColumnType("text")
                         .HasColumnName("lead_sponsor_name");
@@ -1584,6 +1462,10 @@ namespace Scrapers.Persistence.Migrations
                     b.Property<string>("RejectedConditions")
                         .HasColumnType("jsonb")
                         .HasColumnName("rejected_conditions");
+
+                    b.Property<DateTime?>("RemovedFromSourceAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("removed_from_source_at");
 
                     b.Property<string>("Sex")
                         .HasColumnType("text")
@@ -2000,16 +1882,6 @@ namespace Scrapers.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Person");
-                });
-
-            modelBuilder.Entity("Scrapers.Persistence.Entities.ScrapeEventEntity", b =>
-                {
-                    b.HasOne("Scrapers.Persistence.Entities.PipelineRunEntity", "PipelineRun")
-                        .WithMany()
-                        .HasForeignKey("PipelineRunId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("PipelineRun");
                 });
 
             modelBuilder.Entity("Scrapers.Persistence.Entities.StudyArmGroupEntity", b =>
