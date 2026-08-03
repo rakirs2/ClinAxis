@@ -76,7 +76,7 @@ public sealed class DurationPercentileCalculatorTests
     [TestMethod]
     public void ComputePercentiles_NullInput_ThrowsArgumentNullException()
     {
-        Assert.ThrowsException<ArgumentNullException>(() =>
+        Assert.Throws<ArgumentNullException>(() =>
             DurationPercentileCalculator.ComputePercentiles(null!));
     }
 
