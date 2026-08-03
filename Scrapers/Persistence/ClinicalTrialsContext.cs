@@ -40,6 +40,7 @@ namespace Scrapers.Persistence
         public DbSet<MeshDescriptorEntity> MeshDescriptors => Set<MeshDescriptorEntity>();
         public DbSet<MeshTreePathEntity> MeshTreePaths => Set<MeshTreePathEntity>();
         public DbSet<StudyInterventionEntity> StudyInterventions => Set<StudyInterventionEntity>();
+        public DbSet<PageViewEntity> PageViews => Set<PageViewEntity>();
 
         public ClinicalTrialsContext(DbContextOptions<ClinicalTrialsContext> options) : base(options)
         {
@@ -805,6 +806,19 @@ namespace Scrapers.Persistence
                 entity.HasIndex(e => e.StudyNctId);
                 entity.HasIndex(e => e.Accepted);
                 entity.HasIndex(e => e.SideBCategory);
+            });
+
+            modelBuilder.Entity<PageViewEntity>(entity =>
+            {
+                entity.ToTable("page_views");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+                entity.Property(e => e.Path).HasColumnName("path").HasMaxLength(500);
+                entity.Property(e => e.SessionId).HasColumnName("session_id").HasMaxLength(36);
+                entity.Property(e => e.ViewedAt).HasColumnName("viewed_at");
+
+                entity.HasIndex(e => e.ViewedAt);
+                entity.HasIndex(e => e.Path);
             });
         }
     }

@@ -691,6 +691,26 @@ namespace Scrapers.Persistence
             return run.Id;
         }
 
+        public async Task<int> AddPageViewAsync(PageViewEntity view, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(view);
+
+            using ClinicalTrialsContext context = CreateContext();
+            context.PageViews.Add(view);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return view.Id;
+        }
+
+        public async Task<List<PageViewEntity>> GetPageViewsAsync(DateTime viewedFromUtc, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.PageViews
+                .Where(v => v.ViewedAt >= viewedFromUtc)
+                .Select(v => new PageViewEntity { Path = v.Path, SessionId = v.SessionId, ViewedAt = v.ViewedAt })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         public async Task CompletePipelineRunAsync(int runId, string status, int? studies = null, int? investigators = null,
             int? pubmedPapers = null, int? keywords = null, int? authors = null, string? errorMessage = null,
             CancellationToken cancellationToken = default)
