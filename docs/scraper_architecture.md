@@ -453,6 +453,14 @@ None. All API fields must be persisted.
 
 **Intentionally ignored (documented):** keywords are only processed when the record has `overallOfficials` (pre-existing `if (!incomplete)` skip); MeSH short-acronym rescue via embeddings awaits the biomedical SBERT upgrade (#355 P4-e).
 
+### 7.8 Location Normalization (issue #380)
+
+**Decision:** At ingest, `StudyRepository` normalizes each `study_locations` row via the pure `LocationNormalizer` helper: country aliases → canonical name (`U.S.A.`/`USA`/`America` → `United States`, `UK`/`Great Britain` → `United Kingdom`), US state full names → 2-letter codes (`Maryland` → `MD`), and all fields trimmed with inner whitespace collapsed. Normalized values also feed `LocationMeshMatcher.Match`, so `U.S.A.` now resolves to the `United States` Z-geographical MeSH descriptor.
+
+**Rationale:** Location fields are raw free-text from CT.gov; canonical forms make distinct-location counts, search facets (#27/#30), and geo weighting (#170) tractable. Replacing the raw string with the canonical form is intentional normalization, not data loss — the original remains reconstructible from the alias maps for the common cases.
+
+**Deferred (documented):** production distinct-location audit (step 1), lat/lon geocoding spike (step 3), and the DataQuality coverage column (step 5) — coordinates and geo search are gated on #170/#27/#30.
+
 ---
 
 ## 8. Operational Table Inventory (issue #351)
