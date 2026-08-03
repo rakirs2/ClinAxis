@@ -26,6 +26,9 @@
     <None Include="..\Scrapers.Tests\Data\NppesNpi\search-multiple-results.json"
           Link="Data\NppesNpi\search-multiple-results.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Scrapers\Resources\mesh\**"
+          Link="Resources\mesh\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
