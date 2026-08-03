@@ -28,7 +28,7 @@ Read these in order:
 ```
 ClinicalTrialData/
 ├── Scrapers/                       # Core business logic (scraping, entities, repositories, migrations)
-│   ├── Coordinators/               # Pipeline orchestration (IngestionCoordinator, PipelineRunner)
+│   ├── Coordinators/               # Pipeline orchestration (IngestionCoordinator)
 │   ├── Models/                     # API response models (ClinicalTrialsGov request/response)
 │   ├── Persistence/
 │   │   ├── Entities/               # EF Core entity definitions
@@ -37,8 +37,6 @@ ClinicalTrialData/
 │   ├── Services/
 │   │   ├── ClinicalTrialsIngestionService.cs  # CT.gov ingestion orchestration
 │   │   ├── PubMedScraperService.cs            # PubMed paper fetching
-│   │   ├── AggregationService.cs              # PI + category computation
-│   │   ├── CrawlServices/          # Pivot enricher framework (IPivotEnricherService)
 │   │   └── EventQueue/             # Event queue + data source tracking services
 │   ├── Testing/                    # Shared test utilities (DbTestBase, SnapshotDb)
 │   └── Scrapers.csproj

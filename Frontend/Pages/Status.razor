@@ -187,42 +187,6 @@ else
         }
     }
 
-    <h3 class="mt-4">Recent Pipeline Runs</h3>
-    @if (telemetry.pipelineRuns is null || telemetry.pipelineRuns.Count == 0)
-    {
-        <p class="text-muted">No pipeline runs recorded.</p>
-    }
-    else
-    {
-        <table class="table table-sm table-striped" style="max-width: 800px">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Started</th>
-                    <th>Completed</th>
-                    <th>Status</th>
-                    <th>Studies</th>
-                    <th>Investigators</th>
-                    <th>PubMed</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var run in telemetry.pipelineRuns)
-                {
-                    <tr>
-                        <td>@run.id</td>
-                        <td>@FormatDate(run.startedAt)</td>
-                        <td>@FormatDate(run.completedAt)</td>
-                        <td>@StatusBadge(run.status)</td>
-                        <td>@run.totalStudies</td>
-                        <td>@run.totalInvestigators</td>
-                        <td>@run.totalPubmedPapers</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-
     <h3 class="mt-4">Data Source State</h3>
     @if (dataSourceStates is null || dataSourceStates.Count == 0)
     {
@@ -505,7 +469,6 @@ else
     {
         public DbStats? db { get; set; }
         public EnrichmentStats? enrichment { get; set; }
-        public List<PipelineRunItem>? pipelineRuns { get; set; }
         public List<ScrapeEventItem>? recentEvents { get; set; }
     }
 
@@ -531,17 +494,6 @@ else
     {
         public int totalViews { get; set; }
         public int uniqueVisitors { get; set; }
-    }
-
-    private class PipelineRunItem
-    {
-        public int id { get; set; }
-        public DateTime? startedAt { get; set; }
-        public DateTime? completedAt { get; set; }
-        public string? status { get; set; }
-        public int? totalStudies { get; set; }
-        public int? totalInvestigators { get; set; }
-        public int? totalPubmedPapers { get; set; }
     }
 
     private class ScrapeEventItem

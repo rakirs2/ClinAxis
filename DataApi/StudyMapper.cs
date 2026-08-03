@@ -99,21 +99,4 @@ internal static class StudyMapper
             }).ToList()
         };
     }
-
-    internal static object ToPipelineRun(PipelineRunEntity r)
-    {
-        return new
-        {
-            id = r.Id,
-            startedAt = r.StartedAt,
-            completedAt = r.CompletedAt,
-            status = r.Status,
-            totalStudies = r.TotalStudies,
-            totalInvestigators = r.TotalInvestigators,
-            totalPubmedPapers = r.TotalPubmedPapers,
-            totalKeywords = r.TotalKeywords,
-            totalAuthors = r.TotalAuthors,
-            errorMessage = r.ErrorMessage
-        };
-    }
 }

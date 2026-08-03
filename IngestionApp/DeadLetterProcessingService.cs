@@ -53,8 +53,6 @@ internal sealed class DeadLetterProcessingService : BackgroundService
 
                 if (deadLetterEvents.Count > 0)
                 {
-                    LogDeadLetterCount(_logger, deadLetterEvents.Count, null);
-
                     foreach (var @event in deadLetterEvents.Take(5))
                     {
                         LogDeadLetterSample(
@@ -64,6 +62,10 @@ internal sealed class DeadLetterProcessingService : BackgroundService
                             @event.ErrorMessage ?? string.Empty,
                             null);
                     }
+
+                    // Log the summary last so consumers that poll for it can rely on
+                    // the sample lines above already being present.
+                    LogDeadLetterCount(_logger, deadLetterEvents.Count, null);
                 }
 
                 await Task.Delay(TimeSpan.FromMinutes(_checkIntervalMinutes), stoppingToken).ConfigureAwait(false);

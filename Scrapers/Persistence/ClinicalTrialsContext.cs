@@ -14,14 +14,9 @@ namespace Scrapers.Persistence
         public DbSet<StudyConditionEntity> StudyConditions => Set<StudyConditionEntity>();
         public DbSet<StudyLocationEntity> StudyLocations => Set<StudyLocationEntity>();
         public DbSet<StudyPhaseEntity> StudyPhases => Set<StudyPhaseEntity>();
-        public DbSet<PipelineRunEntity> PipelineRuns => Set<PipelineRunEntity>();
-        public DbSet<PiAggregationEntity> PiAggregations => Set<PiAggregationEntity>();
-        public DbSet<CategoryAggregationEntity> CategoryAggregations => Set<CategoryAggregationEntity>();
         public DbSet<ScrapeEventEntity> ScrapeEvents => Set<ScrapeEventEntity>();
         public DbSet<PipelineEventEntity> PipelineEvents => Set<PipelineEventEntity>();
         public DbSet<DataSourceStateEntity> DataSourceStates => Set<DataSourceStateEntity>();
-        public DbSet<SourceFetchHistoryEntity> SourceFetchHistories => Set<SourceFetchHistoryEntity>();
-        public DbSet<ScraperPivotEntity> ScraperPivots => Set<ScraperPivotEntity>();
         public DbSet<StudyReferenceEntity> StudyReferences => Set<StudyReferenceEntity>();
         public DbSet<InvestigatorPersonEntity> InvestigatorPersons => Set<InvestigatorPersonEntity>();
         public DbSet<InvestigatorAffiliationEntity> InvestigatorAffiliations => Set<InvestigatorAffiliationEntity>();
@@ -410,59 +405,11 @@ namespace Scrapers.Persistence
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            modelBuilder.Entity<PipelineRunEntity>(entity =>
-            {
-                entity.ToTable("pipeline_runs");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.StartedAt).HasColumnName("started_at");
-                entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
-                entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
-                entity.Property(e => e.TotalStudies).HasColumnName("total_studies");
-                entity.Property(e => e.TotalInvestigators).HasColumnName("total_investigators");
-                entity.Property(e => e.TotalPubmedPapers).HasColumnName("total_pubmed_papers");
-                entity.Property(e => e.TotalKeywords).HasColumnName("total_keywords");
-                entity.Property(e => e.TotalAuthors).HasColumnName("total_authors");
-                entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
-            });
-
-            modelBuilder.Entity<PiAggregationEntity>(entity =>
-            {
-                entity.ToTable("pi_aggregations");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.InvestigatorName).HasColumnName("investigator_name").HasMaxLength(200);
-                entity.Property(e => e.Affiliation).HasColumnName("affiliation");
-                entity.Property(e => e.StudyCount).HasColumnName("study_count");
-                entity.Property(e => e.PubmedPaperCount).HasColumnName("pubmed_paper_count");
-                entity.Property(e => e.StudyNctIds).HasColumnName("study_nct_ids");
-                entity.Property(e => e.ComputedAt).HasColumnName("computed_at");
-
-                entity.HasIndex(e => e.InvestigatorName);
-            });
-
-            modelBuilder.Entity<CategoryAggregationEntity>(entity =>
-            {
-                entity.ToTable("category_aggregations");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.CategoryName).HasColumnName("category_name").HasMaxLength(200);
-                entity.Property(e => e.CategoryType).HasColumnName("category_type").HasMaxLength(50);
-                entity.Property(e => e.StudyCount).HasColumnName("study_count");
-                entity.Property(e => e.PubmedPaperCount).HasColumnName("pubmed_paper_count");
-                entity.Property(e => e.StudyNctIds).HasColumnName("study_nct_ids");
-                entity.Property(e => e.ComputedAt).HasColumnName("computed_at");
-
-                entity.HasIndex(e => e.CategoryName);
-                entity.HasIndex(e => e.CategoryType);
-            });
-
             modelBuilder.Entity<ScrapeEventEntity>(entity =>
             {
                 entity.ToTable("scrape_events");
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.PipelineRunId).HasColumnName("pipeline_run_id");
                 entity.Property(e => e.Timestamp).HasColumnName("timestamp");
                 entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(50);
                 entity.Property(e => e.EventType).HasColumnName("event_type").HasMaxLength(50);
@@ -471,11 +418,6 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.RecordsAffected).HasColumnName("records_affected");
                 entity.Property(e => e.Message).HasColumnName("message");
                 entity.Property(e => e.HttpStatusCode).HasColumnName("http_status_code");
-
-                entity.HasOne(e => e.PipelineRun)
-                    .WithMany()
-                    .HasForeignKey(e => e.PipelineRunId)
-                    .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasIndex(e => e.Timestamp);
                 entity.HasIndex(e => e.Source);
@@ -519,38 +461,6 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.NextScheduledRun).HasColumnName("next_scheduled_run");
 
                 entity.HasIndex(e => e.SourceName).IsUnique();
-            });
-
-            modelBuilder.Entity<SourceFetchHistoryEntity>(entity =>
-            {
-                entity.ToTable("source_fetch_history");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
-                entity.Property(e => e.SourceType).HasColumnName("source_type").HasMaxLength(100);
-                entity.Property(e => e.LastFetchTimestamp).HasColumnName("last_fetch_timestamp");
-                entity.Property(e => e.ContentHash).HasColumnName("content_hash").HasMaxLength(255);
-                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-
-                entity.HasIndex(e => new { e.StudyNctId, e.SourceType }).IsUnique();
-                entity.HasIndex(e => e.StudyNctId);
-            });
-
-            modelBuilder.Entity<ScraperPivotEntity>(entity =>
-            {
-                entity.ToTable("scraper_pivots");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-                entity.Property(e => e.Name).HasColumnName("name").HasMaxLength(100);
-                entity.Property(e => e.ServiceType).HasColumnName("service_type");
-                entity.Property(e => e.Enabled).HasColumnName("enabled");
-                entity.Property(e => e.CacheTtlDays).HasColumnName("cache_ttl_days");
-                entity.Property(e => e.BatchSize).HasColumnName("batch_size");
-                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-
-                entity.HasIndex(e => e.Name).IsUnique();
             });
 
             modelBuilder.Entity<RejectedEntityEntity>(entity =>

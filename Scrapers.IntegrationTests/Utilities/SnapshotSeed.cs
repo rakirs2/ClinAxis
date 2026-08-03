@@ -109,41 +109,6 @@ namespace Scrapers.IntegrationTests.Utilities
                 PubmedPaperId = pubmedPaper.Id,
             });
 
-            // Pipeline run
-            ctx.PipelineRuns.Add(new PipelineRunEntity
-            {
-                Status = "Completed",
-                StartedAt = DateTime.UtcNow.AddHours(-1),
-                CompletedAt = DateTime.UtcNow,
-                TotalStudies = 5,
-                TotalInvestigators = 1,
-                TotalPubmedPapers = 1,
-                TotalKeywords = 0,
-                TotalAuthors = 0
-            });
-
-            // PI Aggregation
-            ctx.PiAggregations.Add(new PiAggregationEntity
-            {
-                InvestigatorName = "Dr. Sample",
-                Affiliation = "Sample Univ",
-                StudyCount = 1,
-                PubmedPaperCount = 1,
-                StudyNctIds = "NCT00000001",
-                ComputedAt = DateTime.UtcNow
-            });
-
-            // Category Aggregation
-            ctx.CategoryAggregations.Add(new CategoryAggregationEntity
-            {
-                CategoryName = "Cancer",
-                CategoryType = "Condition",
-                StudyCount = 1,
-                PubmedPaperCount = 1,
-                StudyNctIds = "NCT00000001",
-                ComputedAt = DateTime.UtcNow
-            });
-
             await ctx.SaveChangesAsync();
         }
     }
