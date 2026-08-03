@@ -87,7 +87,7 @@ public sealed class NameFilterTests
     [TestMethod]
     public void IsHumanName_TooManyWords_ReturnsFalse()
     {
-        Assert.IsFalse(NameFilter.IsHumanName("A B C D E F G", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("A B C D E F G H I J K", null).IsHuman);
     }
 
     [TestMethod]
@@ -244,8 +244,61 @@ public sealed class NameFilterTests
     }
 
     [TestMethod]
-    public void IsHumanName_NameContainingSponsor_ReturnsFalse()
+    public void IsHumanName_TrailingSponsorRoleLabel_ReturnsTrue()
     {
-        Assert.IsFalse(NameFilter.IsHumanName("Sebastiano Biondo, Sponsor", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Sebastiano Biondo, Sponsor", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_OrgKeywordAsSubstring_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("John Carey", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Agnes Smith", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Cody Brown", null).IsHuman);
+        Assert.IsTrue(NameFilter.IsHumanName("Laban Johnson", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_TrailingPiRoleLabel_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("Jane Smith, Principal Investigator", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_TrailingContactRoleLabel_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("John Smith, Scientific Contact", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_TrailingRoleLabelOnPharma_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Pfizer, Sponsor", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_CoAsLastWord_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("Sang Co", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_LongHispanicName_ReturnsTrue()
+    {
+        Assert.IsTrue(NameFilter.IsHumanName("Maria de los Angeles Rodriguez Garcia de la Cruz", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_PluralOrgWord_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("National Institutes of Health", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("UCB Cares", null).IsHuman);
+        Assert.IsFalse(NameFilter.IsHumanName("Smith Laboratories", null).IsHuman);
+    }
+
+    [TestMethod]
+    public void IsHumanName_AgAsLastWord_ReturnsFalse()
+    {
+        Assert.IsFalse(NameFilter.IsHumanName("Roche AG", null).IsHuman);
     }
 }
