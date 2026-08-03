@@ -18,7 +18,7 @@ public sealed class SearchPageTests
 
     private static (BunitContext Ctx, MockHttpMessageHandler Mock, IRenderedComponent<Frontend.Pages.Search> Cut) SetupTest(
         string[]? conditions = null, object? studiesResponse = null, TaskCompletionSource? conditionsGate = null,
-        TaskCompletionSource? studiesGate = null)
+        TaskCompletionSource? studiesGate = null, Action<HttpRequestMessage>? captureStudies = null)
     {
         var ctx = new BunitContext();
         var mockHttp = new MockHttpMessageHandler();
@@ -51,7 +51,15 @@ public sealed class SearchPageTests
         {
             if (studiesGate is null)
             {
-                mockHttp.When("/api/studies*").Respond("application/json", JsonSerializer.Serialize(studiesResponse));
+                mockHttp.When("/api/studies*")
+                    .Respond(req =>
+                    {
+                        captureStudies?.Invoke(req);
+                        return new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new StringContent(JsonSerializer.Serialize(studiesResponse), System.Text.Encoding.UTF8, "application/json")
+                        };
+                    });
             }
             else
             {
@@ -97,46 +105,6 @@ public sealed class SearchPageTests
     }
 
     [TestMethod]
-    public void SearchPageRendersPagination()
-    {
-        var studiesResponse = new
-        {
-            data = new[]
-            {
-                new
-                {
-                    nctId = "NCT00000001",
-                    briefTitle = "Test Study",
-                    overallStatus = "RECRUITING",
-                    conditions = ConditionTestData,
-                    phases = PhaseTestData,
-                    enrollmentCount = 100
-                }
-            },
-            total = 1,
-            page = 1,
-            pageSize = 20,
-            totalPages = 1
-        };
-
-        // Pre-completed response, no gate: gated responses depend on continuations
-        // that never pump while the test thread blocks in wait helpers (CI flakes
-        // #329/#339/#341 — "Check count: 3" means no render ever arrived). The
-        // sibling test SearchPageRendersResultsTableAfterConditionFilter uses the
-        // same un-gated pattern and has never flaked.
-        var (ctx, _, cut) = SetupTest(studiesResponse: studiesResponse);
-
-        ctx.JSInterop.Setup<string[]>("meshTree.getSelected", _ => true).SetResult([]);
-
-        cut.Find("button:contains('Search')").Click();
-
-        cut.WaitForAssertion(() => Assert.AreEqual(1, cut.FindAll("table").Count), timeout: TimeSpan.FromSeconds(30));
-
-        Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
-        ctx.Dispose();
-    }
-
-    [TestMethod]
     public void SearchPageRendersBranchSelectorAndConditionAutocomplete()
     {
         var (ctx, _, cut) = SetupTest();
@@ -169,45 +137,28 @@ public sealed class SearchPageTests
     }
 
     [TestMethod]
-    public void ClickingConditionAddsBadge()
+    public void ClickingConditionAddsAndRemovesBadge()
     {
         var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData);
 
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Condition");
 
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(5));
         cut.FindAll("li.list-group-item")[0].Click();
 
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(6));
         var badges = cut.FindAll("span.badge");
-        Assert.IsTrue(badges.Any(b => b.TextContent.Contains("Condition A", StringComparison.Ordinal)));
-        ctx.Dispose();
-    }
+        Assert.AreEqual(1, badges.Count);
+        Assert.IsTrue(badges[0].TextContent.Contains("Condition A", StringComparison.Ordinal));
 
-    [TestMethod]
-    public void ConditionBadgeRemoveButtonRemovesTag()
-    {
-        var (ctx, _, cut) = SetupTest(conditions: RichConditionTestData);
+        badges[0].QuerySelector("button.btn-close")!.Click();
 
-        var input = cut.Find("input[placeholder='Search condition name...']");
-        input.Input("Condition");
-
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
-        cut.FindAll("li.list-group-item")[0].Click();
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(3));
-        Assert.AreEqual(1, cut.FindAll("span.badge").Count);
-
-        var removeBtn = cut.Find("span.badge button.btn-close");
-        removeBtn.Click();
-
-        cut.WaitForState(() => cut.FindAll("span.badge").Count == 0, TimeSpan.FromSeconds(3));
         Assert.AreEqual(0, cut.FindAll("span.badge").Count);
         ctx.Dispose();
     }
 
     [TestMethod]
-    public void SearchSendsConditionParam()
+    public void SearchSendsConditionParamAndRendersResultsTable()
     {
         var studiesResponse = new
         {
@@ -229,24 +180,26 @@ public sealed class SearchPageTests
             totalPages = 1
         };
 
-        var (ctx, mockHttp, cut) = SetupTest(
-            conditions: RichConditionTestData, studiesResponse: studiesResponse);
+        string? studiesQuery = null;
+        var (ctx, _, cut) = SetupTest(
+            conditions: RichConditionTestData, studiesResponse: studiesResponse,
+            captureStudies: req => studiesQuery = req.RequestUri!.Query);
 
         ctx.JSInterop.Setup<string[]>("meshTree.getSelected", _ => true).SetResult([]);
 
-        // Add a condition
+        // Select a condition, then search
         var input = cut.Find("input[placeholder='Search condition name...']");
         input.Input("Condition");
-        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(6));
+        cut.WaitForState(() => cut.FindAll("li.list-group-item").Count > 0, TimeSpan.FromSeconds(5));
         cut.FindAll("li.list-group-item")[0].Click();
-        cut.WaitForState(() => cut.FindAll("span.badge").Count > 0, TimeSpan.FromSeconds(3));
 
-        // Search
         cut.Find("button:contains('Search')").Click();
 
-        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(6));
+        cut.WaitForState(() => cut.FindAll("table").Count > 0, TimeSpan.FromSeconds(5));
 
         Assert.IsNotNull(cut.Find("a[href='/studies/NCT00000001']"));
+        Assert.IsNotNull(studiesQuery);
+        StringAssert.Contains(studiesQuery!, "condition=Condition%20A", StringComparison.Ordinal);
         ctx.Dispose();
     }
 

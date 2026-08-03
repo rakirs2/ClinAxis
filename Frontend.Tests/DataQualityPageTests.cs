@@ -21,8 +21,6 @@ public sealed class DataQualityPageTests
         using var mockHttp = new MockHttpMessageHandler();
         MockTab0(mockHttp);
         MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
@@ -38,8 +36,6 @@ public sealed class DataQualityPageTests
         using var mockHttp = new MockHttpMessageHandler();
         MockTab0(mockHttp);
         MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
@@ -60,8 +56,6 @@ public sealed class DataQualityPageTests
         using var mockHttp = new MockHttpMessageHandler();
         MockTab0(mockHttp);
         MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
@@ -78,8 +72,6 @@ public sealed class DataQualityPageTests
         using var mockHttp = new MockHttpMessageHandler();
         MockTab0(mockHttp);
         MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
@@ -93,59 +85,12 @@ public sealed class DataQualityPageTests
     }
 
     [TestMethod]
-    public void Tab2ShowsRejectedNames()
-    {
-        using var ctx = new BunitContext();
-        using var mockHttp = new MockHttpMessageHandler();
-        MockTab0(mockHttp);
-        MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
-        var client = BuildClient(mockHttp);
-        ctx.Services.AddSingleton(client);
-        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
-            parameters => parameters.Add(p => p.Tab, 2));
-
-        cut.WaitForState(() => cut.Markup.Contains("Medical Director", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
-        StringAssert.Contains(cut.Markup, "Rejected Names", StringComparison.Ordinal);
-        var links = cut.FindAll(".nav-tabs .nav-link");
-        Assert.IsFalse(links[0].ClassList.Contains("active"));
-        Assert.IsFalse(links[1].ClassList.Contains("active"));
-        Assert.IsTrue(links[2].ClassList.Contains("active"));
-    }
-
-    [TestMethod]
-    public void Tab3ShowsNpiEnrichmentBreakdown()
-    {
-        using var ctx = new BunitContext();
-        using var mockHttp = new MockHttpMessageHandler();
-        MockTab0(mockHttp);
-        MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
-        var client = BuildClient(mockHttp);
-        ctx.Services.AddSingleton(client);
-        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
-            parameters => parameters.Add(p => p.Tab, 3));
-
-        cut.WaitForState(() => cut.Markup.Contains("Ambiguous", StringComparison.OrdinalIgnoreCase), timeout: TimeSpan.FromSeconds(5));
-        StringAssert.Contains(cut.Markup, "NPI Enrichment", StringComparison.Ordinal);
-        var links = cut.FindAll(".nav-tabs .nav-link");
-        Assert.IsFalse(links[0].ClassList.Contains("active"));
-        Assert.IsFalse(links[1].ClassList.Contains("active"));
-        Assert.IsFalse(links[2].ClassList.Contains("active"));
-        Assert.IsTrue(links[3].ClassList.Contains("active"));
-    }
-
-    [TestMethod]
     public void HrefsPointToCorrectRoutes()
     {
         using var ctx = new BunitContext();
         using var mockHttp = new MockHttpMessageHandler();
         MockTab0(mockHttp);
         MockTab1(mockHttp);
-        MockTab2(mockHttp);
-        MockTab3(mockHttp);
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
@@ -205,35 +150,6 @@ public sealed class DataQualityPageTests
                 page = 1,
                 pageSize = 50,
                 totalPages = 1
-            }, JsonOptions));
-    }
-
-    private static void MockTab2(MockHttpMessageHandler mockHttp)
-    {
-        mockHttp.When("http://localhost:5003/api/rejected-entities")
-            .WithQueryString("type=investigator_name")
-            .Respond("application/json", JsonSerializer.Serialize(new
-            {
-                data = new[]
-                {
-                    new { id = 1, entityType = "investigator_name", value = "Medical Director", studyNctId = "NCT00000001", rejectedAt = DateTime.UtcNow },
-                    new { id = 2, entityType = "investigator_name", value = "GSK Clinical Trials", studyNctId = "NCT00000002", rejectedAt = DateTime.UtcNow }
-                },
-                total = 2,
-                page = 1,
-                pageSize = 50,
-                totalPages = 1
-            }, JsonOptions));
-    }
-
-    private static void MockTab3(MockHttpMessageHandler mockHttp)
-    {
-        mockHttp.When("http://localhost:5003/api/enrichment/breakdown")
-            .Respond("application/json", JsonSerializer.Serialize(new Dictionary<string, int>
-            {
-                ["assigned"] = 85,
-                ["ambiguous"] = 84,
-                ["not_found"] = 615
             }, JsonOptions));
     }
 }

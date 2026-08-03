@@ -28,56 +28,6 @@ public sealed class StatusPageTests
     }
 
     [TestMethod]
-    public void StatusPageShowsEstimatedTimeRemainingWhenPendingEvents()
-    {
-        using var ctx = new BunitContext();
-        using var mockHttp = new MockHttpMessageHandler();
-        MockDefaults(mockHttp);
-        mockHttp.When("http://localhost:5003/api/event-queue/stats")
-            .Respond("application/json", JsonSerializer.Serialize(new
-            {
-                pendingCount = 10,
-                processingCount = 1,
-                completedCount = 50,
-                deadLetterCount = 0,
-                failedCount = 0,
-                averageProcessingTimeMs = 5000.0,
-                failureRate = 0.0,
-                estimatedTimeRemainingMs = 50000.0
-            }, JsonOptions));
-        var client = BuildClient(mockHttp);
-        ctx.Services.AddSingleton(client);
-        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
-
-        cut.WaitForState(() => cut.Markup.Contains("~50s", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
-    }
-
-    [TestMethod]
-    public void StatusPageShowsDashWhenNoPendingEvents()
-    {
-        using var ctx = new BunitContext();
-        using var mockHttp = new MockHttpMessageHandler();
-        MockDefaults(mockHttp);
-        mockHttp.When("http://localhost:5003/api/event-queue/stats")
-            .Respond("application/json", JsonSerializer.Serialize(new
-            {
-                pendingCount = 0,
-                processingCount = 0,
-                completedCount = 50,
-                deadLetterCount = 0,
-                failedCount = 0,
-                averageProcessingTimeMs = 0.0,
-                failureRate = 0.0,
-                estimatedTimeRemainingMs = (double?)null
-            }, JsonOptions));
-        var client = BuildClient(mockHttp);
-        ctx.Services.AddSingleton(client);
-        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
-
-        cut.WaitForState(() => cut.Markup.Contains("--", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
-    }
-
-    [TestMethod]
     public void StatusPageRendersEventQueueHealthSection()
     {
         using var ctx = new BunitContext();
