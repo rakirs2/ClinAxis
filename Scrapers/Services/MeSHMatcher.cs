@@ -26,6 +26,7 @@ public sealed class MeSHMatcher : IDisposable
     private readonly float[] _meshEmbeddings;
     private readonly int[] _meshEmbeddingIndex;
     private readonly Dictionary<string, int> _meshNameLookup;
+    private readonly MeSHMatchCache _matchCache = new();
 
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly char[] PunctuationChars = [
@@ -66,31 +67,33 @@ public sealed class MeSHMatcher : IDisposable
         ArgumentNullException.ThrowIfNull(value);
         var sideA = IsValidConditionSimple(value);
 
-        int bestIdx = -1;
-        float bestScore = 0f;
-
-        if (_meshNameLookup.TryGetValue(value.Trim(), out int exactIdx))
+        if (!_matchCache.TryGet(MeSHMatchCache.NormalizeKey(value), out int bestIdx, out float bestScore))
         {
-            bestIdx = exactIdx;
-            bestScore = 1f;
-        }
-        else
-        {
-            var (tokenIds, attentionMask) = Tokenize(value);
-            var embedding = ComputeEmbedding(tokenIds, attentionMask);
-
-            if (embedding == null || embedding.Length != EmbedDim)
-                throw new InvalidOperationException($"Embedding has wrong size: {embedding?.Length ?? 0} (expected {EmbedDim})");
-
-            for (int i = 0; i < _meshNames.Length; i++)
+            if (_meshNameLookup.TryGetValue(value.Trim(), out int exactIdx))
             {
-                float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[i]);
-                if (sim > bestScore)
+                bestIdx = exactIdx;
+                bestScore = 1f;
+            }
+            else
+            {
+                var (tokenIds, attentionMask) = Tokenize(value);
+                var embedding = ComputeEmbedding(tokenIds, attentionMask);
+
+                if (embedding == null || embedding.Length != EmbedDim)
+                    throw new InvalidOperationException($"Embedding has wrong size: {embedding?.Length ?? 0} (expected {EmbedDim})");
+
+                for (int i = 0; i < _meshNames.Length; i++)
                 {
-                    bestScore = sim;
-                    bestIdx = i;
+                    float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[i]);
+                    if (sim > bestScore)
+                    {
+                        bestScore = sim;
+                        bestIdx = i;
+                    }
                 }
             }
+
+            _matchCache.Add(MeSHMatchCache.NormalizeKey(value), bestIdx, bestScore);
         }
 
         const float threshold = 0.8f;
@@ -114,6 +117,8 @@ public sealed class MeSHMatcher : IDisposable
     {
         return values.Select(v => Match(v, source, studyNctId)).ToList();
     }
+
+    internal int CacheHits => _matchCache.CacheHits;
 
     private float[] ComputeEmbedding(int[] tokenIds, int[] attentionMask)
     {
