@@ -15,6 +15,76 @@ namespace Scrapers.Utilities
         };
 
         /// <summary>
+        /// Curated acronym expansion map (issue #355). Whole-keyword acronyms
+        /// are expanded to their canonical medical term BEFORE the length and
+        /// blocklist rules run, so short acronyms (MI, CVA, DKA, PE, ...)
+        /// resolve to their MeSH descriptor and are persisted as keywords.
+        /// Keys are matched case-insensitively; values are lowercase canonical
+        /// terms (the filter uppercases later).
+        /// </summary>
+        private static readonly Dictionary<string, string> AcronymExpansions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["MI"] = "myocardial infarction",
+            ["CVA"] = "cerebrovascular accident",
+            ["DKA"] = "diabetic ketoacidosis",
+            ["PE"] = "pulmonary embolism",
+            ["DVT"] = "deep vein thrombosis",
+            ["ARDS"] = "acute respiratory distress syndrome",
+            ["MRSA"] = "methicillin-resistant staphylococcus aureus",
+            ["AF"] = "atrial fibrillation",
+            ["HF"] = "heart failure",
+            ["ACS"] = "acute coronary syndrome",
+            ["PAD"] = "peripheral artery disease",
+            ["TIA"] = "transient ischemic attack",
+            ["VTE"] = "venous thromboembolism",
+            ["AAA"] = "abdominal aortic aneurysm",
+            ["ESRD"] = "end-stage renal disease",
+            ["HTN"] = "hypertension",
+            ["DM"] = "diabetes mellitus",
+            ["T2DM"] = "type 2 diabetes mellitus",
+            ["T1DM"] = "type 1 diabetes mellitus",
+            ["CLL"] = "chronic lymphocytic leukemia",
+            ["AML"] = "acute myeloid leukemia",
+            ["OA"] = "osteoarthritis",
+            ["COPD"] = "chronic obstructive pulmonary disease",
+            ["HIV"] = "human immunodeficiency virus",
+            ["HPV"] = "human papillomavirus",
+            ["UTI"] = "urinary tract infection",
+            ["GERD"] = "gastroesophageal reflux disease",
+            ["NASH"] = "non-alcoholic steatohepatitis",
+            ["NAFLD"] = "non-alcoholic fatty liver disease",
+            ["OSA"] = "obstructive sleep apnea",
+            ["PCOS"] = "polycystic ovary syndrome",
+            ["TBI"] = "traumatic brain injury",
+            ["SCI"] = "spinal cord injury",
+            ["CHF"] = "congestive heart failure",
+            ["CAD"] = "coronary artery disease",
+            ["CVD"] = "cardiovascular disease",
+            ["IBS"] = "irritable bowel syndrome",
+            ["PTSD"] = "post-traumatic stress disorder",
+            ["ADHD"] = "attention deficit hyperactivity disorder",
+            ["SLE"] = "systemic lupus erythematosus",
+            ["RA"] = "rheumatoid arthritis",
+            ["MS"] = "multiple sclerosis",
+            ["ALS"] = "amyotrophic lateral sclerosis",
+            ["CKD"] = "chronic kidney disease",
+            ["STD"] = "sexually transmitted disease",
+            ["CT"] = "computed tomography",
+            ["MRI"] = "magnetic resonance imaging",
+            ["PET"] = "positron emission tomography",
+        };
+
+        /// <summary>
+        /// Expands a whole-keyword acronym to its canonical medical term.
+        /// Non-acronyms and multi-word keywords are returned unchanged.
+        /// </summary>
+        public static string ExpandAcronym(string keyword)
+        {
+            var trimmed = keyword.Trim();
+            return AcronymExpansions.TryGetValue(trimmed, out var expanded) ? expanded : keyword;
+        }
+
+        /// <summary>
         /// Valid trial-design descriptors (issue #343). These bypass the junk
         /// blocklist: they are legitimate study metadata even though they are
         /// not diseases and often not MeSH descriptors.
@@ -74,6 +144,8 @@ namespace Scrapers.Utilities
             var originalKeywords = keywords
                 .Where(k => !string.IsNullOrWhiteSpace(k))
                 .Select(Normalize)
+                .Select(ExpandAcronym)
+                .Select(k => k.ToUpperInvariant())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 

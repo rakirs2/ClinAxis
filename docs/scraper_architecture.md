@@ -441,6 +441,18 @@ None. All API fields must be persisted.
 - Geographic data (city, state, country) per appointment enables location-based search.
 - Start/end dates enable timeline queries (e.g., "which institution was this PI at when this study started?").
 
+### 7.7 Keyword Acceptance: Acronym Expansion + Design-Descriptor Allowlist + MeSH Gate (issue #343/#355)
+
+**Decision:** Keywords are accepted when any of these hold:
+
+1. **Acronym expansion (issue #355):** whole-keyword acronyms (`MI`, `CVA`, `DKA`, `PE`, `DVT`, `ARDS`, `MRSA`, `AF`, `HF`, …) are expanded to their canonical medical term *before* the length and blocklist rules. The expanded term is what is persisted (`study_keywords`) and evaluated against MeSH (exact descriptor match ≈ 1.0, vs. the raw acronym's < 0.8). The raw acronym is still A/B-recorded in `rejected_terms` alongside the expanded form, so acceptance is analyzable.
+2. **Design-descriptor allowlist (issue #343):** trial-design/phase descriptors (randomised controlled trial, pilot study, open label, …) bypass the junk blocklist.
+3. **MeSH gate (issue #343):** structural rejections (short/odd tokens) that match a MeSH descriptor at ≥ 0.8 are kept. Generic junk (`treatment`, `safety`, `efficacy`, `patient`, …) is never rescued — the acceptance criteria require it to stay rejected even when it scores ≥ 0.8 against the model.
+
+**Rationale:** The CT.gov keyword field is a mixture of genuine condition descriptors and study-design noise. Filtering only by a static blocklist silently dropped valid acronyms and design terms; the layered acceptance keeps the junk out while preserving real signal. Acronym expansion is stored (not just matched) so keyword search and aggregation operate on canonical terms; the raw form remains reconstructible from the expansion map.
+
+**Intentionally ignored (documented):** keywords are only processed when the record has `overallOfficials` (pre-existing `if (!incomplete)` skip); MeSH short-acronym rescue via embeddings awaits the biomedical SBERT upgrade (#355 P4-e).
+
 ---
 
 ## 8. Operational Table Inventory (issue #351)

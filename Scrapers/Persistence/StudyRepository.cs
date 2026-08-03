@@ -256,6 +256,16 @@ namespace Scrapers.Persistence
                                 if (!string.IsNullOrWhiteSpace(rawKw))
                                 {
                                     var trimmed = rawKw.Trim();
+                                    var expanded = KeywordFilter.ExpandAcronym(trimmed);
+                                    if (!string.Equals(expanded, trimmed, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        // Acronym expanded (issue #355): record the canonical
+                                        // term's evaluation so the acceptance is analyzable in
+                                        // rejected_terms (raw acronym scores < 0.8, expanded
+                                        // form scores 1.0 on its MeSH descriptor).
+                                        meshMatchResults.Add(_meshMatcher.Match(expanded, "keyword", record.NctId!));
+                                    }
+
                                     var match = _meshMatcher.Match(trimmed, "keyword", record.NctId!);
                                     meshMatchResults.Add(match);
                                     if (match.SideBMatched)
