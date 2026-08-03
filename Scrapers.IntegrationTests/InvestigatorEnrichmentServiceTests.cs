@@ -74,6 +74,73 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
             queue.Enqueued.Select(e => e.Type).ToArray());
     }
 
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Enrichment_DuplicatePersonNpiCollision_CompletesWithoutDeadLettering()
+    {
+        // Two person rows for the same real physician ("John Smith" vs "John A Smith"):
+        // the person lookup dedups by exact full name only, so both rows get their own
+        // enrichment event and both match the same NPPES record. The second NPI
+        // assignment would violate the unique npi index — the service must record the
+        // attempt and complete instead of dead-lettering.
+        var first = new InvestigatorPersonEntity { FullName = "John Smith", IsHuman = true };
+        var duplicate = new InvestigatorPersonEntity { FullName = "John A Smith", IsHuman = true };
+        Context.InvestigatorPersons.AddRange(first, duplicate);
+        Context.InvestigatorAffiliations.AddRange(
+            new InvestigatorAffiliationEntity
+            {
+                InvestigatorPersonId = first.Id,
+                InstitutionName = "Mayo Clinic",
+                City = "Rochester",
+                State = "MN",
+                IsPrimary = true
+            },
+            new InvestigatorAffiliationEntity
+            {
+                InvestigatorPersonId = duplicate.Id,
+                InstitutionName = "Mayo Clinic",
+                City = "Rochester",
+                State = "MN",
+                IsPrimary = true
+            });
+        await Context.SaveChangesAsync();
+
+        var fixture = await File.ReadAllTextAsync("Data/NppesNpi/search-multiple-results.json");
+        var handler = new FakeNppesHandler(fixture);
+        var queue = new RecordingEventQueue();
+        var service = new InvestigatorEnrichmentService(
+            queue,
+            new NppesNpiRegistryClient(new HttpClient(handler)),
+            new OrcidApiClient(new HttpClient(new FakeNppesHandler("{}"))),
+            modelService: null,
+            ConnectionString,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InvestigatorEnrichmentService>.Instance);
+
+        await service.ProcessEnrichmentEventAsync(
+            new PipelineEventEntity { Data = first.Id.ToString() },
+            CancellationToken.None);
+
+        // Before the collision fix this threw DbUpdateException (23505 on the npi
+        // index), which dead-lettered the event after 3 retries.
+        await service.ProcessEnrichmentEventAsync(
+            new PipelineEventEntity { Data = duplicate.Id.ToString() },
+            CancellationToken.None);
+
+        var savedFirst = Context.InvestigatorPersons.AsNoTracking().Single(p => p.Id == first.Id);
+        var savedDuplicate = Context.InvestigatorPersons.AsNoTracking().Single(p => p.Id == duplicate.Id);
+
+        Assert.AreEqual("1234567890", savedFirst.Npi);
+        Assert.AreEqual("assigned", savedFirst.NpiEnrichmentResult);
+        Assert.IsNull(savedDuplicate.Npi);
+        Assert.AreEqual("duplicate", savedDuplicate.NpiEnrichmentResult);
+        Assert.IsNotNull(savedDuplicate.NpiLookupAttemptedAt);
+
+        // Downstream events were enqueued only for the canonical row (3 = first run).
+        Assert.AreEqual(3, queue.Enqueued.Count);
+        // NPPES data for the duplicate row is preserved, not discarded.
+        Assert.AreEqual(2, Context.PersonIdentifierCandidates.AsNoTracking().Count(c => c.PersonId == duplicate.Id));
+    }
+
     private sealed class FakeNppesHandler : HttpMessageHandler
     {
         private readonly string _json;
