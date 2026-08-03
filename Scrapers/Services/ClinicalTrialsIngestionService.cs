@@ -44,10 +44,13 @@ public class ClinicalTrialsIngestionService
     /// Used by the incremental loop.</param>
     /// <param name="lastUpdatedPostTo">When set together with <paramref name="lastUpdatedPost"/>,
     /// fetches only studies updated in the inclusive window — used by backfill chunk events.</param>
+    /// <param name="lastSeenInSweepUtc">When set (backfill chunks), stamped on every upserted
+    /// study as proof it exists on CT.gov during the sweep.</param>
     public async Task<int> IngestAsync(
         int count,
         DateTime? lastUpdatedPost = null,
         DateTime? lastUpdatedPostTo = null,
+        DateTime? lastSeenInSweepUtc = null,
         CancellationToken cancellationToken = default)
     {
         if (count <= 0)
@@ -64,7 +67,7 @@ public class ClinicalTrialsIngestionService
         await _client.GetTrialRecordsBatchedAsync(count, async batch =>
         {
             var batchSw = Stopwatch.StartNew();
-            var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, cancellationToken).ConfigureAwait(false);
+            var ingested = await _repository.UpdateStudiesWithClinicalTrialsAsync(batch, lastSeenInSweepUtc, cancellationToken).ConfigureAwait(false);
             batchSw.Stop();
             totalIngested += ingested;
             batchNumber++;

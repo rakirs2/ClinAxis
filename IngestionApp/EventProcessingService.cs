@@ -174,6 +174,7 @@ internal sealed class EventProcessingService : BackgroundService
                 payload.Count,
                 lastUpdatedPost: payload.DateFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 lastUpdatedPostTo: payload.DateTo.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                lastSeenInSweepUtc: payload.SweepStartedUtc,
                 cancellationToken: timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)

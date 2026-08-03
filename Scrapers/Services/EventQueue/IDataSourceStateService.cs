@@ -38,4 +38,9 @@ public interface IDataSourceStateService
     /// Update the predicted next scheduled run time for a data source.
     /// </summary>
     Task UpdateNextScheduledRunAsync(string sourceName, DateTime? nextRun, CancellationToken ct = default);
+
+    /// <summary>
+    /// Update the full-corpus sweep state for a data source (status, remaining, started/completed UTC).
+    /// </summary>
+    Task UpdateBackfillStateAsync(string sourceName, string? status, int? remainingStudies, DateTime? startedUtc, DateTime? completedUtc, CancellationToken ct = default);
 }

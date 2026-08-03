@@ -82,6 +82,32 @@ else
                         No completed ingest run yet — ETA unavailable until the first run finishes.
                     </small>
                 }
+                @if (dataSourceStates is { Count: > 0 })
+                {
+                    var ctState = dataSourceStates.FirstOrDefault(s => s.sourceName == "ClinicalTrials.gov");
+                    if (ctState?.backfillStatus is not null)
+                    {
+                        <div class="mt-2 small">
+                            @switch (ctState.backfillStatus)
+                            {
+                                case "in-progress":
+                                    <span class="text-warning">
+                                        Backfilling full corpus — <strong>@(ctState.backfillRemainingStudies?.ToString("N0") ?? "?")</strong> studies remaining
+                                        (started @FormatDate(ctState.backfillStartedUtc))
+                                    </span>
+                                    break;
+                                case "complete":
+                                    <span class="text-success">
+                                        Full-corpus sweep complete @FormatDate(ctState.backfillCompletedUtc)
+                                    </span>
+                                    break;
+                                case "failed":
+                                    <span class="text-danger">Full-corpus sweep failed — re-triggering on next scrape tick</span>
+                                    break;
+                            }
+                        </div>
+                    }
+                }
             }
         </div>
         <div class="col-md-6">
@@ -569,6 +595,10 @@ else
         public string? errorMessage { get; set; }
         public DateTime updatedAt { get; set; }
         public int rejectedKeywordsTotal { get; set; }
+        public string? backfillStatus { get; set; }
+        public int? backfillRemainingStudies { get; set; }
+        public DateTime? backfillStartedUtc { get; set; }
+        public DateTime? backfillCompletedUtc { get; set; }
         public ScrapeProgressItem? scrapeProgress { get; set; }
     }
 

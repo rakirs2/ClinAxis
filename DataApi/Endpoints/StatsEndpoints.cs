@@ -186,6 +186,10 @@ internal static class StatsEndpoints
                     s.UpdatedAt,
                     s.RejectedKeywordsTotal,
                     s.NextScheduledRun,
+                    s.BackfillStatus,
+                    s.BackfillRemainingStudies,
+                    s.BackfillStartedUtc,
+                    s.BackfillCompletedUtc,
                     scrapeProgress = progress
                 };
             }));

@@ -106,6 +106,20 @@ public sealed class SchemaGuardTests : DbTestBase
         Assert.IsTrue(columns.Any(c => c.Name == "collaborator_names"), "collaborator_names column missing");
         Assert.IsTrue(columns.Any(c => c.Name == "eligibility_criteria"), "eligibility_criteria column missing");
         Assert.IsTrue(columns.Any(c => c.Name == "healthy_volunteers"), "healthy_volunteers column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "last_seen_in_sweep_utc"), "last_seen_in_sweep_utc column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "removed_from_source_at"), "removed_from_source_at column missing");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task DataSourceStateTable_HasBackfillColumns()
+    {
+        var columns = await GetColumnsAsync("data_source_state");
+
+        Assert.IsTrue(columns.Any(c => c.Name == "backfill_status"), "backfill_status column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "backfill_remaining_studies"), "backfill_remaining_studies column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "backfill_started_utc"), "backfill_started_utc column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "backfill_completed_utc"), "backfill_completed_utc column missing");
     }
 
     private async Task<List<string>> GetIndexesAsync(string tableName, string indexPrefix)

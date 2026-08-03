@@ -75,6 +75,8 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.CreatedAt).HasColumnName("created_at");
                 entity.Property(e => e.IsIncomplete).HasColumnName("is_incomplete");
                 entity.Property(e => e.RejectedConditions).HasColumnName("rejected_conditions").HasColumnType("jsonb");
+                entity.Property(e => e.LastSeenInSweepUtc).HasColumnName("last_seen_in_sweep_utc");
+                entity.Property(e => e.RemovedFromSourceAt).HasColumnName("removed_from_source_at");
 
                 entity.HasIndex(e => new { e.OverallStatus, e.StartDate });
                 entity.HasIndex(e => e.EnrollmentCount);
@@ -459,6 +461,10 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
                 entity.Property(e => e.RejectedKeywordsTotal).HasColumnName("rejected_keywords_total");
                 entity.Property(e => e.NextScheduledRun).HasColumnName("next_scheduled_run");
+                entity.Property(e => e.BackfillStatus).HasColumnName("backfill_status");
+                entity.Property(e => e.BackfillRemainingStudies).HasColumnName("backfill_remaining_studies");
+                entity.Property(e => e.BackfillStartedUtc).HasColumnName("backfill_started_utc");
+                entity.Property(e => e.BackfillCompletedUtc).HasColumnName("backfill_completed_utc");
 
                 entity.HasIndex(e => e.SourceName).IsUnique();
             });

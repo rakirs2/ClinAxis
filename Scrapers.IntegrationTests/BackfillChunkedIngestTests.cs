@@ -20,7 +20,7 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
         var queue = new EventQueueService(ConnectionString);
 
         // 1. Enqueue a backfill chunk event with an inclusive date window.
-        const string payload = """{"chunkIndex":0,"count":4,"dateFrom":"2026-07-01","dateTo":"2026-08-01"}""";
+        const string payload = """{"chunkIndex":0,"count":4,"dateFrom":"2026-07-01","dateTo":"2026-08-01","sweepStartedUtc":"2026-08-03T12:00:00Z"}""";
         await queue.EnqueueAsync("studies.backfill", payload);
 
         // 2. Claim it; the payload must round-trip through the parser the worker uses.

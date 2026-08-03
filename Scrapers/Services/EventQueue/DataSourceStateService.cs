@@ -144,6 +144,37 @@ public sealed class DataSourceStateService : IDataSourceStateService
                 .Options);
 
         var state = await context.DataSourceStates
+            .FirstOrDefaultAsync(s => s.SourceName == sourceName, cancellationToken: ct)            .ConfigureAwait(false);
+
+        if (state == null)
+        {
+            state = new DataSourceStateEntity { SourceName = sourceName };
+            context.DataSourceStates.Add(state);
+        }
+
+        state.NextScheduledRun = nextRun;
+        state.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task UpdateBackfillStateAsync(
+        string sourceName,
+        string? status,
+        int? remainingStudies,
+        DateTime? startedUtc,
+        DateTime? completedUtc,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourceName))
+            throw new ArgumentException("Source name cannot be null or empty", nameof(sourceName));
+
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var state = await context.DataSourceStates
             .FirstOrDefaultAsync(s => s.SourceName == sourceName, cancellationToken: ct)
             .ConfigureAwait(false);
 
@@ -153,7 +184,10 @@ public sealed class DataSourceStateService : IDataSourceStateService
             context.DataSourceStates.Add(state);
         }
 
-        state.NextScheduledRun = nextRun;
+        state.BackfillStatus = status;
+        state.BackfillRemainingStudies = remainingStudies;
+        state.BackfillStartedUtc = startedUtc;
+        state.BackfillCompletedUtc = completedUtc;
         state.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
