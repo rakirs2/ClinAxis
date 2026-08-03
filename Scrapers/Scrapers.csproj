@@ -20,7 +20,7 @@
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.7.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
   </ItemGroup>
 
   <ItemGroup>
