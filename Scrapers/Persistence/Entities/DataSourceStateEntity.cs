@@ -31,4 +31,16 @@ public sealed class DataSourceStateEntity
 
     /// <summary>Predicted next run time (set by the background service each loop)</summary>
     public DateTime? NextScheduledRun { get; set; }
+
+    /// <summary>Full-corpus sweep state: idle, in-progress, complete, failed.</summary>
+    public string? BackfillStatus { get; set; }
+
+    /// <summary>Studies still missing from the DB while a sweep is in progress.</summary>
+    public int? BackfillRemainingStudies { get; set; }
+
+    /// <summary>UTC start of the current/last sweep; used as the reconciliation cutoff.</summary>
+    public DateTime? BackfillStartedUtc { get; set; }
+
+    /// <summary>UTC completion of the last full sweep (lastFullSweepUtc).</summary>
+    public DateTime? BackfillCompletedUtc { get; set; }
 }

@@ -40,6 +40,7 @@ internal static class StatsEndpoints
             var repo = new StudyRepository(connectionString);
 
             var studies = await repo.CountStudiesAsync();
+            var activeStudies = await repo.CountActiveStudiesAsync();
             var investigators = await repo.CountInvestigatorsAsync();
             var pubmedPapers = await repo.CountPubmedPapersAsync();
             var keywords = await repo.CountKeywordsAsync();
@@ -57,6 +58,7 @@ internal static class StatsEndpoints
                 db = new
                 {
                     totalStudies = studies,
+                    totalStudiesLive = activeStudies,
                     totalInvestigators = investigators,
                     totalPubmedPapers = pubmedPapers,
                     totalKeywords = keywords
@@ -186,6 +188,10 @@ internal static class StatsEndpoints
                     s.UpdatedAt,
                     s.RejectedKeywordsTotal,
                     s.NextScheduledRun,
+                    s.BackfillStatus,
+                    s.BackfillRemainingStudies,
+                    s.BackfillStartedUtc,
+                    s.BackfillCompletedUtc,
                     scrapeProgress = progress
                 };
             }));

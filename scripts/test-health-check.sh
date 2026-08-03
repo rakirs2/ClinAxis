@@ -63,10 +63,15 @@ DATA_SOURCE_OK="$WORK_DIR/data-source-ok.json"
 DATA_SOURCE_STALE="$WORK_DIR/data-source-stale.json"
 DATA_SOURCE_STUCK="$WORK_DIR/data-source-stuck.json"
 DATA_SOURCE_SPINNING="$WORK_DIR/data-source-spinning.json"
+DATA_SOURCE_BACKFILL_STUCK="$WORK_DIR/data-source-backfill-stuck.json"
+EVENT_QUEUE_NO_CHUNKS="$WORK_DIR/event-queue-no-chunks.json"
+EVENT_QUEUE_CHUNKS_ACTIVE="$WORK_DIR/event-queue-chunks-active.json"
 SCRAPER_PROGRESS="$WORK_DIR/scraper-progress.json"
 
 printf '{"deadLetterCount": 3, "pendingCount": 5, "failureRate": 0.02}' > "$EVENT_QUEUE_OK"
 printf '{"deadLetterCount": 176, "pendingCount": 0, "failureRate": 0.9}' > "$EVENT_QUEUE_DLQ"
+printf '{"deadLetterCount": 0, "pendingCount": 0, "failureRate": 0.0, "byEventType": [{"eventType": "studies.discovered", "pending": 1, "processing": 0}]}' > "$EVENT_QUEUE_NO_CHUNKS"
+printf '{"deadLetterCount": 0, "pendingCount": 5, "failureRate": 0.0, "byEventType": [{"eventType": "studies.backfill", "pending": 5, "processing": 1}]}' > "$EVENT_QUEUE_CHUNKS_ACTIVE"
 
 fresh=$(iso_hours_ago 1)
 old=$(iso_hours_ago 100)
@@ -83,6 +88,10 @@ cat > "$DATA_SOURCE_STUCK" <<EOF
 EOF
 cat > "$DATA_SOURCE_SPINNING" <<EOF
 [{"sourceName": "ClinicalTrials.gov", "status": "syncing", "lastSyncTimestamp": "$fresh", "updatedAt": "$fresh"}]
+EOF
+cat > "$DATA_SOURCE_BACKFILL_STUCK" <<EOF
+[{"sourceName": "ClinicalTrials.gov", "status": "idle", "lastSyncTimestamp": "$fresh", "updatedAt": "$fresh",
+  "backfillStatus": "in-progress", "backfillRemainingStudies": 300000, "backfillStartedUtc": "$stuck_since"}]
 EOF
 printf '{"totalAvailable": 600000, "totalInDb": 37477, "percentScraped": 6.2}' > "$SCRAPER_PROGRESS"
 
@@ -106,6 +115,12 @@ assert_finding "stuck: ClinicalTrials.gov status=syncing" "$(check_stuck "$DATA_
 assert_clean "$(WATCHDOG_STALL_HOURS=24 check_stuck "$DATA_SOURCE_STUCK")"
 # A sync in progress (fresh lastSyncTimestamp) must not alert.
 assert_clean "$(check_stuck "$DATA_SOURCE_SPINNING")"
+
+echo "== check_backfill_stuck =="
+assert_clean "$(check_backfill_stuck "$DATA_SOURCE_OK" "$EVENT_QUEUE_NO_CHUNKS")"
+assert_clean "$(check_backfill_stuck "$DATA_SOURCE_BACKFILL_STUCK" "$EVENT_QUEUE_CHUNKS_ACTIVE")"
+assert_finding "backfill: sweep in-progress but no chunk events active (remaining=300000)" \
+  "$(check_backfill_stuck "$DATA_SOURCE_BACKFILL_STUCK" "$EVENT_QUEUE_NO_CHUNKS")"
 
 echo "== full script: healthy =="
 output=$("$SCRIPT_DIR/health-check.sh" --event-queue "$EVENT_QUEUE_OK" --data-source "$DATA_SOURCE_OK")

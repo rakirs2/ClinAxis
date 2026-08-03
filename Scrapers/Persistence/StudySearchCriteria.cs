@@ -38,5 +38,11 @@ namespace Scrapers.Persistence
         // Pagination
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 20;
+
+        /// <summary>
+        /// When false (default), studies flagged as removed from the source (no longer on
+        /// CT.gov) are excluded. Set true to include them.
+        /// </summary>
+        public bool IncludeRemoved { get; set; }
     }
 }

@@ -5,9 +5,11 @@ namespace Scrapers.Utilities;
 
 /// <summary>
 /// Payload of a <c>studies.backfill</c> queue event: one date-window chunk of the
-/// full-corpus sweep. Dates are date-only (yyyy-MM-dd), matching the API's granularity.
+/// full-corpus sweep. Dates are date-only (yyyy-MM-dd), matching the API's granularity;
+/// <see cref="SweepStartedUtc"/> is the UTC stamp written on every study the chunk upserts,
+/// so the sweep's completion reconciliation can detect studies CT.gov no longer has.
 /// </summary>
-public sealed record BackfillEventPayload(int Count, DateOnly DateFrom, DateOnly DateTo, int? ChunkIndex = null)
+public sealed record BackfillEventPayload(int Count, DateOnly DateFrom, DateOnly DateTo, DateTime SweepStartedUtc, int? ChunkIndex = null)
 {
     private const string DateFormat = "yyyy-MM-dd";
 
@@ -30,7 +32,8 @@ public sealed record BackfillEventPayload(int Count, DateOnly DateFrom, DateOnly
 
             if (!root.TryGetProperty("count", out JsonElement countElement) ||
                 !root.TryGetProperty("dateFrom", out JsonElement fromElement) ||
-                !root.TryGetProperty("dateTo", out JsonElement toElement))
+                !root.TryGetProperty("dateTo", out JsonElement toElement) ||
+                !root.TryGetProperty("sweepStartedUtc", out JsonElement sweepElement))
             {
                 return false;
             }
@@ -51,13 +54,18 @@ public sealed record BackfillEventPayload(int Count, DateOnly DateFrom, DateOnly
                 return false;
             }
 
+            if (!sweepElement.TryGetDateTime(out DateTime sweepStartedUtc))
+            {
+                return false;
+            }
+
             int? chunkIndex = null;
             if (root.TryGetProperty("chunkIndex", out JsonElement indexElement) && indexElement.TryGetInt32(out int parsedIndex))
             {
                 chunkIndex = parsedIndex;
             }
 
-            payload = new BackfillEventPayload(count, from, to, chunkIndex);
+            payload = new BackfillEventPayload(count, from, to, sweepStartedUtc, chunkIndex);
             return true;
         }
         catch (JsonException)
@@ -66,7 +74,7 @@ public sealed record BackfillEventPayload(int Count, DateOnly DateFrom, DateOnly
         }
         catch (InvalidOperationException)
         {
-            // TryGetInt32 throws when the element is not a JSON number.
+            // TryGetInt32/TryGetDateTime throw when the element is not a JSON value.
             return false;
         }
     }

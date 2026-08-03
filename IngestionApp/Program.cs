@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Services;
+using Scrapers.Services.Backfill;
 using Scrapers.Services.Enrichment;
 using Scrapers.Services.EventQueue;
 using Scrapers.Utilities;
@@ -98,7 +99,12 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<IDataSourceStateService>(),
             sp.GetRequiredService<INgestionProgressReporter>(),
             scrapeIntervalMinutes: 60,
-            pageSize: ctGovPageSize));
+            pageSize: ctGovPageSize,
+            backfillThreshold: int.TryParse(Environment.GetEnvironmentVariable("BACKFILL_THRESHOLD"), out var backfillThreshold) ? backfillThreshold : 10_000,
+            backfillChunkMaxStudies: int.TryParse(Environment.GetEnvironmentVariable("BACKFILL_CHUNK_MAX_STUDIES"), out var backfillChunkMax) ? backfillChunkMax : 10_000,
+            ctClient: sp.GetRequiredService<ClinicalTrialsGov>(),
+            backfillCoordinator: new BackfillCoordinatorService(cs),
+            repository: sp.GetRequiredService<StudyRepository>()));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),

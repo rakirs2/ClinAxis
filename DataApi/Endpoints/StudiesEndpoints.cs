@@ -63,7 +63,8 @@ internal static class StudiesEndpoints
             string? country, string? state, string? city, string? facility,
             string? locationMeshTree,
             int? enrollmentMin, int? enrollmentMax,
-            DateTime? startDateFrom, DateTime? startDateTo) =>
+            DateTime? startDateFrom, DateTime? startDateTo,
+            bool? includeRemoved) =>
         {
             var repo = new StudyRepository(connectionString);
             var p = Math.Max(1, page ?? 1);
@@ -85,6 +86,7 @@ internal static class StudiesEndpoints
                 EnrollmentMax = enrollmentMax,
                 StartDateFrom = startDateFrom,
                 StartDateTo = startDateTo,
+                IncludeRemoved = includeRemoved ?? false,
                 Page = p,
                 PageSize = ps
             };

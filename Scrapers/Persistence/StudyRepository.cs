@@ -51,7 +51,10 @@ namespace Scrapers.Persistence
             await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task<int> UpdateStudiesWithClinicalTrialsAsync(IEnumerable<ClinicalTrialRecord> records, CancellationToken cancellationToken = default)
+        public async Task<int> UpdateStudiesWithClinicalTrialsAsync(
+            IEnumerable<ClinicalTrialRecord> records,
+            DateTime? lastSeenInSweepUtc = null,
+            CancellationToken cancellationToken = default)
         {
             var recordList = records?.ToList();
             if (recordList == null || recordList.Count == 0)
@@ -164,6 +167,13 @@ namespace Scrapers.Persistence
                 }
 
                 MapRecordToEntity(record, entity, incomplete);
+
+                if (lastSeenInSweepUtc.HasValue)
+                {
+                    // Full-corpus sweep: mark this study as seen in the current sweep so the
+                    // reconciliation at sweep completion can flag studies CT.gov no longer has.
+                    entity.LastSeenInSweepUtc = lastSeenInSweepUtc.Value;
+                }
 
                 if (!incomplete)
                 {
@@ -660,6 +670,46 @@ namespace Scrapers.Persistence
             return await context.Studies.CountAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Count of studies not flagged as removed from the source (i.e., currently on CT.gov).
+        /// </summary>
+        public async Task<int> CountActiveStudiesAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies.CountAsync(s => s.RemovedFromSourceAt == null, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Sweep reconciliation: flags every study that was not re-fetched during the sweep
+        /// that started at <paramref name="sweepStartedUtc"/> (never stamped, or stamped by an
+        /// earlier sweep). After a fully completed sweep, that set is exactly the studies that
+        /// clinicaltrials.gov no longer has. Rows are flagged, never deleted.
+        /// </summary>
+        /// <returns>The number of newly flagged studies.</returns>
+        public async Task<int> MarkStudiesRemovedAsync(DateTime sweepStartedUtc, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+
+            var toFlag = await context.Studies
+                .Where(s => s.RemovedFromSourceAt == null)
+                .Where(s => s.LastSeenInSweepUtc == null || s.LastSeenInSweepUtc < sweepStartedUtc)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var now = DateTime.UtcNow;
+            foreach (var study in toFlag)
+            {
+                study.RemovedFromSourceAt = now;
+            }
+
+            if (toFlag.Count > 0)
+            {
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return toFlag.Count;
+        }
+
         public async Task<int> CountInvestigatorsAsync(CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -840,6 +890,11 @@ namespace Scrapers.Persistence
                 .AsNoTracking()
                 .Where(s => s.StudyInvestigators != null && s.StudyInvestigators.Any(si => si.InvestigatorPersonId == personId));
 
+            if (!criteria.IncludeRemoved)
+            {
+                query = query.Where(s => s.RemovedFromSourceAt == null);
+            }
+
             if (!string.IsNullOrWhiteSpace(criteria.Keyword))
             {
                 var keyword = $"%{criteria.Keyword}%";
@@ -916,6 +971,11 @@ namespace Scrapers.Persistence
             var query = context.Studies
                 .AsNoTracking()
                 .Where(s => s.StudyInvestigators != null && s.StudyInvestigators.Any(si => si.InvestigatorPersonId == personId));
+
+            if (!criteria.IncludeRemoved)
+            {
+                query = query.Where(s => s.RemovedFromSourceAt == null);
+            }
 
             if (!string.IsNullOrWhiteSpace(criteria.Keyword))
             {
@@ -1087,6 +1147,11 @@ namespace Scrapers.Persistence
                 .Include(s => s.StudyPapers!).ThenInclude(sp => sp.PubmedPaper)
                 .AsNoTracking();
 
+            if (!criteria.IncludeRemoved)
+            {
+                query = query.Where(s => s.RemovedFromSourceAt == null);
+            }
+
             // Apply filters in order (helps query planner use indices)
 
             // 1. Keyword search (case-insensitive) - searches title, summary, NCT ID, and investigator names
@@ -1241,6 +1306,11 @@ namespace Scrapers.Persistence
                 .Include(s => s.Phases)
                 .Include(s => s.Locations)
                 .AsNoTracking();
+
+            if (!criteria.IncludeRemoved)
+            {
+                query = query.Where(s => s.RemovedFromSourceAt == null);
+            }
 
             // Apply SAME filters as SearchStudiesAsync (copy filter logic)
             // This ensures pagination counts match results

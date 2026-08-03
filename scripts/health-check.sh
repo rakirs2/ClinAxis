@@ -129,6 +129,38 @@ for s in states:
 PYEOF
 }
 
+check_backfill_stuck() {
+  python3 - "$1" "$2" <<'PYEOF'
+import json, sys
+
+# Alerts when a sweep is marked in-progress but no chunk events are pending/processing.
+# Covers: all chunks dead-lettered (the next scrape tick marks the sweep failed, but the
+# watchdog must not wait ~30 min), or chunk events lost after a partial enqueue.
+data_path, queue_path = sys.argv[1], sys.argv[2]
+try:
+    states = json.load(open(data_path))
+except (ValueError, json.JSONDecodeError):
+    print("backfill: data-source payload unparseable")
+    sys.exit(0)
+
+chunk_active = 0
+try:
+    queue = json.load(open(queue_path))
+    for t in queue.get('byEventType', []):
+        if t.get('eventType') == 'studies.backfill':
+            chunk_active = int(t.get('pending') or 0) + int(t.get('processing') or 0)
+except (ValueError, json.JSONDecodeError):
+    chunk_active = -1
+
+for s in states:
+    if (s.get('backfillStatus') or '') != 'in-progress':
+        continue
+    remaining = s.get('backfillRemainingStudies')
+    if chunk_active == 0 and remaining is not None and remaining > 0:
+        print(f"backfill: sweep in-progress but no chunk events active (remaining={remaining})")
+PYEOF
+}
+
 main() {
   local ALERT_FILE=""
   local EVENT_QUEUE_JSON=""
@@ -174,6 +206,7 @@ main() {
   if [[ -f "$DATA_SOURCE_JSON" ]]; then
     collect check_stale_sync "$DATA_SOURCE_JSON"
     collect check_stuck "$DATA_SOURCE_JSON"
+    collect check_backfill_stuck "$DATA_SOURCE_JSON" "$EVENT_QUEUE_JSON"
   else
     FAILURES+=("data-source: endpoint payload missing (fetch failed?)")
   fi

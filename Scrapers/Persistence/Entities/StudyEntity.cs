@@ -34,6 +34,14 @@ namespace Scrapers.Persistence.Entities
         public bool IsIncomplete { get; set; }
         public string? RejectedConditions { get; set; }
 
+        /// <summary>UTC stamp written on every upsert during a full-corpus sweep; the sweep's
+        /// reconciliation uses it to detect studies that are no longer on CT.gov.</summary>
+        public DateTime? LastSeenInSweepUtc { get; set; }
+
+        /// <summary>Set when reconciliation confirms the study is no longer registered on
+        /// CT.gov. Flagged rows are excluded from default search but never deleted.</summary>
+        public DateTime? RemovedFromSourceAt { get; set; }
+
         public ICollection<StudyInvestigatorEntity>? StudyInvestigators { get; set; }
         public ICollection<StudyPaperEntity>? StudyPapers { get; set; }
         public ICollection<StudyKeywordEntity>? Keywords { get; set; }
