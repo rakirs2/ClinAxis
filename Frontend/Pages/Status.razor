@@ -1,6 +1,6 @@
 @page "/status"
 @using System.Net.Http.Json
-@implements IDisposable
+@using Microsoft.AspNetCore.Components.Web
 @inject HttpClient Client
 @inject NavigationManager Navigation
 
@@ -148,9 +148,24 @@ else
                 <span class="badge bg-warning text-dark me-1" title="Names rejected by this rule">@reason: @count</span>
             }
         </p>
+        <div class="row g-2 mb-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-0">Note</label>
+                <input class="form-control form-control-sm" @bind="OverrideNote" placeholder="e.g. verified in NPPES registry" />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-success" @onclick="() => ApplyOverride(true)" disabled="@(!selectedOverrideIds.Any())">
+                    Mark selected as Human
+                </button>
+                <button class="btn btn-sm btn-danger" @onclick="() => ApplyOverride(false)" disabled="@(!selectedOverrideIds.Any())">
+                    Mark selected as Not Human
+                </button>
+            </div>
+        </div>
         <table class="table table-sm table-striped" style="max-width: 100%">
             <thead>
                 <tr>
+                    <th>Review</th>
                     <th>Name</th>
                     <th>Occurrences</th>
                     <th>Studies</th>
@@ -159,9 +174,13 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var name in rejectedNames.Take(50))
+                @foreach (var name in rejectedNames)
                 {
                     <tr>
+                        <td>
+                            <input type="checkbox" checked="@selectedOverrideIds.Contains(name.id)"
+                                   @onchange="e => ToggleSelection(name.id, e.Value)" />
+                        </td>
                         <td>@name.name</td>
                         <td>@name.occurrenceCount</td>
                         <td>@name.studyCount</td>
@@ -179,15 +198,15 @@ else
                             {
                                 <span class="text-muted">Unreviewed</span>
                             }
+                            @if (!string.IsNullOrWhiteSpace(name.note))
+                            {
+                                <span class="text-muted ms-1">@name.note</span>
+                            }
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
-        @if (rejectedNames.Count > 50)
-        {
-            <p class="text-muted"><em>Showing top 50 of @rejectedNames.Count rejected names.</em></p>
-        }
     }
 
     <h3 class="mt-4">Data Source State</h3>
@@ -383,6 +402,9 @@ else
     private PageViewsStatsItem? pageViewsDay;
     private PageViewsStatsItem? pageViewsWeek;
     private PageViewsStatsItem? pageViewsMonth;
+    private readonly HashSet<Guid> selectedOverrideIds = [];
+    private string? OverrideNote { get; set; }
+    private bool overrideBusy;
 
     protected override async Task OnInitializedAsync()
     {
@@ -414,6 +436,43 @@ else
         catch
         {
             // Keep showing last successful data
+        }
+    }
+
+    private void ToggleSelection(Guid id, object? isChecked)
+    {
+        if (isChecked is bool isCheckedFlag && isCheckedFlag)
+        {
+            selectedOverrideIds.Add(id);
+        }
+        else
+        {
+            selectedOverrideIds.Remove(id);
+        }
+    }
+
+    private async Task ApplyOverride(bool isHuman)
+    {
+        if (overrideBusy || selectedOverrideIds.Count == 0)
+        {
+            return;
+        }
+
+        overrideBusy = true;
+        try
+        {
+            foreach (var id in selectedOverrideIds.ToList())
+            {
+                await Client.PostAsJsonAsync($"/api/rejected-names/{id}/override",
+                    new { isHumanOverride = isHuman, note = string.IsNullOrWhiteSpace(OverrideNote) ? null : OverrideNote });
+            }
+
+            selectedOverrideIds.Clear();
+            await LoadAllData();
+        }
+        finally
+        {
+            overrideBusy = false;
         }
     }
 
