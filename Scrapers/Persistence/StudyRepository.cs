@@ -671,6 +671,15 @@ namespace Scrapers.Persistence
         }
 
         /// <summary>
+        /// Count of studies not flagged as removed from the source (i.e., currently on CT.gov).
+        /// </summary>
+        public async Task<int> CountActiveStudiesAsync(CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies.CountAsync(s => s.RemovedFromSourceAt == null, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Sweep reconciliation: flags every study that was not re-fetched during the sweep
         /// that started at <paramref name="sweepStartedUtc"/> (never stamped, or stamped by an
         /// earlier sweep). After a fully completed sweep, that set is exactly the studies that

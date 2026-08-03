@@ -115,6 +115,7 @@ else
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
                     <tr><th>Studies</th><td>@(telemetry.db?.totalStudies ?? 0)</td></tr>
+                    <tr><th>Studies (live, on CT.gov)</th><td>@(telemetry.db?.totalStudiesLive ?? 0)</td></tr>
                     <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
                     <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
                     <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
@@ -563,6 +564,7 @@ else
     private class DbStats
     {
         public int totalStudies { get; set; }
+        public int totalStudiesLive { get; set; }
         public int totalInvestigators { get; set; }
         public int totalPubmedPapers { get; set; }
         public int totalKeywords { get; set; }
