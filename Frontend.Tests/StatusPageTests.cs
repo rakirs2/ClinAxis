@@ -77,6 +77,53 @@ public sealed class StatusPageTests
         Assert.IsTrue(markup.Contains("This month", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void StatusPageMarksSelectedNameAsHuman()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp, includeRejectedNames: false);
+        var id = Guid.NewGuid();
+        var overridden = false;
+        mockHttp.When("http://localhost:5003/api/rejected-names")
+            .Respond("application/json", JsonSerializer.Serialize(new[]
+            {
+                new { id, name = "Pfizer", occurrenceCount = 3, studyCount = 2, rejectionReason = "PharmaBlocklist:PFIZER",
+                      isHumanOverride = (bool?)(overridden ? true : null), note = (string?)(overridden ? "verified via NPPES" : null) }
+            }, JsonOptions));
+        mockHttp.When(HttpMethod.Post, "http://localhost:5003/api/rejected-names/*/override")
+            .Respond(async () =>
+            {
+                overridden = true;
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(new
+                    {
+                        id,
+                        name = "Pfizer",
+                        occurrenceCount = 3,
+                        studyCount = 2,
+                        rejectionReason = "PharmaBlocklist:PFIZER",
+                        isHumanOverride = true,
+                        note = "verified via NPPES"
+                    }, JsonOptions), System.Text.Encoding.UTF8, "application/json")
+                };
+            });
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Pfizer", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+
+        var noteInput = cut.FindAll("input")[0];
+        noteInput.Change("verified via NPPES");
+        cut.FindAll("input[type=checkbox]").Single().Change(true);
+        cut.Find("button.btn-success").Click();
+
+        cut.WaitForState(() => cut.Markup.Contains("Human", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        Assert.IsTrue(cut.Markup.Contains("verified via NPPES", StringComparison.Ordinal));
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();
@@ -100,7 +147,7 @@ public sealed class StatusPageTests
             .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
     }
 
-    private static void MockDefaultsWithStats(MockHttpMessageHandler mockHttp)
+    private static void MockDefaultsWithStats(MockHttpMessageHandler mockHttp, bool includeRejectedNames = true)
     {
         MockDefaults(mockHttp);
 
@@ -117,8 +164,11 @@ public sealed class StatusPageTests
                 estimatedTimeRemainingMs = (double?)null
             }, JsonOptions));
 
-        mockHttp.When("http://localhost:5003/api/rejected-names")
-            .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+        if (includeRejectedNames)
+        {
+            mockHttp.When("http://localhost:5003/api/rejected-names")
+                .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+        }
 
         mockHttp.When("http://localhost:5003/api/scraper-progress")
             .Respond("application/json", JsonSerializer.Serialize(new { }, JsonOptions));

@@ -57,6 +57,12 @@ namespace Scrapers.Persistence
             }
 
             using ClinicalTrialsContext context = CreateContext();
+            var overriddenNames = await context.RejectedInvestigatorNames
+                .Where(n => n.IsHumanOverride == true)
+                .Select(n => n.FullName)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var overriddenNameSet = new HashSet<string>(overriddenNames, StringComparer.OrdinalIgnoreCase);
             var batchPersons = new Dictionary<string, InvestigatorPersonEntity>(StringComparer.OrdinalIgnoreCase);
             var batchAffiliations = new Dictionary<(Guid PersonId, string Institution), InvestigatorAffiliationEntity>();
             var rejectedNames = new List<string>();
@@ -99,7 +105,7 @@ namespace Scrapers.Persistence
                     .Select(i => (Name: i!.Name!, Role: i.Role, Affiliation: i.Affiliation))
                     .ToList();
                 var officials = allOfficials?
-                    .Where(t => NameFilter.IsHumanName(t.Name, t.Role).IsHuman)
+                    .Where(t => NameFilter.IsHumanName(t.Name, t.Role).IsHuman || overriddenNameSet.Contains(t.Name))
                     .ToList();
 
                 if (allOfficials != null && officials != null)
@@ -668,6 +674,24 @@ namespace Scrapers.Persistence
                 .Take(pageSize)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
             return (items, total);
+        }
+
+        public async Task<bool> SetRejectedInvestigatorNameOverrideAsync(Guid id, bool isHumanOverride, string? note, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var entity = await context.RejectedInvestigatorNames
+                .FirstOrDefaultAsync(n => n.Id == id, cancellationToken)
+                .ConfigureAwait(false);
+            if (entity == null)
+            {
+                return false;
+            }
+
+            entity.IsHumanOverride = isHumanOverride;
+            entity.Note = note;
+            entity.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
         }
 
         public async Task<Dictionary<string, int>> GetNpiEnrichmentBreakdownAsync(CancellationToken cancellationToken = default)

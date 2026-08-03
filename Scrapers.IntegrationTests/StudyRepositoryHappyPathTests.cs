@@ -54,13 +54,89 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
     public async Task UpsertStudiesAsync_IsIdempotent()
     {
         ClinicalTrialRecord record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
-            [new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" }]);
+            [
+                new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" },
+                new Investigator { Name = "Pfizer", Affiliation = "Pharma HQ", Role = "SPONSOR" }
+            ]);
 
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
 
         Assert.AreEqual(1, await _repo.CountStudiesAsync());
         Assert.AreEqual(1, await _repo.CountInvestigatorsAsync());
+
+        var (rejected, _) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 50);
+        Assert.IsTrue(rejected.Count == 2, "Each ingest run records the rejected sponsor");
+        Assert.IsTrue(rejected.All(r => r.Value == "Pfizer"));
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task UpsertStudiesAsync_OverriddenRejectedNameIsIngestedAsHuman()
+    {
+        ClinicalTrialRecord record = CreateRecord("NCT00000003", "Study Three", "ACTIVE",
+            [
+                new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" },
+                new Investigator { Name = "Pfizer", Affiliation = "Pharma HQ", Role = "SPONSOR" }
+            ]);
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var (rejected, _) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 50);
+        Assert.AreEqual(1, rejected.Count);
+        Assert.AreEqual("Pfizer", rejected[0].Value);
+
+        var rejectedName = new RejectedInvestigatorNameEntity
+        {
+            FullName = "Pfizer",
+            OccurrenceCount = 1,
+            StudyCount = 1,
+            RejectionReason = "PharmaBlocklist:PFIZER",
+            IsHumanOverride = true,
+            Note = "verified via NPPES"
+        };
+        Context.RejectedInvestigatorNames.Add(rejectedName);
+        await Context.SaveChangesAsync();
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
+
+        var personsAfter = await Context.InvestigatorPersons
+            .Where(p => p.FullName == "Pfizer")
+            .ToListAsync();
+        Assert.AreEqual(1, personsAfter.Count, "Overridden name must be ingested as a person on the next run");
+        Assert.IsTrue(personsAfter[0].IsHuman);
+
+        var (rejectedAfter, _) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 50);
+        Assert.AreEqual(1, rejectedAfter.Count, "Overridden name must not be rejected again");
+        Assert.AreEqual(1, rejectedAfter.Count(r => r.Value == "Pfizer"),
+            "Only the pre-override rejection row remains — no new rejection for an overridden name");
+    }
+
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task SetRejectedInvestigatorNameOverrideAsync_UpdatesFlags()
+    {
+        var rejectedName = new RejectedInvestigatorNameEntity
+        {
+            FullName = "Acme Corp",
+            OccurrenceCount = 5,
+            StudyCount = 3,
+            RejectionReason = "CorporateSuffix:CORP"
+        };
+        Context.RejectedInvestigatorNames.Add(rejectedName);
+        await Context.SaveChangesAsync();
+
+        var updated = await _repo.SetRejectedInvestigatorNameOverrideAsync(rejectedName.Id, false, "confirmed as organization");
+        Assert.IsTrue(updated);
+
+        var after = await Context.RejectedInvestigatorNames
+            .AsNoTracking()
+            .FirstAsync(n => n.Id == rejectedName.Id);
+        Assert.AreEqual(false, after.IsHumanOverride);
+        Assert.AreEqual("confirmed as organization", after.Note);
+
+        var missing = await _repo.SetRejectedInvestigatorNameOverrideAsync(Guid.NewGuid(), true, null);
+        Assert.IsFalse(missing);
     }
 
     [TestMethod]

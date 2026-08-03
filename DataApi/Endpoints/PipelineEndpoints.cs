@@ -51,5 +51,30 @@ internal static class PipelineEndpoints
                 totalPages = (int)Math.Ceiling((double)total / ps)
             });
         });
+        app.MapPost("/api/rejected-names/{id:guid}/override", async (Guid id, RejectedNameOverrideRequest request) =>
+        {
+            var repo = new StudyRepository(connectionString);
+            var updated = await repo.SetRejectedInvestigatorNameOverrideAsync(id, request.IsHumanOverride, request.Note);
+            if (!updated)
+            {
+                return Results.NotFound();
+            }
+
+            using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(connectionString).Options);
+            var entity = await ctx.Set<RejectedInvestigatorNameEntity>().FirstAsync(n => n.Id == id);
+            return Results.Ok(new
+            {
+                id = entity.Id,
+                name = entity.FullName,
+                occurrenceCount = entity.OccurrenceCount,
+                studyCount = entity.StudyCount,
+                rejectionReason = entity.RejectionReason,
+                isHumanOverride = entity.IsHumanOverride,
+                note = entity.Note
+            });
+        });
     }
+
+    private sealed record RejectedNameOverrideRequest(bool IsHumanOverride, string? Note);
 }
