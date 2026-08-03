@@ -213,6 +213,16 @@ public sealed class ClinicalTrialsGovClientTests
             StringComparison.Ordinal);
     }
 
+    [TestMethod]
+    public void Constructor_AcceptsMaxPageSize_RejectsOutOfRange()
+    {
+        _ = new ClinicalTrialsGov(pageSize: 500);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ClinicalTrialsGov(pageSize: 501));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ClinicalTrialsGov(pageSize: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ClinicalTrialsGov(pageSize: -1));
+    }
+
     private static JsonElement GetProperty(JsonElement source, string name)
     {
         if (!source.TryGetProperty(name, out JsonElement value))

@@ -16,6 +16,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     private readonly IDataSourceStateService _dataSourceStateService;
     private readonly INgestionProgressReporter? _progressReporter;
     private readonly int _scrapeIntervalMinutes;
+    private readonly int _pageSize;
 
     private const string SourceName = "ClinicalTrials.gov";
     private DateTime _lastRunTime = DateTime.MinValue;
@@ -24,12 +25,14 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         IEventQueueService eventQueueService,
         IDataSourceStateService dataSourceStateService,
         INgestionProgressReporter? progressReporter = null,
-        int scrapeIntervalMinutes = 60)
+        int scrapeIntervalMinutes = 60,
+        int pageSize = 500)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
         _dataSourceStateService = dataSourceStateService ?? throw new ArgumentNullException(nameof(dataSourceStateService));
         _progressReporter = progressReporter;
         _scrapeIntervalMinutes = scrapeIntervalMinutes;
+        _pageSize = pageSize;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -38,7 +41,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         await _dataSourceStateService.InitializeSourceAsync(SourceName, stoppingToken).ConfigureAwait(false);
 
         using var httpClient = new HttpClient();
-        var ctClient = new ClinicalTrialsGov(httpClient);
+        var ctClient = new ClinicalTrialsGov(httpClient, pageSize: _pageSize);
 
         // Run scrape loop
         while (!stoppingToken.IsCancellationRequested)

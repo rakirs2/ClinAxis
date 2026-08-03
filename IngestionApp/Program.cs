@@ -79,7 +79,10 @@ var host = Host.CreateDefaultBuilder(args)
             : new StudyRepository(cs));
 
         // ClinicalTrials.gov ingestion pipeline
-        services.AddSingleton<ClinicalTrialsGov>();
+        var ctGovPageSize = int.TryParse(Environment.GetEnvironmentVariable("CT_GOV_PAGE_SIZE"), out var ctGovPageSizeParsed)
+            ? ctGovPageSizeParsed
+            : 500;
+        services.AddSingleton<ClinicalTrialsGov>(_ => new ClinicalTrialsGov(pageSize: ctGovPageSize));
         services.AddSingleton<ClinicalTrialsIngestionService>();
 
         // Background services for scraping and event processing
@@ -94,7 +97,8 @@ var host = Host.CreateDefaultBuilder(args)
             sp.GetRequiredService<IEventQueueService>(),
             sp.GetRequiredService<IDataSourceStateService>(),
             sp.GetRequiredService<INgestionProgressReporter>(),
-            scrapeIntervalMinutes: 60));
+            scrapeIntervalMinutes: 60,
+            pageSize: ctGovPageSize));
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
