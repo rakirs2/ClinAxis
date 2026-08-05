@@ -86,21 +86,21 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
                 {
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
-                        $"HttpRequestException: {ex.Message}",
+                        ex.ToString(),
                         stoppingToken).ConfigureAwait(false);
                 }
                 catch (InvalidOperationException ex)
                 {
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
-                        $"InvalidOperationException: {ex.Message}",
+                        ex.ToString(),
                         stoppingToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
-                        $"{ex.GetType().Name}: {ex.Message}",
+                        ex.ToString(),
                         stoppingToken).ConfigureAwait(false);
                 }
             }
@@ -275,7 +275,22 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
 
         person.NpiLookupAttemptedAt = DateTime.UtcNow;
         person.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        try
+        {
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateException ex) when (NpiCollisionDetector.IsNpiUniqueViolation(ex))
+        {
+            // Duplicate person row ("John Smith" vs "John A Smith"): the NPI is
+            // already assigned to the canonical row. Record the attempt without
+            // the NPI so the event completes instead of dead-lettering, and skip
+            // downstream events — they run against the row that owns the NPI.
+            person.Npi = null;
+            person.NpiEnrichmentResult = "duplicate";
+            enqueueDiscovered = false;
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
 
         if (enqueueDiscovered)
         {

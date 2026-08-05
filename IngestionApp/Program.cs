@@ -82,7 +82,7 @@ var host = Host.CreateDefaultBuilder(args)
         // ClinicalTrials.gov ingestion pipeline
         var ctGovPageSize = int.TryParse(Environment.GetEnvironmentVariable("CT_GOV_PAGE_SIZE"), out var ctGovPageSizeParsed)
             ? ctGovPageSizeParsed
-            : 500;
+            : 200;
         services.AddSingleton<ClinicalTrialsGov>(_ => new ClinicalTrialsGov(pageSize: ctGovPageSize));
         services.AddSingleton<ClinicalTrialsIngestionService>();
 
