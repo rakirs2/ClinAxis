@@ -183,9 +183,10 @@ namespace Scrapers.Utilities
         /// <summary>
         /// MeSH gate (issue #343): keywords rejected for structural reasons
         /// (short acronyms, punctuation, length) that still match a MeSH
-        /// descriptor at the A/B threshold (&gt;= 0.8) are legitimate medical
-        /// terms and are kept. Junk blocklist rejections are excluded by the
-        /// caller via <see cref="IsJunkBlocked"/>.
+        /// descriptor at the A/B threshold (&gt;= 0.65, re-picked in #355 P4-e
+        /// for S-BioBert) are legitimate medical terms and are kept. Junk
+        /// blocklist rejections are excluded by the caller via
+        /// <see cref="IsJunkBlocked"/>.
         /// </summary>
         public static (List<string> Accepted, List<string> Rejected) ApplyMeSHGate(
             IReadOnlyCollection<string> rejected,

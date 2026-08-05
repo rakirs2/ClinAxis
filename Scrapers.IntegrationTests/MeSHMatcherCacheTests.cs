@@ -26,15 +26,19 @@ public sealed class MeSHMatcherCacheTests
     }
 
     [TestMethod]
-    public void Match_CaseVariant_UsesSameCacheEntry()
+    public void Match_WhitespaceVariant_UsesSameCacheEntry_CaseVariantDoesNot()
     {
         using var matcher = new MeSHMatcher(MeshResourcesPath);
 
         matcher.Match("refractory hypertension");
-        var variant = matcher.Match("  Refractory HYPERTENSION ");
+        var variant = matcher.Match("  refractory hypertension ");
 
-        Assert.AreEqual(1, matcher.CacheHits, "Case/whitespace variants must hit the same normalized entry");
+        Assert.AreEqual(1, matcher.CacheHits, "Whitespace variants must hit the same normalized entry");
         Assert.IsTrue(variant.Similarity > 0f);
+
+        matcher.Match("Refractory Hypertension");
+        Assert.AreEqual(1, matcher.CacheHits,
+            "BioBERT is cased: case variants tokenize differently and must not share a cache entry");
     }
 
     [TestMethod]

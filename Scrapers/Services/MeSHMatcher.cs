@@ -11,7 +11,9 @@ namespace Scrapers.Services;
 public sealed class MeSHMatcher : IDisposable
 {
     private const int MaxSeqLen = 128;
-    private const int EmbedDim = 384;
+    // S-BioBert-snli-multinli-stsb embedding dimension (issue #355 P4-e,
+    // supersedes all-MiniLM-L6-v2's 384).
+    private const int EmbedDim = 768;
     private const int ClsTokenId = 101;
     private const int SepTokenId = 102;
     private const int UnkTokenId = 100;
@@ -96,7 +98,13 @@ public sealed class MeSHMatcher : IDisposable
             _matchCache.Add(MeSHMatchCache.NormalizeKey(value), bestIdx, bestScore);
         }
 
-        const float threshold = 0.8f;
+        // Re-picked for S-BioBert-snli-multinli-stsb (issue #355 P4-e): on the
+        // 139-keyword labeled set (ctgov-keywords.csv) 0.65 rescues 85.6% (vs
+        // 50.4% at 0.8) and is the distribution knee (0.7 -> 74.8%). All
+        // non-descriptor junk in the labeled set scores < 0.65 ("Type 1" 0.61,
+        // "treatment" 0.61); junk that IS a MeSH descriptor ("Safety" 1.0)
+        // is kept out by the KeywordFilter blocklist, not this threshold.
+        const float threshold = 0.65f;
         bool matched = bestIdx >= 0 && bestScore >= threshold;
 
         return new MeSHMatchResult
@@ -186,8 +194,9 @@ public sealed class MeSHMatcher : IDisposable
     private (int[] TokenIds, int[] AttentionMask) Tokenize(string text)
     {
         var tokens = new List<int> { ClsTokenId };
-        text = text.ToLowerInvariant();
-
+        // BioBERT is case-sensitive (tokenizer_config.json do_lower_case=false);
+        // MeSH embeddings were pre-computed from cased terms, so queries must
+        // keep their original case ("MI" and "mi" are different tokens).
         var cleaned = RemoveDiacritics(text);
         var words = SplitOnPunctuation(cleaned);
 
@@ -330,7 +339,7 @@ public sealed class MeSHMatcher : IDisposable
 
     private static Dictionary<string, int> LoadVocab(string vocabPath)
     {
-        var vocab = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var vocab = new Dictionary<string, int>(StringComparer.Ordinal);
         var lines = File.ReadAllLines(vocabPath);
         for (int i = 0; i < lines.Length; i++)
         {

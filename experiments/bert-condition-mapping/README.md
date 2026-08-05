@@ -13,7 +13,7 @@ Two parallel pipelines for normalizing ClinicalTrials.gov conditions to MeSH ter
 
 ## MeSH Pipeline
 
-Maps raw CT.gov conditions and keywords to MeSH 2026 descriptors using `all-MiniLM-L6-v2` sentence embeddings with cosine similarity.
+Maps raw CT.gov conditions and keywords to MeSH 2026 descriptors using `pritamdeka/S-BioBert-snli-multinli-stsb` sentence embeddings with cosine similarity.
 
 ### Steps
 
@@ -129,9 +129,9 @@ Sample ~50 rows from each side, rate "correct condition" or "not a condition" bl
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `MESH_THRESHOLD` | 0.8 | Minimum cosine similarity for MeSH match |
+| `MESH_THRESHOLD` | 0.65 | Minimum cosine similarity for MeSH match (re-picked for BioBERT, #355) |
 | `BERT_MODEL_NAME` | distilbert-base-uncased | Classifier base model |
-| `SENTENCE_BERT_MODEL` | all-MiniLM-L6-v2 | Embedding model |
+| `SENTENCE_BERT_MODEL` | pritamdeka/S-BioBert-snli-multinli-stsb | Embedding model (#355 P4-e) |
 | `EPOCHS` | 3 | Classifier training epochs |
 | `BATCH_SIZE` | 16 | Training batch size |
 | `LEARNING_RATE` | 2e-5 | AdamW learning rate |

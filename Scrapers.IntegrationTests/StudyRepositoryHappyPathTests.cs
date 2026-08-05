@@ -346,11 +346,15 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
             "myocardial infarction",
             "Expanded form must be recorded for analysis");
         var expandedMatch = evaluations.First(e => e.Value == "myocardial infarction");
-        Assert.IsTrue(expandedMatch.SideBMatched, "Expanded term resolves to its MeSH descriptor (>= 0.8)");
+        Assert.IsTrue(expandedMatch.SideBMatched, "Expanded term resolves to its MeSH descriptor (>= 0.65)");
         Assert.AreEqual("Myocardial Infarction", expandedMatch.SideBMeshTerm);
         var rawMi = evaluations.First(e => e.Value == "MI");
-        Assert.IsFalse(rawMi.SideBMatched, "Raw acronym scores below the 0.8 threshold — expansion is what rescues it");
-        Assert.AreEqual(4, evaluations.Count(e => e.SideBMatched), "Only the 4 expanded canonical terms match MeSH");
+        Assert.IsTrue(rawMi.SideBMatched,
+            "Raw 'MI' scores 0.71 with the BioBERT model — above the 0.65 re-picked threshold, so the gate rescues it even unexpanded");
+        var rawCva = evaluations.First(e => e.Value == "CVA");
+        Assert.IsFalse(rawCva.SideBMatched,
+            "Raw acronym 'CVA' (0.54) scores below the threshold — expansion is what rescues it");
+        Assert.AreEqual(5, evaluations.Count(e => e.SideBMatched), "4 expanded canonical terms + raw MI match MeSH");
     }
 
     [TestMethod]
