@@ -23,7 +23,8 @@ public sealed class StudySearchFilterTests
         string? country = null,
         string? state = null,
         string? city = null,
-        string? facility = null)
+        string? facility = null,
+        string[]? keywords = null)
     {
         var conditions = conditionNames is null && conditionTreePaths is null
             ? null
@@ -55,7 +56,7 @@ public sealed class StudySearchFilterTests
                     Facility = facility,
                     MeshDescriptor = locationTrees is null ? null : new MeshDescriptorEntity { Name = "United States", TreeNumbers = locationTrees }
                 }],
-            Keywords = []
+            Keywords = keywords?.Select(k => new StudyKeywordEntity { Keyword = k }).ToList() ?? []
         };
     }
 
@@ -105,6 +106,35 @@ public sealed class StudySearchFilterTests
         var results = Filter(new StudySearchCriteria { Keyword = "nct01234567" }, studies);
 
         CollectionAssert.AreEqual(new[] { "NCT01234567" }, results.Select(s => s.NctId).ToList());
+    }
+
+    [TestMethod]
+    public void Keyword_MatchesStudyKeywordsCaseInsensitively()
+    {
+        var studies = new[]
+        {
+            Study("NCT1", title: "Study of an intervention", keywords: ["Diabetic Ketoacidosis"]),
+            Study("NCT2", title: "Unrelated trial", keywords: ["Aspirin"])
+        };
+
+        var results = Filter(new StudySearchCriteria { Keyword = "ketoacidosis" }, studies);
+
+        CollectionAssert.AreEqual(new[] { "NCT1" }, results.Select(s => s.NctId).ToList());
+    }
+
+    [TestMethod]
+    public void Keyword_MatchesTitleOrKeywords_WithinDimension()
+    {
+        var studies = new[]
+        {
+            Study("NCT1", title: "Pregabalin for neuropathy", keywords: ["Pain"]),
+            Study("NCT2", title: "Aspirin trial", keywords: ["Pregabalin dosing"]),
+            Study("NCT3", title: "Placebo study", keywords: ["Safety"])
+        };
+
+        var results = Filter(new StudySearchCriteria { Keyword = "pregabalin" }, studies);
+
+        CollectionAssert.AreEqual(new[] { "NCT1", "NCT2" }, results.Select(s => s.NctId).ToList());
     }
 
     [TestMethod]

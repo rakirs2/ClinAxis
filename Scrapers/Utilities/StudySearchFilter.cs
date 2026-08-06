@@ -27,7 +27,7 @@ namespace Scrapers.Utilities
                 query = query.Where(s => s.RemovedFromSourceAt == null);
             }
 
-            // 1. Keyword search (case-insensitive substring) - title, summary, NCT ID
+            // 1. Keyword search (case-insensitive substring) - title, summary, NCT ID, study keywords
             if (!string.IsNullOrWhiteSpace(criteria.Keyword))
             {
                 var keyword = criteria.Keyword.ToLower();
@@ -35,7 +35,8 @@ namespace Scrapers.Utilities
                     (s.BriefTitle != null && s.BriefTitle.ToLower().Contains(keyword)) ||
                     (s.OfficialTitle != null && s.OfficialTitle.ToLower().Contains(keyword)) ||
                     (s.BriefSummary != null && s.BriefSummary.ToLower().Contains(keyword)) ||
-                    s.NctId.ToLower().Contains(keyword));
+                    s.NctId.ToLower().Contains(keyword) ||
+                    (s.Keywords != null && s.Keywords.Any(k => k.Keyword.ToLower().Contains(keyword))));
             }
 
             // 2. Status filter (multi-select)

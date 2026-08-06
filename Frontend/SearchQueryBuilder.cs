@@ -34,8 +34,14 @@ internal static class SearchQueryBuilder
         if (criteria.States is { Count: > 0 })
             queryParams.Add($"state={Uri.EscapeDataString(string.Join(",", criteria.States))}");
 
-        if (criteria.Cities is { Length: > 0 } && !string.IsNullOrEmpty(criteria.Cities[0]))
-            queryParams.Add($"city={Uri.EscapeDataString(criteria.Cities[0])}");
+        if (criteria.Cities is { Length: > 0 })
+        {
+            var cities = criteria.Cities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+            if (cities.Count > 0)
+            {
+                queryParams.Add($"city={Uri.EscapeDataString(string.Join(",", cities))}");
+            }
+        }
 
         if (criteria.Facilities is { Count: > 0 })
             queryParams.Add($"facility={Uri.EscapeDataString(string.Join(",", criteria.Facilities))}");
