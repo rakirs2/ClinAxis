@@ -51,7 +51,7 @@ public sealed class DataApiSmokeTests
     [TestCategory("Integration")]
     public async Task SearchByTitle_WithSeededData_ReturnsMatchingResult()
     {
-        using HttpResponseMessage response = await _client.GetAsync("/api/studies?search=Pregabalin&page=1&pageSize=10");
+        using HttpResponseMessage response = await _client.GetAsync("/api/studies?keyword=Pregabalin&page=1&pageSize=10");
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(body);

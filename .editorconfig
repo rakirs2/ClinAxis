@@ -104,3 +104,13 @@ resharper_unused_member_global_highlighting = none
 dotnet_diagnostic.CA1002.severity = none
 dotnet_diagnostic.CA2227.severity = none
 dotnet_diagnostic.CA1515.severity = none
+
+# EF-translatable case-insensitive search predicates: plain ToLower()/StartsWith()
+# are the only forms EF Core translates to SQL (LOWER() LIKE / LIKE 'p%');
+# StringComparison overloads and *Invariant variants throw at query translation.
+# PostgreSQL LOWER() is the locale source of truth for search matching.
+[Scrapers/Utilities/StudySearchFilter.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1862.severity = none
