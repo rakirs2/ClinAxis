@@ -1,0 +1,270 @@
+@page "/recommend-investigators"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Web
+@using Frontend.Components
+@inject IHttpClientFactory HttpClientFactory
+@inject ILogger<RecommendInvestigators> Logger
+
+<h1>Best-PI Investigator Recommendations</h1>
+
+<p class="text-muted">
+    Rule-based ranking (P6): enter a therapy and/or condition, and optionally a patient
+    population, geographic region, and enrollment target. Scores are explainable per factor.
+</p>
+
+<div class="card mb-4">
+    <div class="card-header"><h5>Recommendation Request</h5></div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <SearchableTagSelector @ref="_therapySelector" Branch="" Label="Therapy Type (MeSH)" Placeholder="Search therapy, drug class, intervention..." />
+            </div>
+            <div class="col-md-6">
+                <SearchableTagSelector @ref="_conditionSelector" Branch="" Label="Condition (MeSH)" Placeholder="Search condition, disease..." />
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <label class="form-label">Patient Population</label>
+                <input type="text" class="form-control" placeholder="e.g. pediatric, elderly" @bind="_population" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Region</label>
+                <input type="text" class="form-control" placeholder="e.g. United States" @bind="_region" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Enrollment Target</label>
+                <input type="number" class="form-control" placeholder="e.g. 300" @bind="_enrollmentTarget" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Results</label>
+                <select class="form-select" @bind="_topN">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <button class="btn btn-primary" @onclick="RunRecommendations" disabled="@(_loading)">
+                    @if (_loading) { <span>Ranking...</span> } else { <span>Recommend Investigators</span> }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center mt-4">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_result is not null)
+{
+    <p class="text-muted">Found @_result.totalCandidates candidates, showing top @_result.investigators.Count</p>
+
+    @if (_result.investigators.Count == 0)
+    {
+        <p class="text-muted">No investigators matched your request.</p>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var inv in _result.investigators)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <h5 class="card-title">
+                                    <a href="/investigator/@inv.uuid">@inv.name</a>
+                                </h5>
+                                <span class="badge bg-primary fs-6">@(inv.score.ToString("F2"))</span>
+                            </div>
+                            <p class="card-text text-muted">@inv.primaryAffiliation</p>
+
+                            <div class="mb-2">
+                                @if (inv.factors.experience is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Experience</span><span>@inv.factors.experience.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-info" style="width: @(inv.factors.experience.Value * 100)%"></div>
+                                    </div>
+                                }
+                                @if (inv.factors.completion is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Completion</span><span>@inv.factors.completion.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-success" style="width: @(inv.factors.completion.Value * 100)%"></div>
+                                    </div>
+                                }
+                                @if (inv.factors.conditionFit is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Condition Fit</span><span>@inv.factors.conditionFit.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-primary" style="width: @(inv.factors.conditionFit.Value * 100)%"></div>
+                                    </div>
+                                }
+                                @if (inv.factors.velocity is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Enrollment Velocity</span><span>@inv.factors.velocity.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-warning" style="width: @(inv.factors.velocity.Value * 100)%"></div>
+                                    </div>
+                                }
+                                @if (inv.factors.publication is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Publication</span><span>@inv.factors.publication.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-warning" style="width: @(inv.factors.publication.Value * 100)%"></div>
+                                    </div>
+                                }
+                                @if (inv.factors.geographic is not null)
+                                {
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Geographic</span><span>@inv.factors.geographic.Value.ToString("F2")</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height:6px;">
+                                        <div class="progress-bar bg-secondary" style="width: @(inv.factors.geographic.Value * 100)%"></div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="small text-muted">
+                                @inv.details.studyCount studies
+                                @if (inv.details.completionRate.HasValue) { <span>· completion @inv.details.completionRate.Value.ToString("F2")</span> }
+                                @if (inv.details.enrollmentVelocity.HasValue) { <span>· @inv.details.enrollmentVelocity.Value.ToString("F1") pts/mo</span> }
+                                @if (inv.details.hIndex.HasValue) { <span>· h-index @inv.details.hIndex</span> }
+                                @if (inv.details.paperCount.HasValue) { <span>· @inv.details.paperCount papers</span> }
+                                @if (inv.details.regions.Count > 0) { <span>· @string.Join(", ", inv.details.regions)</span> }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private SearchableTagSelector? _therapySelector;
+    private SearchableTagSelector? _conditionSelector;
+    private string _population = "";
+    private string _region = "";
+    private int? _enrollmentTarget;
+    private int _topN = 20;
+    private bool _loading;
+    private string? _error;
+    private RecommendResponse? _result;
+
+    private async Task RunRecommendations()
+    {
+        if (_loading) return;
+        _loading = true;
+        _error = null;
+        _result = null;
+
+        try
+        {
+            var therapyPrefixes = _therapySelector?.GetSelectedTreeNumbers() ?? [];
+            var conditionPrefixes = _conditionSelector?.GetSelectedTreeNumbers() ?? [];
+
+            if (therapyPrefixes.Count == 0 && conditionPrefixes.Count == 0)
+            {
+                _error = "Please select at least one therapy or condition.";
+                _loading = false;
+                return;
+            }
+
+            var request = new
+            {
+                therapyTreePrefixes = therapyPrefixes,
+                conditionTreePrefixes = conditionPrefixes,
+                population = string.IsNullOrWhiteSpace(_population) ? null : _population,
+                region = string.IsNullOrWhiteSpace(_region) ? null : _region,
+                enrollmentTarget = _enrollmentTarget,
+                topN = _topN
+            };
+
+            var client = HttpClientFactory.CreateClient("DataApi");
+            var response = await client.PostAsJsonAsync("/api/recommend/investigators", request);
+            if (response.IsSuccessStatusCode)
+            {
+                _result = await response.Content.ReadFromJsonAsync<RecommendResponse>();
+            }
+            else
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                _error = err?.error ?? $"Request failed: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RecommendInvestigators exception");
+            _error = $"Failed to rank investigators: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private class RecommendResponse
+    {
+        public int totalCandidates { get; set; }
+        public List<RecommendRank> investigators { get; set; } = new();
+    }
+
+    private class RecommendRank
+    {
+        public Guid uuid { get; set; }
+        public string? name { get; set; }
+        public string? primaryAffiliation { get; set; }
+        public double score { get; set; }
+        public RecommendFactors factors { get; set; } = new();
+        public RecommendDetails details { get; set; } = new();
+    }
+
+    private class RecommendFactors
+    {
+        public double? experience { get; set; }
+        public double? completion { get; set; }
+        public double? conditionFit { get; set; }
+        public double? velocity { get; set; }
+        public double? publication { get; set; }
+        public double? geographic { get; set; }
+    }
+
+    private class RecommendDetails
+    {
+        public int studyCount { get; set; }
+        public double? completionRate { get; set; }
+        public double? enrollmentVelocity { get; set; }
+        public int? hIndex { get; set; }
+        public int? paperCount { get; set; }
+        public List<string> regions { get; set; } = new();
+    }
+
+    private class ErrorResponse
+    {
+        public string? error { get; set; }
+    }
+}
