@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Utilities;
 using static DataApi.Endpoints.EndpointHelpers;
 
 namespace DataApi.Endpoints;
@@ -28,14 +29,20 @@ internal static class StudiesEndpoints
 
         app.MapGet("/api/distinct-locations", async (IMemoryCache cache, string? country, string? state, string? city) =>
         {
-            var cacheKey = $"locations_{country ?? ""}_{state ?? ""}_{city ?? ""}";
+            // MeSH location mode sends descriptor NAMES ("California") while the DB stores
+            // normalized values ("CA") — normalize before matching (LocationNormalizer is
+            // identity for already-canonical values, so raw mode is unaffected).
+            var normalizedCountry = LocationNormalizer.NormalizeCountry(country);
+            var normalizedState = LocationNormalizer.NormalizeState(state);
+
+            var cacheKey = $"locations_{normalizedCountry ?? ""}_{normalizedState ?? ""}_{city ?? ""}";
             if (cache.TryGetValue(cacheKey, out object? cached) && cached is not null)
             {
                 return Results.Ok(cached);
             }
 
             var repo = new StudyRepository(connectionString);
-            var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync(country, state, city);
+            var (countries, states, cities, facilities) = await repo.GetDistinctLocationsAsync(normalizedCountry, normalizedState, city);
             var result = new { countries, states, cities, facilities };
             var ttl = TimeSpan.FromMinutes(app.Configuration.GetValue<int>("CacheSettings:LocationsCacheDurationMinutes", 5));
             cache.Set(cacheKey, result, ttl);

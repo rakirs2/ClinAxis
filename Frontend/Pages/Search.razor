@@ -134,7 +134,7 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">Country (MeSH)</label>
-                    <select class="form-select" @onchange="HandleMeshCountryChange">
+                    <select id="meshCountrySelect" class="form-select" @onchange="HandleMeshCountryChange">
                         <option value="">-- Select Country --</option>
                         @foreach (var loc in availableMeshCountries)
                         {
@@ -144,7 +144,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">State (MeSH)</label>
-                    <select class="form-select" @onchange="HandleMeshStateChange" disabled="@(_selectedMeshCountry == null)">
+                    <select id="meshStateSelect" class="form-select" @onchange="HandleMeshStateChange" disabled="@(_selectedMeshCountry == null)">
                         <option value="">-- Select State --</option>
                         @foreach (var loc in availableMeshStates)
                         {
@@ -154,7 +154,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">City</label>
-                    <select class="form-select" @onchange="HandleMeshCityChange" disabled="@(_selectedMeshState == null)">
+                    <select id="meshCitySelect" class="form-select" @onchange="HandleMeshCityChange" disabled="@(_selectedMeshState == null)">
                         <option value="">-- Select City --</option>
                         @foreach (var city in availableCities.OrderBy(c => c))
                         {
@@ -707,7 +707,7 @@ else if (searchExecuted && studies is not null)
 
         if (!string.IsNullOrEmpty(_selectedMeshState) && !string.IsNullOrEmpty(_selectedMeshCountry))
         {
-            await LoadCitiesByState(_selectedMeshCountry ?? "", _selectedMeshState ?? "");
+            await LoadCitiesByState(MeshCountryName() ?? "", MeshStateName() ?? "");
         }
 
         criteria.LocationMeshTreePrefixes = _selectedMeshCountry is not null ? new() { _selectedMeshCountry } : new();
@@ -726,12 +726,24 @@ else if (searchExecuted && studies is not null)
 
         if (!string.IsNullOrEmpty(selectedCity) && !string.IsNullOrEmpty(_selectedMeshCountry) && !string.IsNullOrEmpty(_selectedMeshState))
         {
-            await LoadFacilitiesByCity(_selectedMeshCountry, _selectedMeshState, selectedCity);
+            await LoadFacilitiesByCity(MeshCountryName() ?? "", MeshStateName() ?? "", selectedCity);
         }
 
         criteria.Cities = string.IsNullOrEmpty(selectedCity) ? Array.Empty<string>() : new[] { selectedCity };
 
         await SearchStudies();
+    }
+
+    /// <summary>MeSH descriptor name ("United States") — the /api/distinct-locations
+    /// cascade matches canonical normalized values, not Z-tree numbers.</summary>
+    private string? MeshCountryName()
+    {
+        return availableMeshCountries.FirstOrDefault(c => c.treeNumber == _selectedMeshCountry)?.name;
+    }
+
+    private string? MeshStateName()
+    {
+        return availableMeshStates.FirstOrDefault(s => s.treeNumber == _selectedMeshState)?.name;
     }
 
     private async Task LoadRawCountries()
