@@ -2045,6 +2045,93 @@ namespace Scrapers.Persistence
             }
         }
 
+        /// <summary>
+        /// Flat (person, study) rows with each study's condition names and location countries —
+        /// the raw inputs for the P6 rec-engine assembler (issue #170).
+        /// </summary>
+        public async Task<List<RecommendationStudyRow>> GetRecommendationStudyRowsAsync(
+            IReadOnlyList<Guid> personIds,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(personIds);
+            using var ctx = CreateContext();
+
+            if (personIds.Count == 0)
+            {
+                return [];
+            }
+
+            var rows = await ctx.InvestigatorPersons
+                .Where(ip => personIds.Contains(ip.Id))
+                .Select(ip => new
+                {
+                    PersonId = ip.Id,
+                    Studies = ip.StudyInvestigators!
+                        .Select(si => new
+                        {
+                            si.Study!.OverallStatus,
+                            si.Study.EnrollmentCount,
+                            si.Study.StartDate,
+                            si.Study.CompletionDate,
+                            ConditionNames = si.Study.Conditions!
+                                .Where(c => c.MeshDescriptor != null)
+                                .Select(c => c.MeshDescriptor!.Name)
+                                .Distinct()
+                                .ToList(),
+                            Countries = si.Study.Locations!
+                                .Where(l => l.Country != null)
+                                .Select(l => l.Country!)
+                                .Distinct()
+                                .ToList()
+                        })
+                        .ToList()
+                })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return rows
+                .SelectMany(r => r.Studies.Select(s => new RecommendationStudyRow(
+                    r.PersonId,
+                    s.OverallStatus,
+                    s.EnrollmentCount,
+                    s.StartDate,
+                    s.CompletionDate,
+                    s.ConditionNames,
+                    s.Countries)))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Descriptor names for the requested MeSH tree prefixes (P6 rec-engine requested
+        /// categories, issue #170). Same ExpandPrefix matching as the finder query.
+        /// </summary>
+        public async Task<List<string>> GetDescriptorNamesForPrefixesAsync(
+            IReadOnlyList<string> treePrefixes,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(treePrefixes);
+            using var ctx = CreateContext();
+
+            if (treePrefixes.Count == 0)
+            {
+                return [];
+            }
+
+            var expandedPrefixes = treePrefixes
+                .SelectMany(ExpandPrefix)
+                .Distinct()
+                .ToList();
+
+            return await ctx.MeshDescriptors
+                .Where(md => md.TreeNumberPaths!.Any(tnp =>
+                    expandedPrefixes.Any(p => EF.Functions.Like(tnp.TreeNumber, p + "%"))))
+                .Select(md => md.Name)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         private int GetMeshDescriptorId(string cui)
         {
             if (_meshDescriptorIdCache.TryGetValue(cui, out var id))
