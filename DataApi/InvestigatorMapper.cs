@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Scrapers.Persistence.Entities;
+using Scrapers.Utilities;
 
 namespace DataApi;
 
@@ -222,6 +223,10 @@ internal static class InvestigatorMapper
             }
         }
 
+        var recSignals = RecEngineSignals.Aggregate(
+            studyList.Select(s => new RecEngineSignals.StudySignalInput(s.OverallStatus, s.EnrollmentCount, s.StartDate, s.CompletionDate)),
+            DateOnly.FromDateTime(DateTime.UtcNow));
+
         return new
         {
             uuid = person.Id,
@@ -231,6 +236,12 @@ internal static class InvestigatorMapper
             npi = person.Npi,
             paperCount = person.InvestigatorPapers?.Count ?? 0,
             primaryAffiliation = person.Affiliations?.FirstOrDefault(a => a.IsPrimary)?.InstitutionName,
+            recSignals = new
+            {
+                completionRate = recSignals.CompletionRate,
+                enrollmentVelocity = recSignals.EnrollmentVelocity,
+                studyCount = recSignals.IncludedStudyCount
+            },
             affiliations = person.Affiliations?.Select(a => new
             {
                 institution = a.InstitutionName,
