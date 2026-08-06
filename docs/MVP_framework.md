@@ -2,6 +2,8 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
+_Last synced with merged PRs through #405 (2026-08-05).
+
 ## Principles
 
 - Design principles: minimal usage and minimal complexity (AGENTS.md §5 — small stack, no nginx, lean tests, tiny PRs).
@@ -14,26 +16,26 @@ Source of truth for the MVP scope and build order. Tracking issue: #382.
 ### P1 — Completed scraper run
 
 - **Definition of done:** `mode=full` re-sync completes end-to-end with 0 dead letters; second run is idempotent; Status + DataQuality pages green; backoff keeps failures visible.
-- **Current state:** Pipeline exists (8 services) but prod is broken — CT.gov stuck "syncing" since Aug 1 (#364), 2,059 dead-lettered enrichment events (#336), ~19k backlog, scrape loop spins on failure (#377), re-ingest destructive/duplicating (#356).
-- **PR order:** ① #377 backoff (pure helper) ② #336 duplicate-insert idempotency ③ #356 parts 1–2 (non-destructive upsert + manual trigger).
+- **Current state:** Pipeline exists (8 services); CT.gov 400-stall root-caused + fixed (#376), watchdog alerts live (#363), backfill engine + lifecycle + throughput shipped (#400–#403); enrichment NPI-collision dead-letters fixed (#405 — prod DLQ retry pending ops follow-up); open: scrape-loop backoff (#377), non-destructive re-sync (#356).
+- **PR order:** ① #377 backoff (pure helper) ② #336 duplicate-insert idempotency → landed (#405) ③ #356 parts 1–2 (non-destructive upsert + manual trigger).
 
 ### P2 — Filter-based search on MeSH terms
 
 - **Definition of done:** filter combos (condition/keyword/phase/status/location) with real-time results + shareable URL; false-reject rate measured; sub-500ms latency.
-- **Current state:** `/search`, `/mesh-tree`, Search.razor exist; MeSH BERT matcher A/B + uncached (#335: 267K-row cosine scan/call); valid non-MeSH/acronym terms rejected (#343, #355); no multi-pivot filters (#27), no geo search (#30); prod 0-results bug (#313).
-- **PR order:** ① #335 memo-cache ② #355 acronym expansion + gate + threshold ③ #27 filters ④ #30 geo search (after #380).
+- **Current state:** `/search`, `/mesh-tree`, Search.razor exist; MeSH BERT matcher A/B with memo-cache (#335 → #390, ~39k× on repeated terms); MeSH gate + design allowlist live (#343 → #391); acronym expansion live (#355 → #398); bio-SBERT embeddings + threshold 0.8→0.65 landed (#404); no multi-pivot filters (#27), no geo search (#30); prod 0-results bug (#313).
+- **PR order:** ① #335 memo-cache → landed (#390) ② #355 acronym expansion + gate + threshold → landed (#398, #391, #404) ③ #27 filters ④ #30 geo search (unblocked — #380 landed as #399).
 
 ### P3 — PI name cleaning & disambiguation
 
 - **Definition of done:** one identity per investigator (persons merged); rejects queryable + overridable from the instance; enrichment DLQ ≈ 0.
-- **Current state:** NameFilter + NPPES/ORCID + NPI rule scorer (authoritative) + ONNX A/B; duplicates dead-letter (#336); `rejected_investigator_names` holds too many real names (#345); no queryable/iterable override (#344).
-- **PR order:** ① #336 dup handling ② #345 cleanup workflow ③ #344 override API/UI.
+- **Current state:** NameFilter false-rejection fixes live (#344 1/3 → #384); rejected names carry context + queryable API (#344 2/3 → #386); override review workflow live, ingest honors overrides (#344 3/3 → #388, harness sync → #389); duplicates dead-lettered + NPI-collision class fixed (#336 → #405); NPI rule scorer + ML A/B track shipped (#337, #339–#341).
+- **PR order:** ① #336 dup handling → landed (#405) ② #345 cleanup workflow → landed (#389) ③ #344 override API/UI → landed (#384/#386/#388).
 
 ### P4 — Keyword & location cleaning
 
-- **Definition of done:** measured false-reject rate on keywords; acronyms resolve to descriptors; locations normalized + geo-searchable; per-field coverage on DataQuality page.
-- **Current state:** KeywordFilter blocklist + 29-term short-list drops MI/CVA/DKA/PE/… (#343/#355); MeSH matches A/B-recorded but never gated; LocationMeshMatcher + `distinct-locations` exist; 22 CT.gov fields unpersisted (`docs/data_loss_remediation.md`).
-- **PR order:** ① #355 acronym+gate (also serves P2) ② #380 location normalization ③ remaining data-loss fields in #356 re-sync.
+- **Definition of done:** measured false-reject rate on keywords; acronyms resolve to descriptors; locations normalized + geo-searchable; per-field coverage on DataQuality page; **a single matcher (BERT) gates keyword acceptance — Side A removed**.
+- **Current state:** MeSH gate + design-descriptor allowlist live (#343 → #391); acronyms expand to canonical terms before filtering (#355 → #398); locations normalized at ingest (#380 → #399); A/B data recorded in `rejected_terms` but not yet sampled to pick a single matcher; 22 CT.gov fields unpersisted (`docs/data_loss_remediation.md`).
+- **PR order:** ① #355 acronym+gate (also serves P2) → landed (#398, #391) ② #380 location normalization → landed (#399) ③ remaining data-loss fields in #356 re-sync ④ #404 bio-SBERT upgrade + threshold re-pick → landed (0.8→0.65) ⑤ **Single-matcher decision:** read-only `/api/rejected-terms` → sample prod buckets (A/B disagreements, similarity bands, accepted) → labeled review → keep BERT only, delete Side A (`side_a_valid` + `IsValidConditionSimple`).
 
 ### P5 — Additional data sources
 
