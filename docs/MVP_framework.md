@@ -2,7 +2,7 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
-_Last synced with merged PRs through #405 (2026-08-05).
+_Last synced with merged PRs through #411 (2026-08-06). P2 complete: #27 filters + #30 geo closed (PRs #408–#411)._
 
 ## Principles
 
@@ -22,8 +22,8 @@ _Last synced with merged PRs through #405 (2026-08-05).
 ### P2 — Filter-based search on MeSH terms
 
 - **Definition of done:** filter combos (condition/keyword/phase/status/location) with real-time results + shareable URL; false-reject rate measured; sub-500ms latency.
-- **Current state:** `/search`, `/mesh-tree`, Search.razor exist; MeSH BERT matcher A/B with memo-cache (#335 → #390, ~39k× on repeated terms); MeSH gate + design allowlist live (#343 → #391); acronym expansion live (#355 → #398); bio-SBERT embeddings + threshold 0.8→0.65 landed (#404); no multi-pivot filters (#27), no geo search (#30); prod 0-results bug (#313).
-- **PR order:** ① #335 memo-cache → landed (#390) ② #355 acronym expansion + gate + threshold → landed (#398, #391, #404) ③ #27 filters ④ #30 geo search (unblocked — #380 landed as #399).
+- **Current state:** `/search`, `/mesh-tree`, Search.razor exist; MeSH BERT matcher A/B with memo-cache (#335 → #390, ~39k× on repeated terms); MeSH gate + design allowlist live (#343 → #391); acronym expansion live (#355 → #398); bio-SBERT embeddings + threshold 0.8→0.65 landed (#404); **#27 multi-pivot filters live** — real-time results + shareable URL (PR #408–#410); **#30 geo closed as region-based** — normalized country/state/city/facility + Z-MeSH hierarchy, MeSH-mode cascade fixed (PR #411); remaining: sub-500ms latency check (dev-measured on SnapshotDb; no flaky perf gate), false-reject-rate sampling owned by P4 ⑤; prod 0-results bug (#313).
+- **PR order:** ① #335 memo-cache → landed (#390) ② #355 acronym expansion + gate + threshold → landed (#398, #391, #404) ③ #27 filters → landed (#408–#410) ④ #30 geo search → landed, closed as region-based (#411; proximity/map gated on a geocoding spike per `docs/scraper_architecture.md`).
 
 ### P3 — PI name cleaning & disambiguation
 

@@ -4,6 +4,7 @@
 @using Microsoft.JSInterop
 @inject IHttpClientFactory HttpClientFactory
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 
 <h1>Advanced Study Search</h1>
 
@@ -20,8 +21,8 @@
     <div class="card-body">
         <div class="row mb-3">
             <div class="col-md-6">
-                <label class="form-label">Keyword (Title/NCT ID)</label>
-                <input @bind="criteria.Keyword" class="form-control" placeholder="Search by title or NCT ID" />
+                <label class="form-label">Keyword (Title/NCT ID/Keywords)</label>
+                <input value="@criteria.Keyword" @oninput="OnKeywordInput" class="form-control" placeholder="Search by title, NCT ID, or keyword" />
             </div>
         </div>
 
@@ -133,7 +134,7 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">Country (MeSH)</label>
-                    <select class="form-select" @onchange="HandleMeshCountryChange">
+                    <select id="meshCountrySelect" class="form-select" @onchange="HandleMeshCountryChange">
                         <option value="">-- Select Country --</option>
                         @foreach (var loc in availableMeshCountries)
                         {
@@ -143,7 +144,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">State (MeSH)</label>
-                    <select class="form-select" @onchange="HandleMeshStateChange" disabled="@(_selectedMeshCountry == null)">
+                    <select id="meshStateSelect" class="form-select" @onchange="HandleMeshStateChange" disabled="@(_selectedMeshCountry == null)">
                         <option value="">-- Select State --</option>
                         @foreach (var loc in availableMeshStates)
                         {
@@ -153,7 +154,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">City</label>
-                    <select class="form-select" @onchange="HandleMeshCityChange" disabled="@(_selectedMeshState == null)">
+                    <select id="meshCitySelect" class="form-select" @onchange="HandleMeshCityChange" disabled="@(_selectedMeshState == null)">
                         <option value="">-- Select City --</option>
                         @foreach (var city in availableCities.OrderBy(c => c))
                         {
@@ -246,22 +247,22 @@
         <div class="row mb-3">
             <div class="col-md-4">
                 <label class="form-label">Enrollment Min</label>
-                <input type="number" @bind="criteria.EnrollmentMin" class="form-control" placeholder="Min enrollment" />
+                <input type="number" value="@criteria.EnrollmentMin" @oninput="OnEnrollmentMinInput" class="form-control" placeholder="Min enrollment" />
             </div>
             <div class="col-md-4">
                 <label class="form-label">Enrollment Max</label>
-                <input type="number" @bind="criteria.EnrollmentMax" class="form-control" placeholder="Max enrollment" />
+                <input type="number" value="@criteria.EnrollmentMax" @oninput="OnEnrollmentMaxInput" class="form-control" placeholder="Max enrollment" />
             </div>
         </div>
 
         <div class="row mb-3">
             <div class="col-md-4">
                 <label class="form-label">Start Date From</label>
-                <input type="date" @bind="startDateFrom" @bind:format="yyyy-MM-dd" class="form-control" />
+                <input type="date" value="@FormatDate(startDateFrom)" @oninput="OnStartDateFromInput" class="form-control" />
             </div>
             <div class="col-md-4">
                 <label class="form-label">Start Date To</label>
-                <input type="date" @bind="startDateTo" @bind:format="yyyy-MM-dd" class="form-control" />
+                <input type="date" value="@FormatDate(startDateTo)" @oninput="OnStartDateToInput" class="form-control" />
             </div>
         </div>
 
@@ -435,7 +436,92 @@ else if (searchExecuted && studies is not null)
 
     protected override async Task OnInitializedAsync()
     {
+        var (urlCriteria, urlPage) = SearchUrlParser.Parse(NavigationManager.Uri);
+        criteria = urlCriteria;
+        currentPage = urlPage;
+
         await Task.WhenAll(LoadMeshTree(null), LoadAllConditions(), LoadMeshCountries());
+
+        if (HasActiveFilters(urlCriteria) || urlPage > 1)
+        {
+            await LoadPage(urlPage);
+        }
+    }
+
+    private static bool HasActiveFilters(SearchCriteria c)
+    {
+        return !string.IsNullOrWhiteSpace(c.Keyword)
+            || c.Statuses.Count > 0
+            || c.Phases.Count > 0
+            || c.Conditions.Count > 0
+            || c.MeshTreePrefixes.Count > 0
+            || c.LocationMeshTreePrefixes.Count > 0
+            || c.Countries is { Count: > 0 }
+            || c.States is { Count: > 0 }
+            || c.Cities is { Length: > 0 }
+            || c.Facilities is { Count: > 0 }
+            || c.EnrollmentMin.HasValue
+            || c.EnrollmentMax.HasValue
+            || c.StartDateFrom.HasValue
+            || c.StartDateTo.HasValue;
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value?.ToString("yyyy-MM-dd") ?? "";
+    }
+
+    private CancellationTokenSource? _debounceCts;
+
+    private async Task DebouncedSearch()
+    {
+        _debounceCts?.Cancel();
+        var cts = _debounceCts = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(400, cts.Token);
+            await SearchStudies();
+        }
+        catch (TaskCanceledException)
+        {
+            // A newer keystroke superseded this one; its own debounce will search.
+        }
+    }
+
+    private async Task OnKeywordInput(ChangeEventArgs e)
+    {
+        criteria.Keyword = e.Value?.ToString();
+        await DebouncedSearch();
+    }
+
+    private async Task OnEnrollmentMinInput(ChangeEventArgs e)
+    {
+        criteria.EnrollmentMin = int.TryParse(e.Value?.ToString(), out var value) ? value : null;
+        await DebouncedSearch();
+    }
+
+    private async Task OnEnrollmentMaxInput(ChangeEventArgs e)
+    {
+        criteria.EnrollmentMax = int.TryParse(e.Value?.ToString(), out var value) ? value : null;
+        await DebouncedSearch();
+    }
+
+    private async Task OnStartDateFromInput(ChangeEventArgs e)
+    {
+        startDateFrom = DateTime.TryParseExact(e.Value?.ToString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var value)
+            ? value
+            : null;
+        criteria.StartDateFrom = startDateFrom;
+        await DebouncedSearch();
+    }
+
+    private async Task OnStartDateToInput(ChangeEventArgs e)
+    {
+        startDateTo = DateTime.TryParseExact(e.Value?.ToString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var value)
+            ? value
+            : null;
+        criteria.StartDateTo = startDateTo;
+        await DebouncedSearch();
     }
 
     private async Task LoadAllConditions()
@@ -512,7 +598,7 @@ else if (searchExecuted && studies is not null)
         filteredConditions = SearchConditionFilter.Filter(allConditions, conditionSearchText);
     }
 
-    private void AddCondition(string condition)
+    private async Task AddCondition(string condition)
     {
         if (!criteria.Conditions.Contains(condition))
         {
@@ -520,14 +606,16 @@ else if (searchExecuted && studies is not null)
         }
         conditionSearchText = "";
         filteredConditions.Clear();
+        await SearchStudies();
     }
 
-    private void RemoveCondition(string condition)
+    private async Task RemoveCondition(string condition)
     {
         criteria.Conditions.Remove(condition);
+        await SearchStudies();
     }
 
-    private void SwitchLocationMode(bool useMesh)
+    private async Task SwitchLocationMode(bool useMesh)
     {
         _useMeshLocation = useMesh;
         _selectedMeshCountry = null;
@@ -553,12 +641,14 @@ else if (searchExecuted && studies is not null)
 
         if (_useMeshLocation)
         {
-            _ = LoadMeshCountries();
+            await LoadMeshCountries();
         }
         else
         {
-            _ = LoadRawCountries();
+            await LoadRawCountries();
         }
+
+        await SearchStudies();
     }
 
     private async Task LoadMeshCountries()
@@ -590,6 +680,8 @@ else if (searchExecuted && studies is not null)
         }
 
         criteria.LocationMeshTreePrefixes = string.IsNullOrEmpty(_selectedMeshCountry) ? new() : new() { _selectedMeshCountry };
+
+        await SearchStudies();
     }
 
     private async Task LoadMeshStates(string treeNumber)
@@ -615,7 +707,7 @@ else if (searchExecuted && studies is not null)
 
         if (!string.IsNullOrEmpty(_selectedMeshState) && !string.IsNullOrEmpty(_selectedMeshCountry))
         {
-            await LoadCitiesByState(_selectedMeshCountry ?? "", _selectedMeshState ?? "");
+            await LoadCitiesByState(MeshCountryName() ?? "", MeshStateName() ?? "");
         }
 
         criteria.LocationMeshTreePrefixes = _selectedMeshCountry is not null ? new() { _selectedMeshCountry } : new();
@@ -623,6 +715,8 @@ else if (searchExecuted && studies is not null)
         {
             criteria.LocationMeshTreePrefixes.Add(_selectedMeshState);
         }
+
+        await SearchStudies();
     }
 
     private async Task HandleMeshCityChange(ChangeEventArgs e)
@@ -632,10 +726,24 @@ else if (searchExecuted && studies is not null)
 
         if (!string.IsNullOrEmpty(selectedCity) && !string.IsNullOrEmpty(_selectedMeshCountry) && !string.IsNullOrEmpty(_selectedMeshState))
         {
-            await LoadFacilitiesByCity(_selectedMeshCountry, _selectedMeshState, selectedCity);
+            await LoadFacilitiesByCity(MeshCountryName() ?? "", MeshStateName() ?? "", selectedCity);
         }
 
         criteria.Cities = string.IsNullOrEmpty(selectedCity) ? Array.Empty<string>() : new[] { selectedCity };
+
+        await SearchStudies();
+    }
+
+    /// <summary>MeSH descriptor name ("United States") — the /api/distinct-locations
+    /// cascade matches canonical normalized values, not Z-tree numbers.</summary>
+    private string? MeshCountryName()
+    {
+        return availableMeshCountries.FirstOrDefault(c => c.treeNumber == _selectedMeshCountry)?.name;
+    }
+
+    private string? MeshStateName()
+    {
+        return availableMeshStates.FirstOrDefault(s => s.treeNumber == _selectedMeshState)?.name;
     }
 
     private async Task LoadRawCountries()
@@ -670,6 +778,8 @@ else if (searchExecuted && studies is not null)
         {
             await LoadRawStates(_selectedRawCountry);
         }
+
+        await SearchStudies();
     }
 
     private async Task LoadRawStates(string country)
@@ -701,6 +811,8 @@ else if (searchExecuted && studies is not null)
         {
             await LoadRawCities(_selectedRawCountry, _selectedRawState);
         }
+
+        await SearchStudies();
     }
 
     private async Task LoadRawCities(string country, string state)
@@ -729,6 +841,8 @@ else if (searchExecuted && studies is not null)
         {
             await LoadRawFacilities(_selectedRawCountry, _selectedRawState, _selectedRawCity);
         }
+
+        await SearchStudies();
     }
 
     private async Task LoadRawFacilities(string country, string state, string city)
@@ -746,7 +860,7 @@ else if (searchExecuted && studies is not null)
         }
     }
 
-    private void ToggleRawFacility(string facility, bool isChecked)
+    private async Task ToggleRawFacility(string facility, bool isChecked)
     {
         if (isChecked)
         {
@@ -758,6 +872,7 @@ else if (searchExecuted && studies is not null)
             _selectedRawFacilities.Remove(facility);
         }
         criteria.Facilities = _selectedRawFacilities.Count > 0 ? _selectedRawFacilities.ToList() : null;
+        await SearchStudies();
     }
 
     private async Task LoadCitiesByState(string country, string state)
@@ -790,7 +905,7 @@ else if (searchExecuted && studies is not null)
         }
     }
 
-    private void ToggleStatus(string status, bool isChecked)
+    private async Task ToggleStatus(string status, bool isChecked)
     {
         if (isChecked)
         {
@@ -801,9 +916,10 @@ else if (searchExecuted && studies is not null)
         {
             criteria.Statuses.Remove(status);
         }
+        await SearchStudies();
     }
 
-    private void TogglePhase(string phase, bool isChecked)
+    private async Task TogglePhase(string phase, bool isChecked)
     {
         if (isChecked)
         {
@@ -814,9 +930,10 @@ else if (searchExecuted && studies is not null)
         {
             criteria.Phases.Remove(phase);
         }
+        await SearchStudies();
     }
 
-    private void ToggleFacility(string facility, bool isChecked)
+    private async Task ToggleFacility(string facility, bool isChecked)
     {
         criteria.Facilities ??= new List<string>();
         if (isChecked)
@@ -828,6 +945,7 @@ else if (searchExecuted && studies is not null)
         {
             criteria.Facilities.Remove(facility);
         }
+        await SearchStudies();
     }
 
     private async Task SearchStudies()
@@ -865,6 +983,7 @@ else if (searchExecuted && studies is not null)
                 studies = response.data;
                 total = response.total;
                 totalPages = response.totalPages;
+                NavigationManager.NavigateTo($"/?{queryString}", replace: true);
             }
         }
         catch (Exception ex)
@@ -914,6 +1033,8 @@ else if (searchExecuted && studies is not null)
         {
             await LoadRawCountries();
         }
+
+        NavigationManager.NavigateTo("/", replace: true);
     }
 
     private static string StatusColor(string? status) => status switch

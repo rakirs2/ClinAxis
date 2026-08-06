@@ -111,6 +111,7 @@ dotnet_diagnostic.CA1515.severity = none
 # PostgreSQL LOWER() is the locale source of truth for search matching.
 [Scrapers/Utilities/StudySearchFilter.cs]
 dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1307.severity = none
 dotnet_diagnostic.CA1310.severity = none
 dotnet_diagnostic.CA1311.severity = none
 dotnet_diagnostic.CA1862.severity = none
