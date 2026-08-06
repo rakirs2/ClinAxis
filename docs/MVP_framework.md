@@ -2,7 +2,7 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
-_Last synced with merged PRs through #411 (2026-08-06). P2 complete: #27 filters + #30 geo closed (PRs #408–#411)._
+_Last synced with merged PRs through #417 (2026-08-06). P6 Phase 1 (rule-based) shipped — MVP pillars P1–P6 complete except P1/P4 open items (#377, #356, single-matcher ⑤) and P5._
 
 ## Principles
 
@@ -46,8 +46,8 @@ _Last synced with merged PRs through #411 (2026-08-06). P2 complete: #27 filters
 ### P6 — Best-PI inference model
 
 - **Definition of done (MVP):** rule-based ranked PI list for (therapy, condition, population) with explainable scores + simple UI form.
-- **Current state:** #170 open; Phase 1 (rule-based scoring) defined, no code; missing signals: completion rate + enrollment velocity (#381), enrollment calc.
-- **PR order:** ① #381 completion-rate + enrollment-velocity ② rule-based scorer (pure, unit-testable) ③ `POST /api/recommend/investigators` ④ UI form.
+- **Current state:** **Phase 1 (rule-based) shipped** — completion/velocity signals (#381 → #414), pure explainable scorer (#415), `POST /api/recommend/investigators` (#416), `/recommend-investigators` UI form (#417). Known v1 limits: population input accepted but contributes no signal (needs eligibility parsing, phase-2); broad regions (EU) and proximity geo deferred; network factor not yet fed.
+- **PR order:** ① #381 → landed (#414) ② rule-based scorer → landed (#415) ③ `POST /api/recommend/investigators` → landed (#416) ④ UI form → landed (#417). Phase 2 (ML ranking on historical outcomes) is out of MVP scope.
 
 ## Build order
 
