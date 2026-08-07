@@ -5,6 +5,28 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-07 — Scraper recovery deploy and stale event backlog
+
+- **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —
+  "Watchdog: pipeline stalled or DLQ over threshold"
+- **Runs:** [deploy #31218130121](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31218130121),
+  [watchdog #31219300327](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31219300327)
+- **Symptom:** Production was running PR #421 while PRs #422 and #423 were already merged.
+  The post-deploy watchdog could reach all health endpoints, but still reported
+  `deadLetterCount=5458`.
+- **Root cause:** The deployed image did not contain the scraper-loop backoff or
+  non-destructive split-query re-ingest fixes. Independently, incremental discovery
+  events stored only a count and advanced the source cursor before downstream ingestion
+  completed. Existing dead letters are historical queue state and are not replayed by a
+  normal deploy.
+- **Fix:** Deployed current `main` at `de4d5e8` with `reset_db=false`; the deployment's
+  pipeline scrape validation passed. The follow-up scraper fix carries bounded discovery
+  windows, acknowledges the cursor after successful ingestion, preserves legacy payloads,
+  and enforces persisted retry backoff.
+- **Prevention:** Treat deployment health and queue recovery as separate checks. Retry only
+  `studies.discovered` and `studies.backfill` dead letters in a controlled operation; do not
+  bulk-retry the historical enrichment dead-letter population.
+
 ### 2026-07-21 — Stats API smoke test fails on deploy
 
 - **Issue:** [#249](https://github.com/rakirs2/ClinicalTrialData/issues/249) —

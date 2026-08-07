@@ -20,13 +20,24 @@ public interface IEventQueueService
     Task<PipelineEventEntity?> ClaimNextPendingEventAsync(string claimedBy, string[]? eventTypes = null, CancellationToken ct = default);
 
     /// <summary>
+    /// Returns whether an event of the given type is pending or processing.
+    /// </summary>
+    Task<bool> HasActiveEventAsync(string eventType, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns whether an unresolved discovery event covers the given window start.
+    /// Legacy count-only dead letters are excluded because they have no recoverable window.
+    /// </summary>
+    Task<bool> HasUnresolvedDiscoveryEventAsync(DateTime? lastUpdatedPost, CancellationToken ct = default);
+
+    /// <summary>
     /// Mark an event as successfully completed.
     /// </summary>
     Task CompleteEventAsync(int eventId, CancellationToken ct = default);
 
     /// <summary>
     /// Mark an event as failed and schedule for retry with exponential backoff.
-    /// After 3 failures, event moves to dead-letter queue.
+    /// After 4 failures, event moves to dead-letter queue.
     /// </summary>
     Task FailEventAsync(int eventId, string errorMessage, CancellationToken ct = default);
 

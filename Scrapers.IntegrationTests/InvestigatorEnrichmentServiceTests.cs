@@ -173,6 +173,12 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
             string claimedBy, string[]? eventTypes = null, CancellationToken ct = default)
             => Task.FromResult<PipelineEventEntity?>(null);
 
+        public Task<bool> HasActiveEventAsync(string eventType, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task<bool> HasUnresolvedDiscoveryEventAsync(DateTime? lastUpdatedPost, CancellationToken ct = default)
+            => Task.FromResult(false);
+
         public Task CompleteEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task FailEventAsync(int eventId, string errorMessage, CancellationToken ct = default) => Task.CompletedTask;

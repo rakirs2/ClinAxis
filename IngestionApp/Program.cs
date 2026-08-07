@@ -108,6 +108,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService(sp => new EventProcessingService(
             sp.GetRequiredService<IEventQueueService>(),
+            sp.GetRequiredService<IDataSourceStateService>(),
             sp.GetRequiredService<ClinicalTrialsIngestionService>(),
             pollIntervalSeconds: 10,
             claimedEventTimeoutMinutes: 30,

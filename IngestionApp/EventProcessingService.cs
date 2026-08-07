@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Scrapers.Services;
@@ -23,6 +22,7 @@ internal sealed class EventProcessingService : BackgroundService
             "EventProcessingService error");
 
     private readonly IEventQueueService _eventQueueService;
+    private readonly IDataSourceStateService _dataSourceStateService;
     private readonly ClinicalTrialsIngestionService _ingestionService;
     private readonly string _serviceInstanceId;
     private readonly int _pollIntervalSeconds;
@@ -33,6 +33,7 @@ internal sealed class EventProcessingService : BackgroundService
 
     public EventProcessingService(
         IEventQueueService eventQueueService,
+        IDataSourceStateService dataSourceStateService,
         ClinicalTrialsIngestionService ingestionService,
         int pollIntervalSeconds = 10,
         int claimedEventTimeoutMinutes = 30,
@@ -41,6 +42,7 @@ internal sealed class EventProcessingService : BackgroundService
         ILogger<EventProcessingService>? logger = null)
     {
         _eventQueueService = eventQueueService ?? throw new ArgumentNullException(nameof(eventQueueService));
+        _dataSourceStateService = dataSourceStateService ?? throw new ArgumentNullException(nameof(dataSourceStateService));
         _ingestionService = ingestionService ?? throw new ArgumentNullException(nameof(ingestionService));
         _pollIntervalSeconds = pollIntervalSeconds;
         _claimedEventTimeoutMinutes = claimedEventTimeoutMinutes;
@@ -93,6 +95,28 @@ internal sealed class EventProcessingService : BackgroundService
                     {
                         LogEventFailed(_logger, @event.Id, @event.EventType, ex);
                     }
+                    if (@event.EventType == "studies.discovered")
+                    {
+                        try
+                        {
+                            await _dataSourceStateService.SetStatusAsync(
+                                "ClinicalTrials.gov",
+                                "failed",
+                                ex.ToString(),
+                                stoppingToken).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception statusException)
+                        {
+                            if (_logger != null && _logger.IsEnabled(LogLevel.Error))
+                            {
+                                LogEventFailed(_logger, @event.Id, "studies.discovered status update", statusException);
+                            }
+                        }
+                    }
                     await _eventQueueService.FailEventAsync(
                         @event.Id,
                         ex.ToString(),
@@ -131,22 +155,51 @@ internal sealed class EventProcessingService : BackgroundService
 
     private async Task HandleStudiesDiscoveredAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
     {
-        var count = 50;
-        if (!string.IsNullOrWhiteSpace(@event.Data))
+        if (!IncrementalDiscoveryEventPayload.TryParse(@event.Data, out IncrementalDiscoveryEventPayload? payload) ||
+            payload is null)
         {
-            using var doc = JsonDocument.Parse(@event.Data);
-            if (doc.RootElement.TryGetProperty("count", out var countProp))
-            {
-                count = countProp.GetInt32();
-            }
+            throw new InvalidOperationException(
+                $"studies.discovered event {@event.Id} has a malformed payload: {(@event.Data ?? "<null>")}");
         }
+
+        var count = payload.Count;
 
         // Bound each ingest call so a stalled DB operation cannot block the queue forever.
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(TimeSpan.FromMinutes(_ingestTimeoutMinutes));
         try
         {
-            await _ingestionService.IngestAsync(count, cancellationToken: timeoutCts.Token).ConfigureAwait(false);
+            var ingested = await _ingestionService.IngestAsync(
+                count,
+                payload.LastUpdatedPost,
+                payload.LastUpdatedPostTo,
+                cancellationToken: timeoutCts.Token).ConfigureAwait(false);
+
+            if (ingested < count)
+            {
+                throw new InvalidOperationException(
+                    $"IngestAsync persisted {ingested} of {count} studies for event {@event.Id}; " +
+                    "the source cursor will not advance.");
+            }
+
+            if (payload.HasWindow)
+            {
+                await _dataSourceStateService.UpdateLastSyncAsync(
+                    "ClinicalTrials.gov",
+                    payload.LastUpdatedPostTo!.Value,
+                    null,
+                    timeoutCts.Token).ConfigureAwait(false);
+            }
+            else
+            {
+                // Legacy count-only events were created after the old loop had
+                // already advanced the cursor, so clear the failure state without
+                // moving that cursor again.
+                await _dataSourceStateService.SetStatusAsync(
+                    "ClinicalTrials.gov",
+                    "idle",
+                    ct: timeoutCts.Token).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {

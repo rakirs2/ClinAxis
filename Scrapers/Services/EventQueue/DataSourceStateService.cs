@@ -36,8 +36,11 @@ public sealed class DataSourceStateService : IDataSourceStateService
             context.DataSourceStates.Add(state);
         }
 
-        state.LastSyncTimestamp = timestamp;
-        state.LastSyncHash = hash;
+        if (!state.LastSyncTimestamp.HasValue || timestamp > state.LastSyncTimestamp.Value)
+        {
+            state.LastSyncTimestamp = timestamp;
+            state.LastSyncHash = hash;
+        }
         state.Status = "idle";
         state.ErrorMessage = null;
         state.UpdatedAt = DateTime.UtcNow;
@@ -69,7 +72,7 @@ public sealed class DataSourceStateService : IDataSourceStateService
         }
 
         state.Status = status;
-        if (errorMessage is not null)
+        if (errorMessage is not null || status == "idle")
         {
             state.ErrorMessage = errorMessage;
         }

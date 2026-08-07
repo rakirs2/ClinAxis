@@ -71,10 +71,11 @@ public sealed class BackfillLifecycleTests : DbTestBase
         await queue.FailEventAsync(toDeadLetter!.Id, "test failure 1");
         await queue.FailEventAsync(toDeadLetter.Id, "test failure 2");
         await queue.FailEventAsync(toDeadLetter.Id, "test failure 3");
+        await queue.FailEventAsync(toDeadLetter.Id, "test failure 4");
 
         var snapshot = await coordinator.GetChunkQueueSnapshotAsync();
         Assert.AreEqual(1, snapshot.PendingOrProcessing, "One chunk remains pending.");
-        Assert.AreEqual(1, snapshot.DeadLettered, "One chunk dead-lettered after 3 failures.");
+        Assert.AreEqual(1, snapshot.DeadLettered, "One chunk dead-lettered after 4 failures.");
 
         var completedWindows = await coordinator.GetCompletedChunkWindowsAsync();
         Assert.AreEqual(1, completedWindows.Count);

@@ -121,9 +121,13 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         // Get last sync timestamp for incremental fetching
         var state = await _dataSourceStateService.GetStateAsync(SourceName, ct).ConfigureAwait(false);
         var lastSyncTimestamp = state?.LastSyncTimestamp;
+        var windowEnd = DateTime.UtcNow;
 
         // Count new/updated studies from CT.gov API since last sync (lightweight countTotal call)
-        var studyCount = await ctClient.CountStudiesAsync(lastUpdatedPost: lastSyncTimestamp, cancellationToken: ct).ConfigureAwait(false);
+        var studyCount = await ctClient.CountStudiesAsync(
+            lastUpdatedPost: lastSyncTimestamp,
+            lastUpdatedPostTo: windowEnd,
+            cancellationToken: ct).ConfigureAwait(false);
 
         if (_progressReporter != null)
         {
@@ -132,23 +136,30 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
                 .ConfigureAwait(false);
         }
 
-        if (studyCount > 0)
+        var hasUnresolvedDiscoveryEvent = await _eventQueueService
+            .HasUnresolvedDiscoveryEventAsync(lastSyncTimestamp, ct)
+            .ConfigureAwait(false);
+
+        if (studyCount > 0 && !hasUnresolvedDiscoveryEvent)
         {
-            var eventData = JsonSerializer.Serialize(new { count = studyCount });
-            await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct).ConfigureAwait(false);
+            var eventData = new IncrementalDiscoveryEventPayload(
+                studyCount,
+                lastSyncTimestamp,
+                windowEnd).ToJson();
+            await _eventQueueService.EnqueueAsync("studies.discovered", eventData, ct)
+                .ConfigureAwait(false);
         }
 
         // Full-corpus backfill lifecycle (idempotent; runs after the incremental discovery)
         await ManageBackfillAsync(ct).ConfigureAwait(false);
 
-        // Update data source state
-        await _dataSourceStateService.UpdateLastSyncAsync(
-            SourceName,
-            DateTime.UtcNow,
-            null,
-            ct).ConfigureAwait(false);
-
-        await _dataSourceStateService.SetStatusAsync(SourceName, "idle", ct: ct).ConfigureAwait(false);
+        // A discovery event owns the cursor until its ingestion succeeds. When there
+        // is no work, advance it here because no event needs to acknowledge the window.
+        if (studyCount == 0 && !hasUnresolvedDiscoveryEvent)
+        {
+            await _dataSourceStateService.UpdateLastSyncAsync(SourceName, windowEnd, null, ct)
+                .ConfigureAwait(false);
+        }
     }
 
     private async Task ManageBackfillAsync(CancellationToken ct)

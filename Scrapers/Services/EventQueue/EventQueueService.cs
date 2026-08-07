@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Utilities;
 
 namespace Scrapers.Services.EventQueue;
 
@@ -11,7 +12,7 @@ namespace Scrapers.Services.EventQueue;
 public sealed class EventQueueService : IEventQueueService
 {
     private readonly string _connectionString;
-    private const int MaxRetries = 3;
+    private const int MaxRetries = 4;
     private const int ClaimedEventTimeoutMinutes = 30;
     private const int DefaultBackfillClaimTimeoutHours = 12;
     private static readonly SemaphoreSlim ClaimLock = new(1, 1);
@@ -69,7 +70,19 @@ public sealed class EventQueueService : IEventQueueService
         PipelineEventEntity? @event;
         try
         {
-            var claimQuery = context.PipelineEvents.Where(e => e.Status == "pending");
+            var now = DateTime.UtcNow;
+            var firstRetryEligibleAt = now - EventRetryBackoff.GetDelay(1);
+            var secondRetryEligibleAt = now - EventRetryBackoff.GetDelay(2);
+            var thirdRetryEligibleAt = now - EventRetryBackoff.GetDelay(3);
+            var claimQuery = context.PipelineEvents
+                .Where(e => e.Status == "pending")
+                .Where(e => e.RetryCount == 0 ||
+                            (e.RetryCount == 1 &&
+                             (!e.LastErrorAt.HasValue || e.LastErrorAt <= firstRetryEligibleAt)) ||
+                            (e.RetryCount == 2 &&
+                             (!e.LastErrorAt.HasValue || e.LastErrorAt <= secondRetryEligibleAt)) ||
+                            (e.RetryCount == 3 &&
+                             (!e.LastErrorAt.HasValue || e.LastErrorAt <= thirdRetryEligibleAt)));
             if (eventTypes is { Length: > 0 })
             {
                 claimQuery = claimQuery.Where(e => eventTypes.Contains(e.EventType));
@@ -94,6 +107,65 @@ public sealed class EventQueueService : IEventQueueService
         }
 
         return @event;
+    }
+
+    public async Task<bool> HasActiveEventAsync(string eventType, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(eventType))
+        {
+            throw new ArgumentException("Event type cannot be null or empty", nameof(eventType));
+        }
+
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        return await context.PipelineEvents
+            .AnyAsync(e => e.EventType == eventType &&
+                          (e.Status == "pending" || e.Status == "processing"), ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> HasUnresolvedDiscoveryEventAsync(DateTime? lastUpdatedPost, CancellationToken ct = default)
+    {
+        var unresolvedEvents = await GetUnresolvedEventDataAsync("studies.discovered", ct).ConfigureAwait(false);
+        foreach (var unresolvedEvent in unresolvedEvents)
+        {
+            if (unresolvedEvent.Status is "pending" or "processing")
+            {
+                return true;
+            }
+
+            if (unresolvedEvent.Status == "dead-letter" &&
+                IncrementalDiscoveryEventPayload.TryParse(unresolvedEvent.Data, out var payload) &&
+                payload is { HasWindow: true } &&
+                payload.LastUpdatedPost == lastUpdatedPost)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<List<(string Status, string? Data)>> GetUnresolvedEventDataAsync(
+        string eventType,
+        CancellationToken ct)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var rows = await context.PipelineEvents
+            .Where(e => e.EventType == eventType && e.Status != "completed")
+            .Select(e => new { e.Status, e.Data })
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return rows.Select(e => (e.Status, e.Data)).ToList();
     }
 
     public async Task CompleteEventAsync(int eventId, CancellationToken ct = default)
