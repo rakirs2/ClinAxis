@@ -5,6 +5,20 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-07 — Watchdog event queue telemetry timed out
+
+- **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —
+  "Watchdog: pipeline stalled or DLQ over threshold"
+- **Run:** [watchdog #31224242921](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31224242921)
+- **Symptom:** The watchdog could reach source and scraper endpoints, but the event-queue
+  stats request exceeded its 30-second limit and was reported as an unparseable payload.
+- **Root cause:** Event telemetry loaded every completed event duration into application memory
+  for averages and percentiles. The historical queue made that query too slow for the watchdog.
+- **Fix:** Bound duration calculations to the most recent 10,000 completed events while retaining
+  exact queue counts and event-type aggregates.
+- **Prevention:** Keep operational telemetry queries bounded; treat the watchdog endpoint timeout
+  as an alert condition rather than silently dropping queue health.
+
 ### 2026-08-07 — Deploy scrape gate rejected active recovery
 
 - **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —

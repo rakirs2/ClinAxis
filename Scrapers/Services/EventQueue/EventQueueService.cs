@@ -15,6 +15,7 @@ public sealed class EventQueueService : IEventQueueService
     private const int MaxRetries = 4;
     private const int ClaimedEventTimeoutMinutes = 30;
     private const int DefaultBackfillClaimTimeoutHours = 12;
+    private const int DurationSampleLimit = 10_000;
     private static readonly SemaphoreSlim ClaimLock = new(1, 1);
 
     private readonly TimeSpan _backfillClaimTimeout;
@@ -313,6 +314,8 @@ public sealed class EventQueueService : IEventQueueService
         {
             var completedEvents = await context.PipelineEvents
                 .Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue)
+                .OrderByDescending(e => e.CompletedAt)
+                .Take(DurationSampleLimit)
                 .AsNoTracking()
                 .Select(e => new { Claimed = e.ClaimedAt!.Value, Completed = e.CompletedAt!.Value })
                 .ToListAsync(ct)
@@ -374,6 +377,8 @@ public sealed class EventQueueService : IEventQueueService
 
         var allDurations = await context.PipelineEvents
             .Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue)
+            .OrderByDescending(e => e.CompletedAt)
+            .Take(DurationSampleLimit)
             .Select(e => new { e.EventType, Ms = (e.CompletedAt!.Value - e.ClaimedAt!.Value).TotalMilliseconds })
             .AsNoTracking()
             .ToListAsync(ct)

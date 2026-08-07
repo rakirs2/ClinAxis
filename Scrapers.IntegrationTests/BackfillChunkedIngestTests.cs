@@ -232,6 +232,11 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
             stateAfterDiscovery.LastSyncTimestamp,
             monotonicState!.LastSyncTimestamp,
             "A late retry must not move the source cursor backwards.");
+
+        var stats = await queue.GetStatsAsync();
+        Assert.IsTrue(stats.CompletedCount > 0);
+        var breakdown = await queue.GetEventTypeBreakdownAsync();
+        Assert.IsTrue(breakdown.Any(item => item.EventType == "studies.backfill"));
     }
 
     /// <summary>
