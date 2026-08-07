@@ -10,7 +10,7 @@ public class ClinicalTrialsGov
     private const string BaseUrl = "https://clinicaltrials.gov/api/v2/";
     private const string StudiesPath = "studies";
     private const int MaxPageSize = 500;
-    private const int MaxRetryAttempts = 3;
+    private const int MaxRetryAttempts = 5;
     private static readonly TimeSpan _initialBackoff = TimeSpan.FromSeconds(1);
     private static readonly JsonSerializerOptions _serializerOptions = new()
     {
