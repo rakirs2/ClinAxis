@@ -2,7 +2,7 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
-_Last synced with merged PRs through #417 (2026-08-06). P6 Phase 1 (rule-based) shipped — MVP pillars P1–P6 complete except P1/P4 open items (#377, #356, single-matcher ⑤) and P5._
+_Last synced with merged PRs through #418 (2026-08-06). P6 Phase 1 (rule-based) shipped — MVP pillars P1–P6 complete except P1/P4 open items (#377, #356, single-matcher ⑤) and P5. P7 is the public-domain release gate._
 
 ## Principles
 
@@ -49,11 +49,17 @@ _Last synced with merged PRs through #417 (2026-08-06). P6 Phase 1 (rule-based) 
 - **Current state:** **Phase 1 (rule-based) shipped** — completion/velocity signals (#381 → #414), pure explainable scorer (#415), `POST /api/recommend/investigators` (#416), `/recommend-investigators` UI form (#417). Known v1 limits: population input accepted but contributes no signal (needs eligibility parsing, phase-2); broad regions (EU) and proximity geo deferred; network factor not yet fed.
 - **PR order:** ① #381 → landed (#414) ② rule-based scorer → landed (#415) ③ `POST /api/recommend/investigators` → landed (#416) ④ UI form → landed (#417). Phase 2 (ML ranking on historical outcomes) is out of MVP scope.
 
+### P7 — Public domain deployment
+
+- **Definition of done:** purchased domain resolves to the droplet; `https://<domain>` serves the Frontend; TLS is valid and auto-renewing; Blazor Server SignalR, cookies, and DataApi calls work without mixed-content errors; deploy and watchdog health checks pass.
+- **Current state:** production is reachable through the droplet IP and application port; #346 covers domain purchase and DNS; #347 covers domain deployment. TLS termination remains undecided (Cloudflare proxy, Caddy, or Kestrel/certbot are the documented options), and deploy checks currently target localhost endpoints.
+- **PR order:** ① #346 domain/DNS ② choose the TLS approach ③ configure edge/reverse-proxy routing ④ update application URL, cookie, redirect, deploy, and watchdog settings ⑤ validate HTTPS, SignalR, cookies, API calls, and rollback.
+
 ## Build order
 
-**P1 → (P3, P4) → P2 → P5 → P6**
+**P1 → (P3, P4) → P2 → P5 → P6 → P7**
 
-A reliable, clean pipeline (P1) is the dependency for every downstream pillar. #355 and #335 are small PRs that unlock search quality (P2/P4). P6 consumes everything else — it is last by design.
+A reliable, clean pipeline (P1) is the dependency for every downstream pillar. #355 and #335 are small PRs that unlock search quality (P2/P4). P6 consumes everything else, and P7 is the final public-release gate.
 
 ## Cross-cutting
 
