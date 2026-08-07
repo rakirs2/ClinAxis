@@ -1,0 +1,158 @@
+name: Recover Study Events
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List eligible study events without retrying them'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      max_events:
+        description: 'Maximum number of eligible study events to retry'
+        required: true
+        default: '100'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect and optionally retry study events
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAX_EVENTS: ${{ inputs.max_events }}
+        run: |
+          set -euo pipefail
+
+          ssh_key=$(mktemp)
+          page_dir=$(mktemp -d)
+          ids_file=$(mktemp)
+          details_file=$(mktemp)
+          trap 'rm -rf "$page_dir" "$ids_file" "$details_file" "$ssh_key"' EXIT
+
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_key"
+          chmod 600 "$ssh_key"
+
+          remote() {
+            for attempt in $(seq 1 3); do
+              ssh -i "$ssh_key" -o ConnectTimeout=15 -o ServerAliveInterval=15 \
+                -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no \
+                "$DEPLOY_USER@$DEPLOY_HOST" "$@" && return 0
+              echo "SSH failed (attempt $attempt/3), retrying in 5s..." >&2
+              sleep 5
+            done
+            return 1
+          }
+
+          fetch_page() {
+            local page="$1"
+            remote "curl -sf --max-time 30 \
+              'http://localhost:5003/api/event-queue/dead-letter?page=$page&pageSize=200'" \
+              > "$page_dir/page-$page.json"
+          }
+
+          fetch_page 1
+          total_pages=$(python3 - "$page_dir/page-1.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              print(json.load(stream)["totalPages"])
+          PY
+          )
+
+          page=2
+          while [ "$page" -le "$total_pages" ]; do
+            fetch_page "$page"
+            page=$((page + 1))
+          done
+
+          python3 - "$page_dir" "$MAX_EVENTS" "$ids_file" "$details_file" <<'PY'
+          import glob
+          import json
+          import sys
+
+          page_dir, max_events_text, ids_file, details_file = sys.argv[1:]
+          max_events = int(max_events_text)
+          eligible = []
+          legacy_discovered = []
+          malformed = []
+
+          for path in sorted(glob.glob(f"{page_dir}/page-*.json")):
+              with open(path, encoding="utf-8") as stream:
+                  page = json.load(stream)
+              for event in page.get("data", []):
+                  event_type = event.get("eventType")
+                  if event_type not in {"studies.backfill", "studies.discovered"}:
+                      continue
+
+                  try:
+                      payload = json.loads(event.get("data") or "")
+                  except json.JSONDecodeError:
+                      malformed.append(event)
+                      continue
+
+                  if event_type == "studies.discovered" and "lastUpdatedPostTo" not in payload:
+                      legacy_discovered.append(event)
+                      continue
+
+                  required = {"count", "dateFrom", "dateTo"} if event_type == "studies.backfill" else {
+                      "count", "lastUpdatedPostTo"
+                  }
+                  if not required.issubset(payload):
+                      malformed.append(event)
+                      continue
+                  eligible.append(event)
+
+          eligible.sort(key=lambda event: (
+              event["eventType"] != "studies.backfill",
+              event.get("createdAt", ""),
+          ))
+          selected = eligible[:max_events]
+
+          with open(ids_file, "w", encoding="utf-8") as stream:
+              for event in selected:
+                  stream.write(f"{event['id']}\n")
+
+          with open(details_file, "w", encoding="utf-8") as stream:
+              for event in selected:
+                  stream.write(json.dumps(event, separators=(",", ":")) + "\n")
+
+          print(f"Eligible study events: {len(eligible)}")
+          print(f"Selected study events: {len(selected)}")
+          print(f"Legacy count-only discoveries excluded: {len(legacy_discovered)}")
+          print(f"Malformed study events excluded: {len(malformed)}")
+          for event in selected:
+              print(json.dumps({
+                  "id": event["id"],
+                  "eventType": event["eventType"],
+                  "createdAt": event.get("createdAt"),
+                  "data": event.get("data"),
+              }, separators=(",", ":")))
+          PY
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run only; no events were retried."
+            exit 0
+          fi
+
+          retried=0
+          while IFS= read -r event_id; do
+            [ -n "$event_id" ] || continue
+            remote "curl -sf --max-time 30 -X POST \
+              'http://localhost:5003/api/event-queue/dead-letter/$event_id/retry'" \
+              > /dev/null
+            retried=$((retried + 1))
+          done < "$ids_file"
+
+          echo "Retried $retried study events."
