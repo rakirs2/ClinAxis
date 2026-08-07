@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Tests.Helpers;
@@ -211,6 +212,24 @@ public sealed class ClinicalTrialsGovClientTests
             handler.Requests[0].Query,
             "filter.advanced=AREA%5BLastUpdatePostDate%5DRANGE%5B2026-07-01%2C2026-08-01%5D",
             StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task GetTrialRecordsAsync_RetriesTransientServerErrorsBeforeSucceeding()
+    {
+        var handler = new FakeHttpMessageHandler();
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            handler.EnqueueJsonResponse("{\"error\":\"temporary gateway failure\"}", HttpStatusCode.InternalServerError);
+        }
+
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        IReadOnlyList<ClinicalTrialRecord> records = await client.GetTrialRecordsAsync(count: 1);
+
+        Assert.AreEqual(1, records.Count);
+        Assert.AreEqual(5, handler.Requests.Count, "The client should continue through transient failures before succeeding.");
     }
 
     [TestMethod]
