@@ -88,6 +88,10 @@ namespace Scrapers.Persistence
                 .Include(s => s.Phases)
                 .Include(s => s.Locations)
                 .Include(s => s.References)
+                .Include(s => s.Outcomes)
+                .Include(s => s.ArmGroups)
+                .Include(s => s.Interventions)
+                .AsSplitQuery()
                 .Where(s => batchNctIds.Contains(s.NctId))
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -151,6 +155,7 @@ namespace Scrapers.Persistence
                         References = new List<StudyReferenceEntity>(),
                         Outcomes = new List<StudyOutcomeEntity>(),
                         ArmGroups = new List<StudyArmGroupEntity>(),
+                        Interventions = new List<StudyInterventionEntity>(),
                         StudyPapers = new List<StudyPaperEntity>()
                     };
                     context.Studies.Add(entity);
@@ -248,9 +253,9 @@ namespace Scrapers.Persistence
                         }
                     }
 
-                    entity.Keywords!.Clear();
                     if (record.Keywords != null)
                     {
+                        entity.Keywords!.Clear();
                         var conditions = record.Conditions?
                             .Where(c => !string.IsNullOrWhiteSpace(c))
                             .Select(c => c.Trim())
@@ -303,11 +308,11 @@ namespace Scrapers.Persistence
                         }
                     }
 
-                    entity.Conditions!.Clear();
-                    entity.RejectedConditions = null;
-                    var studyRejected = new List<object>();
-                    if (record.Conditions != null)
+                    if (record.Conditions != null && (_meshMatcher != null || record.Conditions.Count == 0))
                     {
+                        entity.Conditions!.Clear();
+                        entity.RejectedConditions = null;
+                        var studyRejected = new List<object>();
                         foreach (var cond in record.Conditions)
                         {
                             if (!string.IsNullOrWhiteSpace(cond))
@@ -346,15 +351,15 @@ namespace Scrapers.Persistence
                                 }
                             }
                         }
-                    }
-                    if (studyRejected.Count > 0)
-                    {
-                        entity.RejectedConditions = System.Text.Json.JsonSerializer.Serialize(studyRejected);
+                        if (studyRejected.Count > 0)
+                        {
+                            entity.RejectedConditions = System.Text.Json.JsonSerializer.Serialize(studyRejected);
+                        }
                     }
 
-                    entity.Phases!.Clear();
                     if (record.Phases != null)
                     {
+                        entity.Phases!.Clear();
                         foreach (var phase in record.Phases)
                         {
                             if (!string.IsNullOrWhiteSpace(phase))
@@ -369,9 +374,9 @@ namespace Scrapers.Persistence
                     // canonical name, US states -> 2-letter codes, trim/collapse
                     // whitespace. The normalized values feed the MeSH Z-geographical
                     // match so "U.S.A." resolves to the "United States" descriptor.
-                    entity.Locations!.Clear();
-                    if (record.Locations != null && record.Locations.Count > 0)
+                    if (record.Locations != null)
                     {
+                        entity.Locations!.Clear();
                         foreach (var location in record.Locations)
                         {
                             if (location != null)
@@ -396,6 +401,7 @@ namespace Scrapers.Persistence
                 if (record.Interventions != null)
                 {
                     entity.Interventions ??= new List<StudyInterventionEntity>();
+                    entity.Interventions.Clear();
                     foreach (var intervention in record.Interventions)
                     {
                         if (string.IsNullOrWhiteSpace(intervention.Name)) continue;
@@ -423,12 +429,12 @@ namespace Scrapers.Persistence
                 }
 
                 // Populate references from API response (fix data loss + eliminate redundant CT.gov per-study call)
-                entity.References!.Clear();
-                if (record.References != null && record.References.Count > 0)
+                if (record.References != null)
                 {
+                    entity.References!.Clear();
                     foreach (var reference in record.References)
                     {
-                        if (reference != null && !string.IsNullOrWhiteSpace(reference.Pmid))
+                        if (reference != null)
                         {
                             entity.References.Add(new StudyReferenceEntity
                             {
@@ -594,34 +600,37 @@ namespace Scrapers.Persistence
 
         private static void MapRecordToEntity(ClinicalTrialRecord record, StudyEntity entity, bool incomplete)
         {
-            entity.BriefTitle = record.BriefTitle;
-            entity.OfficialTitle = record.OfficialTitle;
-            entity.OverallStatus = record.OverallStatus;
-            entity.StudyType = record.StudyType;
-            entity.BriefSummary = record.BriefSummary;
-            entity.PrimaryPurpose = record.PrimaryPurpose;
-            entity.InterventionModel = record.InterventionModel;
-            entity.Allocation = record.Allocation;
-            entity.Masking = record.Masking;
-            entity.OrgStudyId = record.OrgStudyId;
-            entity.LeadSponsorName = record.LeadSponsorName;
-            entity.CollaboratorNames = record.CollaboratorNames != null
-                ? string.Join("; ", record.CollaboratorNames)
-                : null;
-            entity.EligibilityCriteria = record.EligibilityCriteria;
-            entity.HealthyVolunteers = record.HealthyVolunteers;
-            entity.EnrollmentCount = record.EnrollmentCount;
-            entity.Sex = record.Sex;
-            entity.MinimumAge = record.MinimumAge;
-            entity.MaximumAge = record.MaximumAge;
-            entity.StartDate = record.StartDate;
-            entity.CompletionDate = record.CompletionDate;
-            entity.StudyFirstPostDate = record.StudyFirstPostDate;
+            entity.BriefTitle = record.BriefTitle ?? entity.BriefTitle;
+            entity.OfficialTitle = record.OfficialTitle ?? entity.OfficialTitle;
+            entity.OverallStatus = record.OverallStatus ?? entity.OverallStatus;
+            entity.StudyType = record.StudyType ?? entity.StudyType;
+            entity.BriefSummary = record.BriefSummary ?? entity.BriefSummary;
+            entity.PrimaryPurpose = record.PrimaryPurpose ?? entity.PrimaryPurpose;
+            entity.InterventionModel = record.InterventionModel ?? entity.InterventionModel;
+            entity.Allocation = record.Allocation ?? entity.Allocation;
+            entity.Masking = record.Masking ?? entity.Masking;
+            entity.OrgStudyId = record.OrgStudyId ?? entity.OrgStudyId;
+            entity.LeadSponsorName = record.LeadSponsorName ?? entity.LeadSponsorName;
+            if (record.CollaboratorNames != null)
+            {
+                entity.CollaboratorNames = string.Join("; ", record.CollaboratorNames);
+            }
+
+            entity.EligibilityCriteria = record.EligibilityCriteria ?? entity.EligibilityCriteria;
+            entity.HealthyVolunteers = record.HealthyVolunteers ?? entity.HealthyVolunteers;
+            entity.EnrollmentCount = record.EnrollmentCount ?? entity.EnrollmentCount;
+            entity.Sex = record.Sex ?? entity.Sex;
+            entity.MinimumAge = record.MinimumAge ?? entity.MinimumAge;
+            entity.MaximumAge = record.MaximumAge ?? entity.MaximumAge;
+            entity.StartDate = record.StartDate ?? entity.StartDate;
+            entity.CompletionDate = record.CompletionDate ?? entity.CompletionDate;
+            entity.StudyFirstPostDate = record.StudyFirstPostDate ?? entity.StudyFirstPostDate;
             entity.IsIncomplete = incomplete;
 
             if (record.PrimaryOutcomes != null)
             {
                 entity.Outcomes ??= new List<StudyOutcomeEntity>();
+                RemoveOutcomes(entity.Outcomes, "primary");
                 foreach (var outcome in record.PrimaryOutcomes)
                 {
                     entity.Outcomes.Add(new StudyOutcomeEntity
@@ -637,6 +646,7 @@ namespace Scrapers.Persistence
             if (record.SecondaryOutcomes != null)
             {
                 entity.Outcomes ??= new List<StudyOutcomeEntity>();
+                RemoveOutcomes(entity.Outcomes, "secondary");
                 foreach (var outcome in record.SecondaryOutcomes)
                 {
                     entity.Outcomes.Add(new StudyOutcomeEntity
@@ -652,6 +662,7 @@ namespace Scrapers.Persistence
             if (record.ArmGroups != null)
             {
                 entity.ArmGroups ??= new List<StudyArmGroupEntity>();
+                entity.ArmGroups.Clear();
                 foreach (var armGroup in record.ArmGroups)
                 {
                     entity.ArmGroups.Add(new StudyArmGroupEntity
@@ -661,6 +672,14 @@ namespace Scrapers.Persistence
                         Description = armGroup.Description
                     });
                 }
+            }
+        }
+
+        private static void RemoveOutcomes(ICollection<StudyOutcomeEntity> outcomes, string outcomeType)
+        {
+            foreach (var outcome in outcomes.Where(o => o.OutcomeType == outcomeType).ToList())
+            {
+                outcomes.Remove(outcome);
             }
         }
 
