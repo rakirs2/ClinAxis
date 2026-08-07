@@ -43,6 +43,35 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
         Assert.AreEqual("processing", stillProcessing.Status,
             "Backfill claims must survive the short claim timeout used by the other services.");
 
+        // Ordinary claims use the short timeout independently of backfill claims.
+        await queue.EnqueueAsync("studies.discovered", "{\"count\":1}");
+        var ordinaryEvent = await queue.ClaimNextPendingEventAsync("ordinary-worker", eventTypes: ["studies.discovered"]);
+        Assert.IsNotNull(ordinaryEvent);
+
+        ordinaryEvent!.ClaimedAt = DateTime.UtcNow.AddMinutes(-20);
+        Context.PipelineEvents.Update(ordinaryEvent);
+        await Context.SaveChangesAsync();
+
+        await queue.ReleaseStuckEventsAsync(TimeSpan.FromMinutes(30));
+
+        var ordinaryStillProcessing = await Context.PipelineEvents
+            .AsNoTracking()
+            .SingleAsync(e => e.Id == ordinaryEvent.Id);
+        Assert.AreEqual("processing", ordinaryStillProcessing.Status,
+            "Ordinary claims newer than the short timeout must remain processing.");
+
+        ordinaryEvent.ClaimedAt = DateTime.UtcNow.AddMinutes(-45);
+        Context.PipelineEvents.Update(ordinaryEvent);
+        await Context.SaveChangesAsync();
+
+        await queue.ReleaseStuckEventsAsync(TimeSpan.FromMinutes(30));
+
+        var ordinaryReleased = await Context.PipelineEvents
+            .AsNoTracking()
+            .SingleAsync(e => e.Id == ordinaryEvent.Id);
+        Assert.AreEqual("pending", ordinaryReleased.Status,
+            "Ordinary claims older than the short timeout must be released for retry.");
+
         // A claim older than the backfill-specific timeout IS released.
         @event.ClaimedAt = DateTime.UtcNow.AddHours(-13);
         Context.PipelineEvents.Update(@event);

@@ -474,23 +474,19 @@ public sealed class EventQueueService : IEventQueueService
                 .ConfigureNpgsql(_connectionString)
                 .Options);
 
-        // Backfill chunks run for hours; their claims must not be released by the
-        // short default timeout used by the other services' loops.
-        var longestTimeout = claimTimeout > _backfillClaimTimeout ? claimTimeout : _backfillClaimTimeout;
-        var threshold = DateTime.UtcNow - longestTimeout;
+        // Backfill chunks run for hours; use their longer timeout while all other
+        // event types use the short timeout used by their worker loops.
+        var now = DateTime.UtcNow;
+        var ordinaryThreshold = now - claimTimeout;
+        var backfillThreshold = now - _backfillClaimTimeout;
 
-        var stuckCandidates = await context.PipelineEvents
-            .Where(e => e.Status == "processing" && e.ClaimedAt.HasValue && e.ClaimedAt < threshold)
+        var stuckEvents = await context.PipelineEvents
+            .Where(e => e.Status == "processing"
+                        && e.ClaimedAt.HasValue
+                        && ((e.EventType == "studies.backfill" && e.ClaimedAt < backfillThreshold)
+                            || (e.EventType != "studies.backfill" && e.ClaimedAt < ordinaryThreshold)))
             .ToListAsync(ct)
             .ConfigureAwait(false);
-
-        var stuckEvents = stuckCandidates
-            .Where(e =>
-            {
-                var cutoff = e.EventType == "studies.backfill" ? _backfillClaimTimeout : claimTimeout;
-                return e.ClaimedAt!.Value < DateTime.UtcNow - cutoff;
-            })
-            .ToList();
 
         foreach (var @event in stuckEvents)
         {
