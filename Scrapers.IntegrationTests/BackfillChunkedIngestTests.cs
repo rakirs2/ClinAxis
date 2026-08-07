@@ -237,6 +237,36 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
         Assert.IsTrue(stats.CompletedCount > 0);
         var breakdown = await queue.GetEventTypeBreakdownAsync();
         Assert.IsTrue(breakdown.Any(item => item.EventType == "studies.backfill"));
+
+        var legacyPayload = "{\"count\":5}";
+        var boundedRecoveryPayload = new IncrementalDiscoveryEventPayload(
+            5,
+            discoveryFrom,
+            discoveryTo).ToJson();
+        await queue.EnqueueAsync("studies.discovered", legacyPayload);
+        await queue.EnqueueAsync("studies.discovered", boundedRecoveryPayload);
+
+        var previewIds = await queue.RecoverLegacyDiscoveryEventsAsync(apply: false);
+        Assert.AreEqual(1, previewIds.Count);
+
+        var legacyBeforeApply = await Context.PipelineEvents
+            .AsNoTracking()
+            .SingleAsync(e => e.Data == legacyPayload);
+        Assert.AreEqual("pending", legacyBeforeApply.Status);
+
+        var appliedIds = await queue.RecoverLegacyDiscoveryEventsAsync(apply: true);
+        CollectionAssert.AreEqual(previewIds, appliedIds);
+
+        var legacyAfterApply = await Context.PipelineEvents
+            .AsNoTracking()
+            .SingleAsync(e => e.Data == legacyPayload);
+        Assert.AreEqual("completed", legacyAfterApply.Status);
+        StringAssert.Contains(legacyAfterApply.ErrorMessage!, "full-corpus backfill", StringComparison.Ordinal);
+
+        var boundedAfterApply = await Context.PipelineEvents
+            .AsNoTracking()
+            .SingleAsync(e => e.Data == boundedRecoveryPayload);
+        Assert.AreEqual("pending", boundedAfterApply.Status);
     }
 
     /// <summary>

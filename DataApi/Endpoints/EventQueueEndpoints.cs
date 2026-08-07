@@ -98,5 +98,18 @@ internal static class EventQueueEndpoints
             var result = await eventQueueService.IgnoreEventAsync(eventId);
             return result ? Results.Ok() : Results.NotFound();
         });
+
+        app.MapPost("/api/event-queue/recovery/legacy-discovered", async (bool? apply) =>
+        {
+            var eventQueueService = new EventQueueService(connectionString);
+            var shouldApply = apply == true;
+            var eventIds = await eventQueueService.RecoverLegacyDiscoveryEventsAsync(shouldApply);
+            return Results.Ok(new
+            {
+                applied = shouldApply,
+                eligibleCount = eventIds.Count,
+                eventIds
+            });
+        });
     }
 }

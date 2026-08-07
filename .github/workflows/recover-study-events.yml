@@ -16,6 +16,14 @@ on:
         required: true
         default: '100'
         type: string
+      coalesce_legacy_discovered:
+        description: 'Coalesce pending legacy count-only discovery events'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   contents: read
@@ -31,6 +39,7 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DRY_RUN: ${{ inputs.dry_run }}
           MAX_EVENTS: ${{ inputs.max_events }}
+          COALESCE_LEGACY_DISCOVERED: ${{ inputs.coalesce_legacy_discovered }}
         run: |
           set -euo pipefail
 
@@ -141,6 +150,12 @@ jobs:
               }, separators=(",", ":")))
           PY
 
+          if [ "$COALESCE_LEGACY_DISCOVERED" = "true" ] && [ "$DRY_RUN" = "true" ]; then
+            echo "--- Preview legacy discovery coalescing ---"
+            remote "curl -sf --max-time 30 -X POST \
+              'http://localhost:5003/api/event-queue/recovery/legacy-discovered?apply=false'"
+          fi
+
           if [ "$DRY_RUN" = "true" ]; then
             echo "Dry run only; no events were retried."
             exit 0
@@ -156,3 +171,9 @@ jobs:
           done < "$ids_file"
 
           echo "Retried $retried study events."
+
+          if [ "$COALESCE_LEGACY_DISCOVERED" = "true" ]; then
+            echo "--- Coalesce legacy discovery events ---"
+            remote "curl -sf --max-time 30 -X POST \
+              'http://localhost:5003/api/event-queue/recovery/legacy-discovered?apply=true'"
+          fi
