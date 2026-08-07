@@ -343,3 +343,18 @@ Status-page "Ambiguous (2+ matches)" count was high. Old cascade in `Investigato
 - Made source cursor writes monotonic, rejected partial discovery ingestion before cursor acknowledgement,
   and isolated source-status failures from queue retry persistence.
 - Re-ran Release verification after the hardening changes: 643 tests passed with 0 warnings and 0 errors.
+
+---
+
+## Attempt log — P1 legacy discovery backlog recovery
+
+**Date:** 2026-08-07
+
+- Watchdog showed 1,453 pending legacy count-only `studies.discovered` events blocking the
+  full-corpus backfill, plus 24 pending backfill events.
+- Added a dry-run-first recovery endpoint and workflow that coalesces only pending legacy
+  count-only discovery events, preserving bounded discovery, backfill, processing, and malformed events.
+- The first recovery run retried one of five chunks because SSH consumed the retry list stdin;
+  fixed with `ssh -n`, then retried the remaining four successfully.
+- Current watchdog issue #430 shows backfill dead letters at zero, legacy discovery dead letters
+  retained at ten, and the source actively processing the remaining queue.

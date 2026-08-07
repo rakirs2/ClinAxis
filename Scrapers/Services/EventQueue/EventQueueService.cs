@@ -150,6 +150,43 @@ public sealed class EventQueueService : IEventQueueService
         return false;
     }
 
+    public async Task<List<int>> RecoverLegacyDiscoveryEventsAsync(bool apply, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var pendingEvents = await context.PipelineEvents
+            .Where(e => e.EventType == "studies.discovered" && e.Status == "pending")
+            .OrderBy(e => e.CreatedAt)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var legacyEvents = pendingEvents
+            .Where(e => IncrementalDiscoveryEventPayload.TryParse(e.Data, out var payload) &&
+                        payload is { HasWindow: false })
+            .ToList();
+
+        if (apply && legacyEvents.Count > 0)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var @event in legacyEvents)
+            {
+                @event.Status = "completed";
+                @event.CompletedAt = now;
+                @event.ErrorMessage = "Superseded by full-corpus backfill recovery.";
+                @event.ClaimedBy = null;
+                @event.ClaimedAt = null;
+                @event.UpdatedAt = now;
+            }
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+
+        return legacyEvents.Select(e => e.Id).ToList();
+    }
+
     private async Task<List<(string Status, string? Data)>> GetUnresolvedEventDataAsync(
         string eventType,
         CancellationToken ct)
