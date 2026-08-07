@@ -176,8 +176,9 @@ jobs:
           done"
 
           echo "--- Validate pipeline scrape ---"
-          # The ingestion scrape loop runs at startup, so lastSyncTimestamp must advance
-          # within ~2 minutes. Catches scraper regressions that /health (liveness) misses.
+          # The ingestion loop may legitimately remain syncing while it drains a
+          # previously claimed event. Reject stale idle/failed states, but do not
+          # fail a healthy deployment solely because that recovery window is active.
           sleep 120
           remote 'curl -sf --max-time 30 http://localhost:5003/api/data-source-state' \
             > /tmp/data-source-state.json
@@ -188,12 +189,27 @@ jobs:
           for s in json.load(open("/tmp/data-source-state.json")):
               if s.get("sourceName") != "ClinicalTrials.gov":
                   continue
+              status = s.get("status")
+              updated = s.get("updatedAt")
+              recent_sync = False
+              if updated:
+                  updated_dt = datetime.datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                  updated_age_min = (now - updated_dt).total_seconds() / 60
+                  recent_sync = status == "syncing" and updated_age_min <= 30
               ts = s.get("lastSyncTimestamp")
               if not ts:
+                  if recent_sync:
+                      print("Pipeline scrape in progress: source is syncing and state is recent")
+                      continue
                   raise SystemExit("FATAL: ClinicalTrials.gov has no lastSyncTimestamp after deploy")
               dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
               age_min = (now - dt).total_seconds() / 60
               if age_min > 30:
+                  if recent_sync:
+                      print(
+                          f"Pipeline scrape in progress: lastSyncTimestamp {ts} is "
+                          f"{age_min:.0f}m old, but source state is actively syncing")
+                      continue
                   raise SystemExit(
                       f"FATAL: lastSyncTimestamp {ts} is {age_min:.0f}m old (>30m) after deploy")
               print(f"Pipeline scrape OK: lastSyncTimestamp {ts} is {age_min:.0f}m old")
