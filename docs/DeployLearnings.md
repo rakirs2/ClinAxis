@@ -5,6 +5,18 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-07 — Recovery workflow consumed retry-list stdin
+
+- **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),
+  [retry #31226348515](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226348515)
+- **Symptom:** The recovery workflow selected five valid backfill events but reported only one
+  retry.
+- **Root cause:** The SSH command inherited the retry-list file as stdin, so the first remote
+  curl consumed the remaining event IDs.
+- **Fix:** Added `ssh -n` so remote recovery commands cannot consume the local retry list.
+- **Prevention:** Recovery runs report selected and retried counts; dry-run remains the required
+  first step.
+
 ### 2026-08-07 — Watchdog event queue telemetry timed out
 
 - **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —
