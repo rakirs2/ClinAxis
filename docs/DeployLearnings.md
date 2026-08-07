@@ -5,6 +5,21 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-07 — Deploy scrape gate rejected active recovery
+
+- **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —
+  "Watchdog: pipeline stalled or DLQ over threshold"
+- **Run:** [deploy #31220748924](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31220748924)
+- **Symptom:** All images built, containers became healthy, and the deployment stopped
+  with `FATAL: lastSyncTimestamp ... was 42m old (>30m) after deploy`.
+- **Root cause:** The deployment gate assumed the cursor must advance within two minutes.
+  The new unresolved-event guard correctly leaves the cursor unchanged while a prior
+  discovery event is being recovered, so the gate treated active recovery as failure.
+- **Fix:** Update the gate to accept a recent `syncing` source state while continuing to
+  reject stale `idle`, `failed`, or missing states. No blind redeploy was performed.
+- **Prevention:** Deployment validation now distinguishes active recovery from a dead
+  scraper; watchdog queue and source checks remain the authority for backlog health.
+
 ### 2026-08-07 — Scraper recovery deploy and stale event backlog
 
 - **Issue:** [#406](https://github.com/rakirs2/ClinicalTrialData/issues/406) —
