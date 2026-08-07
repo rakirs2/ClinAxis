@@ -37,6 +37,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
 
     private const string SourceName = "ClinicalTrials.gov";
     private DateTime _lastRunTime = DateTime.MinValue;
+    private int _consecutiveFailures;
 
     public ClinicalTrialsScrapeService(
         IEventQueueService eventQueueService,
@@ -80,6 +81,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
                 {
                     await PerformScrapeAsync(_ctClient, stoppingToken).ConfigureAwait(false);
                     _lastRunTime = DateTime.UtcNow;
+                    _consecutiveFailures = 0;
                 }
 
                 // Update predicted next run time each loop iteration
@@ -98,10 +100,15 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
             }
             catch (Exception ex)
             {
+                _consecutiveFailures = Math.Min(_consecutiveFailures + 1, 3);
                 await _dataSourceStateService.SetStatusAsync(
                     SourceName,
                     "failed",
                     $"Scrape error: {ex.Message}",
+                    stoppingToken).ConfigureAwait(false);
+
+                await Task.Delay(
+                    ScrapeBackoffCalculator.GetDelay(_consecutiveFailures),
                     stoppingToken).ConfigureAwait(false);
             }
         }

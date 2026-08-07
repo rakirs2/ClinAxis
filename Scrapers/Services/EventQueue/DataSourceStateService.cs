@@ -69,7 +69,10 @@ public sealed class DataSourceStateService : IDataSourceStateService
         }
 
         state.Status = status;
-        state.ErrorMessage = errorMessage;
+        if (errorMessage is not null)
+        {
+            state.ErrorMessage = errorMessage;
+        }
         state.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);

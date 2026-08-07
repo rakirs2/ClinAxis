@@ -89,5 +89,18 @@ public sealed class BackfillLifecycleTests : DbTestBase
         Assert.AreEqual(402_024, state.BackfillRemainingStudies);
         Assert.IsNotNull(state.BackfillStartedUtc);
         Assert.IsNull(state.BackfillCompletedUtc);
+
+        await stateService.SetStatusAsync("ClinicalTrials.gov", "failed", "temporary CT.gov failure");
+        await stateService.SetStatusAsync("ClinicalTrials.gov", "syncing");
+        state = await stateService.GetStateAsync("ClinicalTrials.gov");
+        Assert.IsNotNull(state);
+        Assert.AreEqual("syncing", state!.Status);
+        Assert.AreEqual("temporary CT.gov failure", state.ErrorMessage,
+            "Entering a retrying state must preserve the last failure message.");
+
+        await stateService.UpdateLastSyncAsync("ClinicalTrials.gov", DateTime.UtcNow);
+        state = await stateService.GetStateAsync("ClinicalTrials.gov");
+        Assert.IsNotNull(state);
+        Assert.IsNull(state!.ErrorMessage, "A successful sync must clear the previous failure message.");
     }
 }
