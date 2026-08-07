@@ -49,9 +49,8 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 
-# Agent planning folder (local use only, not tracked in git)
+# Local agent workspace
 mesh_service/
-.opencode/
 
 # Generated experiment output files
 ab_test_*.csv

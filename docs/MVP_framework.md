@@ -2,7 +2,7 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
-_Last synced with merged PRs through #418 (2026-08-06). P6 Phase 1 (rule-based) shipped — MVP pillars P1–P6 complete except P1/P4 open items (#377, #356, single-matcher ⑤) and P5. P7 is the public-domain release gate._
+_Last synced with merged PRs through #423 (2026-08-07). P6 Phase 1 (rule-based) shipped — P1 code fixes are merged, but production recovery and a completed full run remain open. P7 is the public-domain release gate._
 
 ## Principles
 
@@ -16,8 +16,8 @@ _Last synced with merged PRs through #418 (2026-08-06). P6 Phase 1 (rule-based) 
 ### P1 — Completed scraper run
 
 - **Definition of done:** `mode=full` re-sync completes end-to-end with 0 dead letters; second run is idempotent; Status + DataQuality pages green; backoff keeps failures visible.
-- **Current state:** Pipeline exists (8 services); CT.gov 400-stall root-caused + fixed (#376), watchdog alerts live (#363), backfill engine + lifecycle + throughput shipped (#400–#403); enrichment NPI-collision dead-letters fixed (#405 — prod DLQ retry pending ops follow-up); open: scrape-loop backoff (#377), non-destructive re-sync (#356).
-- **PR order:** ① #377 backoff (pure helper) ② #336 duplicate-insert idempotency → landed (#405) ③ #356 parts 1–2 (non-destructive upsert + manual trigger).
+- **Current state:** Pipeline exists (8 services); CT.gov 400-stall root-caused + fixed (#376), watchdog alerts live (#363), backfill engine + lifecycle + throughput shipped (#400–#403); enrichment NPI-collision dead-letters fixed (#405 — prod DLQ retry pending ops follow-up); scraper-loop backoff landed (#422); non-destructive upsert landed (#423); open: production recovery, bounded incremental re-sync, and the manual full-run trigger.
+- **PR order:** ① #377 backoff → landed (#422) ② #336 duplicate-insert idempotency → landed (#405) ③ #356 non-destructive upsert → landed (#423) ④ bounded incremental event/cursor recovery ⑤ manual full-run trigger.
 
 ### P2 — Filter-based search on MeSH terms
 
