@@ -83,15 +83,94 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
                 new Investigator { Name = "Dana King", Affiliation = "Wellness Org", Role = "STUDY_DIRECTOR" },
                 new Investigator { Name = "Pfizer", Affiliation = "Pharma HQ", Role = "SPONSOR" }
             ]);
+        record.Keywords = ["Pilot Study"];
+        record.Phases = ["PHASE1"];
+        record.Locations =
+        [
+            new StudyListResponse.Location
+            {
+                Facility = "Research Center",
+                City = "Boston",
+                State = "MA",
+                Country = "United States"
+            }
+        ];
+        record.References =
+        [
+            new ClinicalTrialRecord.Reference { Pmid = "12345678", Citation = "Study citation", Type = "background" }
+        ];
+        record.PrimaryOutcomes =
+        [
+            new ClinicalTrialRecord.Outcome { Measure = "Primary measure", Description = "Primary description", TimeFrame = "12 weeks" }
+        ];
+        record.SecondaryOutcomes =
+        [
+            new ClinicalTrialRecord.Outcome { Measure = "Secondary measure", Description = "Secondary description", TimeFrame = "24 weeks" }
+        ];
+        record.ArmGroups =
+        [
+            new ClinicalTrialRecord.ArmGroup { Label = "Treatment", Type = "Experimental", Description = "Treatment arm" }
+        ];
+        record.Interventions =
+        [
+            new ClinicalTrialRecord.Intervention { Name = "Study intervention", Type = "Drug", Description = "Intervention description" }
+        ];
 
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
         await _repo.UpdateStudiesWithClinicalTrialsAsync([record]);
 
         Assert.AreEqual(1, await _repo.CountStudiesAsync());
         Assert.AreEqual(1, await _repo.CountInvestigatorsAsync());
+        Assert.AreEqual(1, await Context.StudyKeywords.AsNoTracking().CountAsync(k => k.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyPhases.AsNoTracking().CountAsync(p => p.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyLocations.AsNoTracking().CountAsync(l => l.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyReferences.AsNoTracking().CountAsync(r => r.StudyNctId == record.NctId));
+        Assert.AreEqual(2, await Context.StudyOutcomes.AsNoTracking().CountAsync(o => o.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyArmGroups.AsNoTracking().CountAsync(a => a.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyInterventions.AsNoTracking().CountAsync(i => i.StudyNctId == record.NctId));
+
+        await _repo.UpdateStudiesWithClinicalTrialsAsync(
+        [
+            new ClinicalTrialRecord { NctId = record.NctId }
+        ]);
+
+        var preservedStudy = await Context.Studies.AsNoTracking().SingleAsync(s => s.NctId == record.NctId);
+        Assert.AreEqual("Study Three", preservedStudy.BriefTitle);
+        Assert.AreEqual("ACTIVE", preservedStudy.OverallStatus);
+        Assert.AreEqual(1, await Context.StudyKeywords.AsNoTracking().CountAsync(k => k.StudyNctId == record.NctId));
+        Assert.AreEqual(2, await Context.StudyOutcomes.AsNoTracking().CountAsync(o => o.StudyNctId == record.NctId));
+        Assert.AreEqual(1, await Context.StudyInterventions.AsNoTracking().CountAsync(i => i.StudyNctId == record.NctId));
+
+        var emptyFields = new ClinicalTrialRecord
+        {
+            NctId = record.NctId,
+            BriefTitle = "Study Three Updated",
+            OverallStatus = "COMPLETED",
+            OverallOfficials = record.OverallOfficials,
+            Keywords = [],
+            Phases = [],
+            Locations = [],
+            References = [],
+            PrimaryOutcomes = [],
+            SecondaryOutcomes = [],
+            ArmGroups = [],
+            Interventions = []
+        };
+        await _repo.UpdateStudiesWithClinicalTrialsAsync([emptyFields]);
+
+        var updatedStudy = await Context.Studies.AsNoTracking().SingleAsync(s => s.NctId == record.NctId);
+        Assert.AreEqual("Study Three Updated", updatedStudy.BriefTitle);
+        Assert.AreEqual("COMPLETED", updatedStudy.OverallStatus);
+        Assert.AreEqual(0, await Context.StudyKeywords.AsNoTracking().CountAsync(k => k.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyPhases.AsNoTracking().CountAsync(p => p.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyLocations.AsNoTracking().CountAsync(l => l.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyReferences.AsNoTracking().CountAsync(r => r.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyOutcomes.AsNoTracking().CountAsync(o => o.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyArmGroups.AsNoTracking().CountAsync(a => a.StudyNctId == record.NctId));
+        Assert.AreEqual(0, await Context.StudyInterventions.AsNoTracking().CountAsync(i => i.StudyNctId == record.NctId));
 
         var (rejected, _) = await _repo.GetRejectedEntitiesPagedAsync("investigator_name", 1, 50);
-        Assert.IsTrue(rejected.Count == 2, "Each ingest run records the rejected sponsor");
+        Assert.IsTrue(rejected.Count == 3, "Each complete ingest run records the rejected sponsor");
         Assert.IsTrue(rejected.All(r => r.Value == "Pfizer"));
     }
 
