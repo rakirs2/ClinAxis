@@ -412,3 +412,50 @@ Status-page "Ambiguous (2+ matches)" count was high. Old cascade in `Investigato
 - SIMD cosine scan (~10-25% on the droplet, memory-bandwidth-bound) — float-ordering changes
   make results not bit-identical; only if A/B tolerance is acceptable.
 - Splitting openpayments/enrichment out of the ingestion container (OOM headroom, issue #364 watch item).
+
+---
+
+## Attempt log — Batched ONNX inference for MeSH matching (feature/batch-mesh-inference)
+
+**Date:** 2026-08-08
+
+### Why (post-#434 production data)
+
+- Production phase logs (deployed #434, 6 batches since 13:36Z restart) show **map+match is
+  98-99% of every batch**: batch 1 cold 993,546ms, batches 2-6 flat 456-598s; `save` 0ms,
+  `prefetch` 1-4s. DB and CT.gov fetch are NOT the bottleneck.
+- Flat batch times ≈ 170-200ms/term × ~3,000 unique terms per 200-record batch = the
+  single-shot ONNX rate; the 250k cache was only ~6% covered after 6 batches, so it cannot
+  help until later in the sweep (each term pays inference exactly once per process).
+- Memory theory rejected: `OOMKilled=false`, `Restarts=0`, 42% CPU at snapshot — the
+  container is not memory-bound and not CPU-saturated between batches.
+
+### Change
+
+`MeSHMatcher.MatchBatch` rewritten from a serial stub (`Select(Match)`) to a true batched
+implementation:
+
+1. Dedupe terms; resolve memo-cache and exact-name hits without inference.
+2. Remaining unique terms: one `session.Run` per chunk of N=16 (`-1x128` batch dim is
+   dynamic) instead of one `session.Run` per term; per-row mean-pool + L2 normalize mirrors
+   `ComputeEmbedding` math exactly.
+3. Shared `FindBestMatch` (cosine scan) + `BuildResult` helpers used by both `Match` and
+   `MatchBatch` so single/batch paths cannot diverge.
+4. `StudyRepository` map loop: keywords, conditions, interventions now collect the record's
+   terms into one `MatchBatch` call (indexed consumption, identical filter semantics).
+   No entity/data-loss logic changed.
+
+### Tests
+
+- `MeSHMatcherBatchTests` (4 new, DB-free): batch vs serial **bit-identical** on real CT.gov
+  fixture terms (Value/SideAValid/SideBMatched/MeshTerm/MeshCui/Category/Similarity),
+  duplicate terms, empty input, threshold-boundary agreement.
+- Full Release suite: 647/647 (Scrapers.Tests 403, DataApi.Tests 99, Integration 38,
+  Frontend.Tests 107), 0 warnings, 0 errors.
+
+### Not done
+
+- Persistent (Postgres-backed) match cache — keeps per-term inference once-EVER across
+  restarts and speeds the hourly incremental sweep; deferred (user chose batch-only PR).
+- Droplet resize to 2 vCPU/4GB — user declined for now; ONNX scales ~linearly with cores.
+- SIMD cosine scan — float-order drift, not bit-identical; rejected.
