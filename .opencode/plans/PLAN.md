@@ -547,7 +547,7 @@ per-event retry existed — no way to recover en masse.
 
 # A/B Single-Matcher Decision Read Path (Issue #356 part 5, P4 step ⑤)
 
-## Status: PR open
+## Status: shipped (PR #440, deployed 2026-08-08 run 31267516282)
 
 ### Problem
 
