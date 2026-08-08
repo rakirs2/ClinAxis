@@ -71,7 +71,7 @@ public sealed class MeSHMatchCacheTests
     public void Add_BeyondCap_StaysBoundedAndStillWorks()
     {
         var cache = new MeSHMatchCache();
-        for (int i = 0; i < 50_001; i++)
+        for (int i = 0; i < 250_001; i++)
         {
             cache.Add($"term-{i}", i, 1f);
         }
@@ -82,7 +82,7 @@ public sealed class MeSHMatchCacheTests
         Assert.AreEqual(99, bestIdx);
 
         cache.TryGet("diabetes", out _, out _);
-        cache.TryGet("term-50000", out _, out _);
+        cache.TryGet("term-250000", out _, out _);
         Assert.AreEqual(3, cache.CacheHits, "Hits must keep counting across cache clears");
     }
 }

@@ -1,11 +1,13 @@
 using System.Text.Json;
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Scrapers.Models;
 using Scrapers.Models.ClinicalTrialsGov;
 using Scrapers.Persistence.Entities;
@@ -19,12 +21,19 @@ namespace Scrapers.Persistence
         private readonly DbContextOptions<ClinicalTrialsContext> _options;
         private readonly MeSHMatcher? _meshMatcher;
         private readonly LocationMeshMatcher? _locationMatcher;
+        private readonly ILogger<StudyRepository>? _logger;
         private readonly Dictionary<string, int> _meshDescriptorIdCache = new();
+
+        private static readonly Action<ILogger, int, long, long, long, long, Exception?> LogBatchPhaseTimes =
+            LoggerMessage.Define<int, long, long, long, long>(
+                LogLevel.Information,
+                new EventId(3, "BatchPhaseTimes"),
+                "Batch {BatchSize} records: prefetch {PrefetchMs}ms, map+match {MapMs}ms, save {SaveMs}ms, post {PostMs}ms");
 
         private readonly record struct RejectedInvestigatorContext(
             string NctId, string Name, string? Role, string? Affiliation, string? Reason);
 
-        public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null, LocationMeshMatcher? locationMatcher = null)
+        public StudyRepository(string connectionString, MeSHMatcher? meshMatcher = null, LocationMeshMatcher? locationMatcher = null, ILogger<StudyRepository>? logger = null)
         {
             if (string.IsNullOrWhiteSpace(connectionString))
             {
@@ -32,6 +41,7 @@ namespace Scrapers.Persistence
             }
             _meshMatcher = meshMatcher;
             _locationMatcher = locationMatcher;
+            _logger = logger;
 
             var builder = new DbContextOptionsBuilder<ClinicalTrialsContext>();
             builder.ConfigureNpgsql(connectionString);
@@ -63,6 +73,7 @@ namespace Scrapers.Persistence
             }
 
             using ClinicalTrialsContext context = CreateContext();
+            var batchSw = Stopwatch.StartNew();
             var overriddenNames = await context.RejectedInvestigatorNames
                 .Where(n => n.IsHumanOverride == true)
                 .Select(n => n.FullName)
@@ -96,6 +107,8 @@ namespace Scrapers.Persistence
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
             var existingByNctId = existingStudies.ToDictionary(s => s.NctId, StringComparer.OrdinalIgnoreCase);
+
+            var prefetchMs = batchSw.ElapsedMilliseconds;
 
             foreach (ClinicalTrialRecord? record in recordList)
             {
@@ -458,7 +471,11 @@ namespace Scrapers.Persistence
                 }
             }
 
+            var mapEndMs = batchSw.ElapsedMilliseconds;
+            var mapMs = mapEndMs - prefetchMs;
+
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            var saveMs = batchSw.ElapsedMilliseconds - mapEndMs;
 
             foreach (var r in rejectedInvestigatorContexts)
             {
@@ -593,6 +610,12 @@ namespace Scrapers.Persistence
                 }
 
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_logger != null && _logger.IsEnabled(LogLevel.Information))
+            {
+                var postMs = batchSw.ElapsedMilliseconds - mapEndMs - saveMs;
+                LogBatchPhaseTimes(_logger, recordList.Count, prefetchMs, mapMs, saveMs, postMs, null);
             }
 
             return recordList.Count;
@@ -2157,12 +2180,11 @@ namespace Scrapers.Persistence
                 return id;
             using var ctx = CreateContext();
             var descriptor = ctx.MeshDescriptors.FirstOrDefault(m => m.Cui == cui);
-            if (descriptor != null)
-            {
-                _meshDescriptorIdCache[cui] = descriptor.Id;
-                return descriptor.Id;
-            }
-            return -1;
+            // Cache misses as -1 too (issue #434): a CUI absent from the descriptors
+            // table (e.g. unseeded new descriptor) otherwise re-opens a fresh context
+            // and re-queries on every occurrence during the full-corpus backfill.
+            _meshDescriptorIdCache[cui] = descriptor?.Id ?? -1;
+            return _meshDescriptorIdCache[cui];
         }
 
         private ClinicalTrialsContext CreateContext()

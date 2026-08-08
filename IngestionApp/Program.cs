@@ -75,9 +75,9 @@ var host = Host.CreateDefaultBuilder(args)
         }
 
         // Persistence
-        services.AddSingleton<StudyRepository>(meshMatcher != null
-            ? new StudyRepository(cs, meshMatcher)
-            : new StudyRepository(cs));
+        services.AddSingleton<StudyRepository>(sp => meshMatcher != null
+            ? new StudyRepository(cs, meshMatcher, logger: sp.GetRequiredService<ILogger<StudyRepository>>())
+            : new StudyRepository(cs, logger: sp.GetRequiredService<ILogger<StudyRepository>>()));
 
         // ClinicalTrials.gov ingestion pipeline
         var ctGovPageSize = int.TryParse(Environment.GetEnvironmentVariable("CT_GOV_PAGE_SIZE"), out var ctGovPageSizeParsed)
