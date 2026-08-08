@@ -120,6 +120,7 @@ public sealed class SchemaGuardTests : DbTestBase
         Assert.IsTrue(columns.Any(c => c.Name == "backfill_remaining_studies"), "backfill_remaining_studies column missing");
         Assert.IsTrue(columns.Any(c => c.Name == "backfill_started_utc"), "backfill_started_utc column missing");
         Assert.IsTrue(columns.Any(c => c.Name == "backfill_completed_utc"), "backfill_completed_utc column missing");
+        Assert.IsTrue(columns.Any(c => c.Name == "manual_run_mode"), "manual_run_mode column missing");
     }
 
     private async Task<List<string>> GetIndexesAsync(string tableName, string indexPrefix)

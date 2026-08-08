@@ -198,4 +198,61 @@ public sealed class DataSourceStateService : IDataSourceStateService
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
+
+    public async Task RequestManualRunAsync(string sourceName, string mode, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourceName))
+            throw new ArgumentException("Source name cannot be null or empty", nameof(sourceName));
+
+        if (string.IsNullOrWhiteSpace(mode))
+            throw new ArgumentException("Mode cannot be null or empty", nameof(mode));
+
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var state = await context.DataSourceStates
+            .FirstOrDefaultAsync(s => s.SourceName == sourceName, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        if (state == null)
+        {
+            state = new DataSourceStateEntity { SourceName = sourceName };
+            context.DataSourceStates.Add(state);
+        }
+
+        state.ManualRunMode = mode;
+        state.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<string?> ConsumeManualRunAsync(string sourceName, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourceName))
+            throw new ArgumentException("Source name cannot be null or empty", nameof(sourceName));
+
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var state = await context.DataSourceStates
+            .FirstOrDefaultAsync(s => s.SourceName == sourceName, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        if (state == null || state.ManualRunMode is null)
+        {
+            return null;
+        }
+
+        var mode = state.ManualRunMode;
+        state.ManualRunMode = null;
+        state.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        return mode;
+    }
 }

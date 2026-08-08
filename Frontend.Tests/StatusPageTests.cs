@@ -124,6 +124,41 @@ public sealed class StatusPageTests
         Assert.IsTrue(cut.Markup.Contains("verified via NPPES", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void StatusPageFullResyncButtonPostsIngestRunRequest()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp, includeRejectedNames: false,
+            dataSourceStatesJson: JsonSerializer.Serialize(new[]
+            {
+                new { sourceName = "ClinicalTrials.gov", status = "idle", backfillStatus = "complete", backfillRemainingStudies = (int?)0 }
+            }, JsonOptions));
+        mockHttp.When("http://localhost:5003/api/rejected-names")
+            .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+        var requestedMode = "";
+        mockHttp.When(HttpMethod.Post, "http://localhost:5003/api/ingest/run*")
+            .Respond(async req =>
+            {
+                requestedMode = req.RequestUri!.Query;
+                return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(new { accepted = true }, JsonOptions),
+                        System.Text.Encoding.UTF8, "application/json")
+                };
+            });
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Full re-sync", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+
+        cut.FindAll("button").First(b => b.TextContent.Contains("Full re-sync", StringComparison.Ordinal)).Click();
+
+        cut.WaitForAssertion(() => Assert.IsTrue(requestedMode.Contains("mode=full", StringComparison.Ordinal)),
+            timeout: TimeSpan.FromSeconds(5));
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();
@@ -131,7 +166,7 @@ public sealed class StatusPageTests
         return client;
     }
 
-    private static void MockDefaults(MockHttpMessageHandler mockHttp)
+    private static void MockDefaults(MockHttpMessageHandler mockHttp, bool includeDataSourceState = true)
     {
         mockHttp.When("http://localhost:5003/api/telemetry")
             .Respond("application/json", JsonSerializer.Serialize(new
@@ -140,16 +175,26 @@ public sealed class StatusPageTests
                 recentEvents = Array.Empty<object>()
             }, JsonOptions));
 
-        mockHttp.When("http://localhost:5003/api/data-source-state")
-            .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+        if (includeDataSourceState)
+        {
+            mockHttp.When("http://localhost:5003/api/data-source-state")
+                .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
+        }
 
         mockHttp.When("http://localhost:5003/api/event-queue/dead-letter")
             .Respond("application/json", JsonSerializer.Serialize(Array.Empty<object>(), JsonOptions));
     }
 
-    private static void MockDefaultsWithStats(MockHttpMessageHandler mockHttp, bool includeRejectedNames = true)
+    private static void MockDefaultsWithStats(MockHttpMessageHandler mockHttp, bool includeRejectedNames = true,
+        string? dataSourceStatesJson = null)
     {
-        MockDefaults(mockHttp);
+        MockDefaults(mockHttp, includeDataSourceState: dataSourceStatesJson is null);
+
+        if (dataSourceStatesJson is not null)
+        {
+            mockHttp.When("http://localhost:5003/api/data-source-state")
+                .Respond("application/json", dataSourceStatesJson);
+        }
 
         mockHttp.When("http://localhost:5003/api/event-queue/stats")
             .Respond("application/json", JsonSerializer.Serialize(new

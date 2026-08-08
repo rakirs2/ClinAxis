@@ -459,3 +459,60 @@ implementation:
   restarts and speeds the hourly incremental sweep; deferred (user chose batch-only PR).
 - Droplet resize to 2 vCPU/4GB — user declined for now; ONNX scales ~linearly with cores.
 - SIMD cosine scan — float-order drift, not bit-identical; rejected.
+
+---
+
+# Manual Run Trigger (Issue #356 part 2, P1 of MVP framework)
+
+## Status: shipped (PR #438)
+
+### Problem
+
+No safe way to force a scrape or a full re-sync without dropping the DB. The only re-run
+path was `ResetDatabaseAsync` (destructive). MVP P1 requires: `POST /api/ingest/run` with
+`mode=incremental|full`, and a button on the Status page.
+
+### Design
+
+- `data_source_state` gains a nullable `manual_run_mode` column (null = none).
+- `POST /api/ingest/run?mode=incremental|full` (DataApi, PipelineEndpoints) validates mode
+  via pure `ManualRunRequest.IsValidMode` and writes the flag through
+  `IDataSourceStateService.RequestManualRunAsync` — DataApi never talks to the scraper
+  directly (single gateway rule; the flag lives in the shared DB).
+- `ClinicalTrialsScrapeService` loop consumes the flag every 10s tick
+  (`ConsumeManualRunAsync`): `incremental` → set `_lastRunTime = MinValue` so the next
+  interval check fires immediately; `full` → same + `_forceFullSweep = true`.
+- `ManageBackfillAsync` honors `_forceFullSweep` by replanning and enqueueing EVERY date
+  window, ignoring completed-window coverage (`PlanAndEnqueueSweepAsync(forceFull: true)`),
+  then marks in-progress; the existing chunked engine (10h timeouts, dead-letter retry,
+  idempotent upsert) does the re-fetch. A sweep already in flight consumes the request
+  (it already covers the whole corpus).
+- Status.razor: "Run incremental now" + "Full re-sync" buttons (disabled while a sweep is
+  in-progress).
+
+### Why not literal "clear LastSyncTimestamp" (spec wording)
+
+The spec says `mode=full` clears `LastSyncTimestamp`, but with a cleared cursor the next
+discovery counts the whole corpus (~597k) and enqueues ONE giant `studies.discovered`
+event that exceeds the claim timeout and restarts from scratch — the exact legacy
+pathology the chunked backfill engine was built to replace. Forcing a fresh chunked sweep
+achieves the same outcome ("full re-sync, no DB drop", the #356 acceptance criterion) with
+the proven resumable machinery.
+
+### Tests
+
+- `ManualRunRequestTests` (11 DB-free cases: case-insensitive valid modes, rejects
+  null/empty/bogus).
+- Schema guard `DataSourceStateTable_HasBackfillColumns` extended with `manual_run_mode`
+  (no new DB test — schema-guard layer).
+- `StatusPageFullResyncButtonPostsIngestRunRequest` bUnit: renders buttons, clicking
+  "Full re-sync" POSTs `?mode=full`.
+- Full Release suite: 659/659 (Scrapers.Tests 414, DataApi.Tests 99, Integration 38,
+  Frontend.Tests 108), 0 warnings, 0 errors.
+
+### Gotchas
+
+- `Results.Accepted(...)` needs a URI — used `Results.Json(statusCode: 202)` instead.
+- Razor attribute nested double-quote strings must use single-quoted attributes.
+- EF columns are snake_case via explicit `HasColumnName` — forgot initially, migration
+  generated `ManualRunMode`; reverted and regenerated with `manual_run_mode`.

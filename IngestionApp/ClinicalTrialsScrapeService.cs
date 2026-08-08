@@ -38,6 +38,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
     private const string SourceName = "ClinicalTrials.gov";
     private DateTime _lastRunTime = DateTime.MinValue;
     private int _consecutiveFailures;
+    private bool _forceFullSweep;
 
     public ClinicalTrialsScrapeService(
         IEventQueueService eventQueueService,
@@ -75,6 +76,21 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         {
             try
             {
+                // Consume any operator-requested run (POST /api/ingest/run) before gating
+                // on the scheduled interval, so the next tick fires immediately.
+                var manualRunMode = await _dataSourceStateService
+                    .ConsumeManualRunAsync(SourceName, stoppingToken)
+                    .ConfigureAwait(false);
+                if (manualRunMode is not null)
+                {
+                    if (string.Equals(manualRunMode, ManualRunRequest.FullMode, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _forceFullSweep = true;
+                    }
+
+                    _lastRunTime = DateTime.MinValue;
+                }
+
                 var timeSinceLastRun = DateTime.UtcNow - _lastRunTime;
 
                 if (timeSinceLastRun >= TimeSpan.FromMinutes(_scrapeIntervalMinutes))
@@ -168,6 +184,20 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         var status = state?.BackfillStatus;
         var snapshot = await _backfillCoordinator.GetChunkQueueSnapshotAsync(ct).ConfigureAwait(false);
 
+        // Operator-requested full re-sync (POST /api/ingest/run?mode=full): replan every
+        // window, ignoring completed-window coverage. When a sweep is already in flight it
+        // covers the whole corpus, so the request is simply consumed.
+        if (_forceFullSweep)
+        {
+            _forceFullSweep = false;
+            if (status != "in-progress")
+            {
+                await PlanAndEnqueueSweepAsync(forceFull: true, ct).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
         if (status == "in-progress")
         {
             if (snapshot.PendingOrProcessing > 0)
@@ -213,8 +243,19 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
             return;
         }
 
+        await PlanAndEnqueueSweepAsync(forceFull: false, ct).ConfigureAwait(false);
+    }
+
+    private async Task PlanAndEnqueueSweepAsync(bool forceFull, CancellationToken ct)
+    {
+        var totalAvailable = await _ctClient.CountStudiesAsync(cancellationToken: ct).ConfigureAwait(false);
+        var totalInDb = await _repository.CountStudiesAsync(ct).ConfigureAwait(false);
+        var gap = totalAvailable - totalInDb;
+
         var sweepStartedUtc = DateTime.UtcNow;
-        var completedWindows = await _backfillCoordinator.GetCompletedChunkWindowsAsync(ct).ConfigureAwait(false);
+        var completedWindows = forceFull
+            ? Array.Empty<(DateOnly From, DateOnly To)>()
+            : await _backfillCoordinator.GetCompletedChunkWindowsAsync(ct).ConfigureAwait(false);
         var chunks = await BackfillChunkPlanner.PlanAsync(
             (from, to, ct2) => _ctClient.CountStudiesAsync(
                 lastUpdatedPost: from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
@@ -228,7 +269,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         var enqueued = 0;
         foreach (var chunk in chunks)
         {
-            if (BackfillWindowHelper.IsCovered((chunk.DateFrom, chunk.DateTo), completedWindows))
+            if (!forceFull && BackfillWindowHelper.IsCovered((chunk.DateFrom, chunk.DateTo), completedWindows))
             {
                 continue;
             }
