@@ -14,6 +14,9 @@ public sealed class MeSHMatcher : IDisposable
     // S-BioBert-snli-multinli-stsb embedding dimension (issue #355 P4-e,
     // supersedes all-MiniLM-L6-v2's 384).
     private const int EmbedDim = 768;
+    // Measured sweet spot for batched ONNX inference (issue #434 follow-up):
+    // N=16 runs ~1.22x faster than N=1 with bit-identical scores.
+    private const int MaxBatchSize = 16;
     private const int ClsTokenId = 101;
     private const int SepTokenId = 102;
     private const int UnkTokenId = 100;
@@ -67,7 +70,6 @@ public sealed class MeSHMatcher : IDisposable
     public MeSHMatchResult Match(string value, string source = "condition", string studyNctId = "")
     {
         ArgumentNullException.ThrowIfNull(value);
-        var sideA = IsValidConditionSimple(value);
 
         if (!_matchCache.TryGet(MeSHMatchCache.NormalizeKey(value), out int bestIdx, out float bestScore))
         {
@@ -84,46 +86,81 @@ public sealed class MeSHMatcher : IDisposable
                 if (embedding == null || embedding.Length != EmbedDim)
                     throw new InvalidOperationException($"Embedding has wrong size: {embedding?.Length ?? 0} (expected {EmbedDim})");
 
-                for (int i = 0; i < _meshNames.Length; i++)
-                {
-                    float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[i]);
-                    if (sim > bestScore)
-                    {
-                        bestScore = sim;
-                        bestIdx = i;
-                    }
-                }
+                (bestIdx, bestScore) = FindBestMatch(embedding);
             }
 
             _matchCache.Add(MeSHMatchCache.NormalizeKey(value), bestIdx, bestScore);
         }
 
-        // Re-picked for S-BioBert-snli-multinli-stsb (issue #355 P4-e): on the
-        // 139-keyword labeled set (ctgov-keywords.csv) 0.65 rescues 85.6% (vs
-        // 50.4% at 0.8) and is the distribution knee (0.7 -> 74.8%). All
-        // non-descriptor junk in the labeled set scores < 0.65 ("Type 1" 0.61,
-        // "treatment" 0.61); junk that IS a MeSH descriptor ("Safety" 1.0)
-        // is kept out by the KeywordFilter blocklist, not this threshold.
-        const float threshold = 0.65f;
-        bool matched = bestIdx >= 0 && bestScore >= threshold;
-
-        return new MeSHMatchResult
-        {
-            Value = value,
-            StudyNctId = studyNctId,
-            Source = source,
-            SideAValid = sideA,
-            SideBMatched = matched,
-            MeshTerm = matched ? _meshNames[bestIdx] : "",
-            MeshCui = matched ? _meshCuis[bestIdx] : "",
-            Category = matched ? _meshCategories[bestIdx] : "unmapped",
-            Similarity = bestScore,
-        };
+        return BuildResult(value, source, studyNctId, bestIdx, bestScore);
     }
 
+    /// <summary>
+    /// Matches many terms in one pass: dedupes, reuses cached and exact-name
+    /// hits, and runs ONNX inference in chunks of <see cref="MaxBatchSize"/>
+    /// (single forward pass per chunk instead of one per term).
+    /// </summary>
     public IReadOnlyList<MeSHMatchResult> MatchBatch(IEnumerable<string> values, string source = "condition", string studyNctId = "")
     {
-        return values.Select(v => Match(v, source, studyNctId)).ToList();
+        ArgumentNullException.ThrowIfNull(values);
+        var list = values.ToList();
+
+        // Resolve per unique term: memo cache -> exact-name -> batched inference.
+        var resolved = new Dictionary<string, (int BestIdx, float BestScore)>(StringComparer.Ordinal);
+        var pending = new List<string>();
+        var pendingKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var value in list)
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            var key = MeSHMatchCache.NormalizeKey(value);
+            if (resolved.ContainsKey(key))
+            {
+                continue;
+            }
+
+            if (_matchCache.TryGet(key, out int cachedIdx, out float cachedScore))
+            {
+                resolved[key] = (cachedIdx, cachedScore);
+                continue;
+            }
+
+            if (_meshNameLookup.TryGetValue(value.Trim(), out int exactIdx))
+            {
+                resolved[key] = (exactIdx, 1f);
+                _matchCache.Add(key, exactIdx, 1f);
+                continue;
+            }
+
+            if (pendingKeys.Add(key))
+            {
+                pending.Add(value);
+            }
+        }
+
+        for (int start = 0; start < pending.Count; start += MaxBatchSize)
+        {
+            var chunk = pending.GetRange(start, Math.Min(MaxBatchSize, pending.Count - start));
+            var tokenized = chunk.Select(Tokenize).ToList();
+            var embeddings = ComputeEmbeddingsBatch(tokenized);
+
+            for (int i = 0; i < chunk.Count; i++)
+            {
+                var (bestIdx, bestScore) = FindBestMatch(embeddings[i]);
+                var key = MeSHMatchCache.NormalizeKey(chunk[i]);
+                resolved[key] = (bestIdx, bestScore);
+                _matchCache.Add(key, bestIdx, bestScore);
+            }
+        }
+
+        var results = new List<MeSHMatchResult>(list.Count);
+        foreach (var value in list)
+        {
+            var (bestIdx, bestScore) = resolved[MeSHMatchCache.NormalizeKey(value)];
+            results.Add(BuildResult(value, source, studyNctId, bestIdx, bestScore));
+        }
+
+        return results;
     }
 
     internal int CacheHits => _matchCache.CacheHits;
@@ -189,6 +226,124 @@ public sealed class MeSHMatcher : IDisposable
         for (int i = 0; i < EmbedDim; i++)
             dot += embedding[i] * _meshEmbeddings[offset + i];
         return dot;
+    }
+
+    /// <summary>
+    /// Full cosine scan over every MeSH descriptor embedding for one query
+    /// embedding. Shared by the single-term and batched paths so both pick the
+    /// same best match for identical inputs.
+    /// </summary>
+    private (int BestIdx, float BestScore) FindBestMatch(float[] embedding)
+    {
+        int bestIdx = -1;
+        float bestScore = 0f;
+        for (int i = 0; i < _meshNames.Length; i++)
+        {
+            float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[i]);
+            if (sim > bestScore)
+            {
+                bestScore = sim;
+                bestIdx = i;
+            }
+        }
+
+        return (bestIdx, bestScore);
+    }
+
+    // Re-picked for S-BioBert-snli-multinli-stsb (issue #355 P4-e): on the
+    // 139-keyword labeled set (ctgov-keywords.csv) 0.65 rescues 85.6% (vs
+    // 50.4% at 0.8) and is the distribution knee (0.7 -> 74.8%). All
+    // non-descriptor junk in the labeled set scores < 0.65 ("Type 1" 0.61,
+    // "treatment" 0.61); junk that IS a MeSH descriptor ("Safety" 1.0)
+    // is kept out by the KeywordFilter blocklist, not this threshold.
+    private const float MatchThreshold = 0.65f;
+
+    private MeSHMatchResult BuildResult(string value, string source, string studyNctId, int bestIdx, float bestScore)
+    {
+        bool matched = bestIdx >= 0 && bestScore >= MatchThreshold;
+
+        return new MeSHMatchResult
+        {
+            Value = value,
+            StudyNctId = studyNctId,
+            Source = source,
+            SideAValid = IsValidConditionSimple(value),
+            SideBMatched = matched,
+            MeshTerm = matched ? _meshNames[bestIdx] : "",
+            MeshCui = matched ? _meshCuis[bestIdx] : "",
+            Category = matched ? _meshCategories[bestIdx] : "unmapped",
+            Similarity = bestScore,
+        };
+    }
+
+    /// <summary>
+    /// Mean-pools every row of a batched forward pass. Row r pools
+    /// hiddenState[r, i, j] with the same math as <see cref="ComputeEmbedding"/>
+    /// (attention-masked mean over valid tokens, then L2 normalization), so
+    /// per-row results are identical to N=1 inference.
+    /// </summary>
+    private float[][] ComputeEmbeddingsBatch(List<(int[] TokenIds, int[] AttentionMask)> tokenized)
+    {
+        int batchSize = tokenized.Count;
+        var inputIds = new DenseTensor<long>([batchSize, MaxSeqLen]);
+        var mask = new DenseTensor<long>([batchSize, MaxSeqLen]);
+
+        for (int r = 0; r < batchSize; r++)
+        {
+            for (int i = 0; i < MaxSeqLen; i++)
+            {
+                inputIds[r, i] = tokenized[r].TokenIds[i];
+                mask[r, i] = tokenized[r].AttentionMask[i];
+            }
+        }
+
+        var inputs = new List<NamedOnnxValue>
+        {
+            NamedOnnxValue.CreateFromTensor("input_ids", inputIds),
+            NamedOnnxValue.CreateFromTensor("attention_mask", mask),
+        };
+
+        using var results = _session.Run(inputs);
+        var hiddenState = results[0].AsTensor<float>();
+
+        var pooled = new float[batchSize][];
+        for (int r = 0; r < batchSize; r++)
+        {
+            var row = new float[EmbedDim];
+            int validTokens = 0;
+            for (int i = 0; i < MaxSeqLen; i++)
+            {
+                if (tokenized[r].AttentionMask[i] == 0) continue;
+                validTokens++;
+                for (int j = 0; j < EmbedDim; j++)
+                {
+                    row[j] += hiddenState[r, i, j];
+                }
+            }
+
+            if (validTokens > 0)
+            {
+                float invCount = 1f / validTokens;
+                for (int i = 0; i < EmbedDim; i++)
+                    row[i] *= invCount;
+            }
+
+            float norm = 0f;
+            for (int i = 0; i < EmbedDim; i++)
+                norm += row[i] * row[i];
+            norm = MathF.Sqrt(norm);
+
+            if (norm > 1e-10f)
+            {
+                float invNorm = 1f / norm;
+                for (int i = 0; i < EmbedDim; i++)
+                    row[i] *= invNorm;
+            }
+
+            pooled[r] = row;
+        }
+
+        return pooled;
     }
 
     private (int[] TokenIds, int[] AttentionMask) Tokenize(string text)

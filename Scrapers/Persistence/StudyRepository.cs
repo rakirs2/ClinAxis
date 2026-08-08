@@ -278,6 +278,25 @@ namespace Scrapers.Persistence
 
                         if (_meshMatcher != null)
                         {
+                            // Batch all keyword matches for this record into a single
+                            // ONNX forward pass (issue #434 follow-up): one session.Run
+                            // per ~16 terms instead of one per term.
+                            var keywordBatch = new List<string>();
+                            foreach (var rawKw in record.Keywords)
+                            {
+                                if (string.IsNullOrWhiteSpace(rawKw)) continue;
+                                var trimmed = rawKw.Trim();
+                                var expanded = KeywordFilter.ExpandAcronym(trimmed);
+                                if (!string.Equals(expanded, trimmed, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    keywordBatch.Add(expanded);
+                                }
+                                keywordBatch.Add(trimmed);
+                            }
+
+                            var keywordMatches = _meshMatcher.MatchBatch(keywordBatch, "keyword", record.NctId!);
+                            var keywordMatchIdx = 0;
+
                             var meshMatchedKeywords = new List<string>();
                             foreach (var rawKw in record.Keywords)
                             {
@@ -291,10 +310,10 @@ namespace Scrapers.Persistence
                                         // term's evaluation so the acceptance is analyzable in
                                         // rejected_terms (raw acronym scores < 0.8, expanded
                                         // form scores 1.0 on its MeSH descriptor).
-                                        meshMatchResults.Add(_meshMatcher.Match(expanded, "keyword", record.NctId!));
+                                        meshMatchResults.Add(keywordMatches[keywordMatchIdx++]);
                                     }
 
-                                    var match = _meshMatcher.Match(trimmed, "keyword", record.NctId!);
+                                    var match = keywordMatches[keywordMatchIdx++];
                                     meshMatchResults.Add(match);
                                     if (match.SideBMatched)
                                     {
@@ -326,6 +345,25 @@ namespace Scrapers.Persistence
                         entity.Conditions!.Clear();
                         entity.RejectedConditions = null;
                         var studyRejected = new List<object>();
+
+                        // Batch all condition matches for this record into a single
+                        // ONNX forward pass (issue #434 follow-up). Mirrors the loop
+                        // below's filter exactly: non-whitespace conditions, trimmed.
+                        IReadOnlyList<MeSHMatchResult>? conditionMatches = null;
+                        var conditionMatchIdx = 0;
+                        if (_meshMatcher != null)
+                        {
+                            var conditionBatch = new List<string>();
+                            foreach (var cond in record.Conditions)
+                            {
+                                if (!string.IsNullOrWhiteSpace(cond))
+                                {
+                                    conditionBatch.Add(cond.Trim());
+                                }
+                            }
+                            conditionMatches = _meshMatcher.MatchBatch(conditionBatch, "condition", record.NctId!);
+                        }
+
                         foreach (var cond in record.Conditions)
                         {
                             if (!string.IsNullOrWhiteSpace(cond))
@@ -334,7 +372,7 @@ namespace Scrapers.Persistence
 
                                 if (_meshMatcher != null)
                                 {
-                                    var match = _meshMatcher.Match(trimmed, "condition", record.NctId!);
+                                    var match = conditionMatches![conditionMatchIdx++];
                                     meshMatchResults.Add(match);
 
                                     if (match.Accepted)
@@ -415,6 +453,23 @@ namespace Scrapers.Persistence
                 {
                     entity.Interventions ??= new List<StudyInterventionEntity>();
                     entity.Interventions.Clear();
+
+                    // Batch all intervention matches for this record into a single
+                    // ONNX forward pass (issue #434 follow-up). Mirrors the loop
+                    // below's filter exactly: non-whitespace names, trimmed.
+                    IReadOnlyList<MeSHMatchResult>? interventionMatches = null;
+                    var interventionMatchIdx = 0;
+                    if (_meshMatcher != null)
+                    {
+                        var interventionBatch = new List<string>();
+                        foreach (var intervention in record.Interventions)
+                        {
+                            if (string.IsNullOrWhiteSpace(intervention.Name)) continue;
+                            interventionBatch.Add(intervention.Name.Trim());
+                        }
+                        interventionMatches = _meshMatcher.MatchBatch(interventionBatch, "intervention", record.NctId!);
+                    }
+
                     foreach (var intervention in record.Interventions)
                     {
                         if (string.IsNullOrWhiteSpace(intervention.Name)) continue;
@@ -422,7 +477,7 @@ namespace Scrapers.Persistence
                         int? descId = null;
                         if (_meshMatcher != null)
                         {
-                            var match = _meshMatcher.Match(trimmed, "intervention", record.NctId!);
+                            var match = interventionMatches![interventionMatchIdx++];
                             meshMatchResults.Add(match);
                             if (match.Accepted)
                             {
