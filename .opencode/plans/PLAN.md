@@ -516,3 +516,67 @@ the proven resumable machinery.
 - Razor attribute nested double-quote strings must use single-quoted attributes.
 - EF columns are snake_case via explicit `HasColumnName` — forgot initially, migration
   generated `ManualRunMode`; reverted and regenerated with `manual_run_mode`.
+
+---
+
+# Bulk DLQ Retry (Issue #436)
+
+## Status: shipped (PR #439)
+
+### Problem
+
+Watchdog #436: `deadLetterCount=5454` (5423 `investigator.enrichment`, 11
+`studies.discovered`, 18 `medicare.utilization`) from enrichment NPI collisions. Only
+per-event retry existed — no way to recover en masse.
+
+### Change
+
+- `EventQueueService.RetryAllDeadLetterEventsAsync(eventType?, limit, cancellationToken)`
+  re-enqueues dead-lettered events in claim-timeout-safe batches.
+- `POST /api/event-queue/dead-letter/retry-all?eventType=` (EventQueueEndpoints).
+- Integration coverage extended in `BackfillLifecycleTests` (event enqueue → process fail →
+  dead-letter → retry-all → re-enqueued), fakes updated.
+
+### Not done (user action, no droplet access)
+
+- The actual retry on production: `curl -X POST
+  http://localhost:5003/api/event-queue/dead-letter/retry-all?eventType=investigator.enrichment`
+  then `?eventType=studies.discovered`, verify #436 clears.
+
+---
+
+# A/B Single-Matcher Decision Read Path (Issue #356 part 5, P4 step ⑤)
+
+## Status: PR open
+
+### Problem
+
+`rejected_terms` + rule-vs-BERT A/B results exist (A = rule-based, B = BERT) but there is
+no read path to quantify agreement — the single-matcher decision cannot be made. Data loss
+remediation is complete (all 7 priorities FIXED), so remaining MVP work is this + P2 #313
++ P7 domain.
+
+### Change
+
+- `StudyRepository.GetRejectedTermsSummaryAsync(source?)` + `GetRejectedTermsPagedAsync
+  (source?, disagreementOnly?, page, pageSize)`. Summary computed by pure, DB-free
+  `RejectedTermsSummary.Compute(IReadOnlyCollection<RejectedTermRow>)`; `RejectedTermRow`
+  is a top-level `readonly record struct` (CA1034 forbids nested types).
+- EF projection `Select(r => new RejectedTermRow(...))` — constructor-parameter
+  projections are supported client-side; no translation risk.
+- `GET /api/rejected-terms/summary` + `GET /api/rejected-terms?disagreementOnly=&page=`
+  (DataApi/Endpoints/PipelineEndpoints.cs).
+- DataQuality.razor tab 4 "Matcher A/B": agreement %, total/disagreements/accepted/
+  rejected cards, similarity bands, disagreement samples (`?disagreementOnly=true&
+  pageSize=50`).
+
+### Tests
+
+- `RejectedTermsSummaryTests` (4 DB-free): empty input, agree/disagree counts + ratio,
+  band boundaries, accepted flag honored.
+- `Tab4ShowsMatcherAgreementAndDisagreementSamples` bUnit (mock summary + samples).
+  Gotchas: the tab heading renders in the loading state too — `WaitForState` must await the
+  sample data, not the heading; `P1` percent format emits "92.0 %" with a space, assert on
+  the number only. Existing `Tab0IsActiveByDefault` link-count assertion bumped 4 → 5.
+- Full Release suite: 664/664 (Scrapers.Tests 418, DataApi.Tests 99, Integration 38,
+  Frontend.Tests 109), 0 warnings, 0 errors.
