@@ -92,6 +92,13 @@ internal static class EventQueueEndpoints
             return result ? Results.Ok() : Results.NotFound();
         });
 
+        app.MapPost("/api/event-queue/dead-letter/retry-all", async (string? eventType) =>
+        {
+            var eventQueueService = new EventQueueService(connectionString);
+            var resetCount = await eventQueueService.RetryAllDeadLetterEventsAsync(eventType);
+            return Results.Ok(new { resetCount, eventType });
+        });
+
         app.MapPost("/api/event-queue/dead-letter/{eventId:int}/ignore", async (int eventId) =>
         {
             var eventQueueService = new EventQueueService(connectionString);

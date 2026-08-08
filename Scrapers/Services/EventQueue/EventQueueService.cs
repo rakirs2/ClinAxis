@@ -532,6 +532,35 @@ public sealed class EventQueueService : IEventQueueService
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
+    public async Task<int> RetryAllDeadLetterEventsAsync(string? eventType = null, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        var query = context.PipelineEvents.Where(e => e.Status == "dead-letter");
+        if (!string.IsNullOrWhiteSpace(eventType))
+        {
+            query = query.Where(e => e.EventType == eventType);
+        }
+
+        var events = await query.ToListAsync(ct).ConfigureAwait(false);
+        var now = DateTime.UtcNow;
+        foreach (var @event in events)
+        {
+            @event.Status = "pending";
+            @event.RetryCount = 0;
+            @event.ErrorMessage = null;
+            @event.ClaimedBy = null;
+            @event.ClaimedAt = null;
+            @event.UpdatedAt = now;
+        }
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+        return events.Count;
+    }
+
     public async Task IgnoreDeadLetterEventAsync(int eventId, CancellationToken ct = default)
     {
         using var context = new ClinicalTrialsContext(

@@ -103,5 +103,24 @@ public sealed class BackfillLifecycleTests : DbTestBase
         state = await stateService.GetStateAsync("ClinicalTrials.gov");
         Assert.IsNotNull(state);
         Assert.IsNull(state!.ErrorMessage, "A successful sync must clear the previous failure message.");
+
+        // Bulk DLQ retry (production recovery): type filter resets only matching events;
+        // no filter resets everything.
+        await queue.EnqueueAsync("investigator.enrichment", "{}");
+        var other = await queue.ClaimNextPendingEventAsync("test-worker", eventTypes: ["investigator.enrichment"]);
+        Assert.IsNotNull(other);
+        await queue.FailEventAsync(other!.Id, "old bug failure 1");
+        await queue.FailEventAsync(other.Id, "old bug failure 2");
+        await queue.FailEventAsync(other.Id, "old bug failure 3");
+        await queue.FailEventAsync(other.Id, "old bug failure 4");
+
+        var filtered = await queue.RetryAllDeadLetterEventsAsync("studies.backfill");
+        Assert.AreEqual(1, filtered, "Only studies.backfill dead letters are reset by the type filter.");
+        var all = await queue.RetryAllDeadLetterEventsAsync();
+        Assert.AreEqual(1, all, "The enrichment dead letter remains until an unfiltered retry.");
+
+        snapshot = await coordinator.GetChunkQueueSnapshotAsync();
+        Assert.AreEqual(2, snapshot.PendingOrProcessing, "The reset chunk is claimable again alongside the untouched pending chunk.");
+        Assert.AreEqual(0, snapshot.DeadLettered, "No backfill chunks remain dead-lettered after retry.");
     }
 }

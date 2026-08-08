@@ -191,6 +191,8 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
 
         public Task RetryDeadLetterEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
 
+    public Task<int> RetryAllDeadLetterEventsAsync(string? eventType = null, CancellationToken ct = default) => Task.FromResult(0);
+
         public Task IgnoreDeadLetterEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task ReleaseEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
