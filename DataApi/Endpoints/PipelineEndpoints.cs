@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Scrapers;
 using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
+using Scrapers.Services.EventQueue;
+using Scrapers.Utilities;
 
 namespace DataApi.Endpoints;
 
@@ -9,6 +11,19 @@ internal static class PipelineEndpoints
 {
     internal static void MapPipelineEndpoints(this WebApplication app, string connectionString)
     {
+        app.MapPost("/api/ingest/run", async (string? mode) =>
+        {
+            if (!ManualRunRequest.IsValidMode(mode))
+            {
+                return Results.BadRequest(
+                    new { error = $"mode must be '{ManualRunRequest.IncrementalMode}' or '{ManualRunRequest.FullMode}'." });
+            }
+
+            var stateService = new DataSourceStateService(connectionString);
+            await stateService.RequestManualRunAsync("ClinicalTrials.gov", mode!, default);
+
+            return Results.Json(new { accepted = true, mode }, statusCode: StatusCodes.Status202Accepted);
+        });
         app.MapGet("/api/rejected-names", async () =>
         {
             using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()

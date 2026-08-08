@@ -465,6 +465,7 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.BackfillRemainingStudies).HasColumnName("backfill_remaining_studies");
                 entity.Property(e => e.BackfillStartedUtc).HasColumnName("backfill_started_utc");
                 entity.Property(e => e.BackfillCompletedUtc).HasColumnName("backfill_completed_utc");
+                entity.Property(e => e.ManualRunMode).HasColumnName("manual_run_mode");
 
                 entity.HasIndex(e => e.SourceName).IsUnique();
             });

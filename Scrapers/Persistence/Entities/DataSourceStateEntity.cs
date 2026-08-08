@@ -43,4 +43,7 @@ public sealed class DataSourceStateEntity
 
     /// <summary>UTC completion of the last full sweep (lastFullSweepUtc).</summary>
     public DateTime? BackfillCompletedUtc { get; set; }
+
+    /// <summary>Pending operator-requested run: null = none, "incremental" or "full".</summary>
+    public string? ManualRunMode { get; set; }
 }

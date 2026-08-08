@@ -43,4 +43,14 @@ public interface IDataSourceStateService
     /// Update the full-corpus sweep state for a data source (status, remaining, started/completed UTC).
     /// </summary>
     Task UpdateBackfillStateAsync(string sourceName, string? status, int? remainingStudies, DateTime? startedUtc, DateTime? completedUtc, CancellationToken ct = default);
+
+    /// <summary>
+    /// Record an operator-requested run ("incremental" or "full") for the scrape loop to consume.
+    /// </summary>
+    Task RequestManualRunAsync(string sourceName, string mode, CancellationToken ct = default);
+
+    /// <summary>
+    /// Read and clear the pending manual run request; returns the mode ("incremental"/"full") or null.
+    /// </summary>
+    Task<string?> ConsumeManualRunAsync(string sourceName, CancellationToken ct = default);
 }
