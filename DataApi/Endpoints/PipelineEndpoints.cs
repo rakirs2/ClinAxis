@@ -24,6 +24,52 @@ internal static class PipelineEndpoints
 
             return Results.Json(new { accepted = true, mode }, statusCode: StatusCodes.Status202Accepted);
         });
+        app.MapGet("/api/rejected-terms", async (string? source, bool? disagreementOnly, int? page, int? pageSize) =>
+        {
+            var repo = new StudyRepository(connectionString);
+            var p = Math.Max(1, page ?? 1);
+            var ps = Math.Clamp(pageSize ?? 50, 1, 200);
+            var (items, total) = await repo.GetRejectedTermsPagedAsync(source, disagreementOnly, p, ps);
+            return Results.Ok(new
+            {
+                data = items.Select(e => new
+                {
+                    e.Id,
+                    e.StudyNctId,
+                    e.Value,
+                    e.Source,
+                    e.SideAValid,
+                    e.SideBMatched,
+                    e.SideBMeshTerm,
+                    e.SideBMeshCui,
+                    e.SideBCategory,
+                    e.SideBSimilarity,
+                    e.Accepted,
+                    e.RejectionReason,
+                    e.CreatedAt
+                }),
+                total,
+                page = p,
+                pageSize = ps,
+                totalPages = (int)Math.Ceiling((double)total / ps)
+            });
+        });
+
+        app.MapGet("/api/rejected-terms/summary", async (string? source) =>
+        {
+            var repo = new StudyRepository(connectionString);
+            var summary = await repo.GetRejectedTermsSummaryAsync(source);
+            return Results.Ok(new
+            {
+                summary.Total,
+                summary.Agreement,
+                summary.Disagreements,
+                summary.Accepted,
+                summary.Rejected,
+                similarityBands = summary.SimilarityBands
+            });
+        });
+
         app.MapGet("/api/rejected-names", async () =>
         {
             using var ctx = new ClinicalTrialsContext(new DbContextOptionsBuilder<ClinicalTrialsContext>()

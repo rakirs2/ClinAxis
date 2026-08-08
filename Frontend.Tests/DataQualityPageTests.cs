@@ -42,7 +42,7 @@ public sealed class DataQualityPageTests
             parameters => parameters.Add(p => p.Tab, 0));
 
         var links = cut.FindAll(".nav-tabs .nav-link");
-        Assert.AreEqual(4, links.Count);
+        Assert.AreEqual(5, links.Count);
         Assert.IsTrue(links[0].ClassList.Contains("active"));
         Assert.IsFalse(links[1].ClassList.Contains("active"));
         Assert.IsFalse(links[2].ClassList.Contains("active"));
@@ -101,6 +101,63 @@ public sealed class DataQualityPageTests
         Assert.AreEqual("/data-quality/1", links[1].GetAttribute("href"));
         Assert.AreEqual("/data-quality/2", links[2].GetAttribute("href"));
         Assert.AreEqual("/data-quality/3", links[3].GetAttribute("href"));
+        Assert.AreEqual("/data-quality/4", links[4].GetAttribute("href"));
+    }
+
+    [TestMethod]
+    public void Tab4ShowsMatcherAgreementAndDisagreementSamples()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockTab0(mockHttp);
+        mockHttp.When("http://localhost:5003/api/rejected-terms/summary")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                total = 1000,
+                agreement = 0.92,
+                disagreements = 80,
+                accepted = 300,
+                rejected = 700,
+                similarityBands = new Dictionary<string, int>
+                {
+                    ["0.00-0.50"] = 10,
+                    ["0.50-0.65"] = 20,
+                    ["0.65-0.80"] = 25,
+                    ["0.80-1.00"] = 25
+                }
+            }, JsonOptions));
+        mockHttp.When("http://localhost:5003/api/rejected-terms*")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        id = 1,
+                        studyNctId = "NCT001",
+                        value = "Zebrafish",
+                        source = "condition",
+                        sideAValid = true,
+                        sideBMatched = false,
+                        sideBMeshTerm = "unmapped",
+                        sideBSimilarity = 0.6,
+                        accepted = false
+                    }
+                },
+                total = 80,
+                page = 1,
+                pageSize = 50,
+                totalPages = 2
+            }, JsonOptions));
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.DataQuality> cut = ctx.Render<Frontend.Pages.DataQuality>(
+            parameters => parameters.Add(p => p.Tab, 4));
+
+        cut.WaitForState(() => cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        Assert.IsTrue(cut.Markup.Contains("92.0", StringComparison.Ordinal), "Agreement percentage should render");
+        Assert.IsTrue(cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), "Disagreement sample should render");
+        Assert.IsTrue(cut.Markup.Contains("0.600", StringComparison.Ordinal), "Similarity should render with three decimals");
     }
 
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)

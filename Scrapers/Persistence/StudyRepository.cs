@@ -888,6 +888,57 @@ namespace Scrapers.Persistence
             return (items, total);
         }
 
+        public async Task<(List<RejectedTermEntity> Items, int Total)> GetRejectedTermsPagedAsync(
+            string? source = null, bool? disagreementOnly = null, int page = 1, int pageSize = 50,
+            CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var query = context.RejectedTerms.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                query = query.Where(r => r.Source == source);
+            }
+
+            if (disagreementOnly == true)
+            {
+                query = query.Where(r => r.SideAValid != r.SideBMatched);
+            }
+
+            var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+            var items = await query
+                .OrderByDescending(r => r.CreatedAt)
+                .ThenByDescending(r => r.SideBSimilarity)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            return (items, total);
+        }
+
+        /// <summary>
+        /// A/B agreement summary for the single-matcher decision (#356 part 5 / P4 step ⑤):
+        /// how often Side A (rule) and Side B (BERT) agree, plus the disagreement buckets
+        /// by similarity band so a human can sample them.
+        /// </summary>
+        public async Task<RejectedTermsSummary> GetRejectedTermsSummaryAsync(
+            string? source = null, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            var query = context.RejectedTerms.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                query = query.Where(r => r.Source == source);
+            }
+
+            var rows = await query
+                .Select(r => new RejectedTermRow(r.SideAValid, r.SideBMatched, r.SideBSimilarity, r.Accepted))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return RejectedTermsSummary.Compute(rows);
+        }
+
         public async Task<bool> SetRejectedInvestigatorNameOverrideAsync(Guid id, bool isHumanOverride, string? note, CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -2286,4 +2337,45 @@ namespace Scrapers.Persistence
         public int? HIndex { get; set; }
         public int? PaperCount { get; set; }
     }
+
+    /// <summary>
+    /// A/B gate agreement summary for the single-matcher decision (P4 step ⑤):
+    /// how often the rule-based Side A and the BERT Side B agree, and disagreement
+    /// counts by similarity band for human sampling. <see cref="Compute"/> is pure
+    /// (DB-free) so it can be unit-tested per the testing pyramid.
+    /// </summary>
+    public sealed record RejectedTermsSummary(
+        int Total,
+        double Agreement,
+        int Disagreements,
+        int Accepted,
+        int Rejected,
+        IReadOnlyDictionary<string, int> SimilarityBands)
+    {
+        public static RejectedTermsSummary Compute(IReadOnlyCollection<RejectedTermRow> rows)
+        {
+            ArgumentNullException.ThrowIfNull(rows);
+
+            var disagreements = rows.Count(r => r.SideAValid != r.SideBMatched);
+            var accepted = rows.Count(r => r.Accepted);
+            var rejected = rows.Count(r => !r.Accepted);
+
+            return new RejectedTermsSummary(
+                Total: rows.Count,
+                Agreement: rows.Count == 0 ? 1.0 : (double)(rows.Count - disagreements) / rows.Count,
+                Disagreements: disagreements,
+                Accepted: accepted,
+                Rejected: rejected,
+                SimilarityBands: new Dictionary<string, int>
+                {
+                    ["0.00-0.50"] = rows.Count(r => r.SideBSimilarity < 0.5f),
+                    ["0.50-0.65"] = rows.Count(r => r.SideBSimilarity is >= 0.5f and < 0.65f),
+                    ["0.65-0.80"] = rows.Count(r => r.SideBSimilarity is >= 0.65f and < 0.8f),
+                    ["0.80-1.00"] = rows.Count(r => r.SideBSimilarity >= 0.8f)
+                });
+        }
+    }
+
+    /// <summary>One rejected term's A/B outcome row (all data needed for the summary).</summary>
+    public readonly record struct RejectedTermRow(bool SideAValid, bool SideBMatched, float SideBSimilarity, bool Accepted);
 }
