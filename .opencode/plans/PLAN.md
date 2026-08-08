@@ -516,3 +516,35 @@ the proven resumable machinery.
 - Razor attribute nested double-quote strings must use single-quoted attributes.
 - EF columns are snake_case via explicit `HasColumnName` — forgot initially, migration
   generated `ManualRunMode`; reverted and regenerated with `manual_run_mode`.
+
+---
+
+# Bulk DLQ Retry (Issue #436 watchdog / P1 production recovery)
+
+## Status: shipped (PR #439)
+
+### Problem
+
+Watchdog fired: `deadLetterCount=5454` vs threshold 10 — 5,423 `investigator.enrichment`
+events dead-lettered during the #405 NPI-collision bug (fix already merged), 11
+`studies.discovered` legacy events, 18 `medicare.utilization`. Only per-event retry
+(`POST /api/event-queue/dead-letter/{id}/retry`) existed — impractical at 5,400+ scale.
+
+### Change
+
+- `EventQueueService.RetryAllDeadLetterEventsAsync(eventType?, ct)` — resets every
+  dead-letter event (optionally one type) to pending, retry_count=0, error/claim cleared;
+  returns the count. Idempotent, safe to re-run.
+- `POST /api/event-queue/dead-letter/retry-all?eventType=` (DataApi EventQueueEndpoints).
+- No new DB test: extended `ChunkQueueTracking_AndBackfillState_ReflectSweepProgress`
+  (integration budget) with type-filter + unfiltered + snapshot recovery assertions.
+- Fake queues updated for the interface member.
+
+### Ops follow-up
+
+`curl -X POST <api>/api/event-queue/dead-letter/retry-all?eventType=investigator.enrichment`
+(+ `studies.discovered`) after deploy to clear the DLQ under the watchdog threshold.
+
+### Result
+
+Full Release suite 659/659, 0 warnings, 0 errors.
