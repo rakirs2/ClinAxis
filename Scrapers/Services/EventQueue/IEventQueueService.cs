@@ -59,6 +59,12 @@ public interface IEventQueueService
     Task RetryDeadLetterEventAsync(int eventId, CancellationToken ct = default);
 
     /// <summary>
+    /// Reset every dead-letter event (optionally of one event type) back to pending
+    /// for reprocessing after a pipeline fix. Returns the number of events reset.
+    /// </summary>
+    Task<int> RetryAllDeadLetterEventsAsync(string? eventType = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Mark a dead-letter event as ignored (won't be retried).
     /// Status becomes 'completed' with error_message preserved.
     /// </summary>
