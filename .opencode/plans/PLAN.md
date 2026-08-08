@@ -358,3 +358,57 @@ Status-page "Ambiguous (2+ matches)" count was high. Old cascade in `Investigato
   fixed with `ssh -n`, then retried the remaining four successfully.
 - Current watchdog issue #430 shows backfill dead letters at zero, legacy discovery dead letters
   retained at ten, and the source actively processing the remaining queue.
+
+---
+
+## Attempt log — Backfill throughput investigation + first speedup PR (feature/speed-up-backfill)
+
+**Date:** 2026-08-08
+
+### Investigation (live watchdog issue #433, code audit, local benchmark)
+
+- Live numbers: `studies.backfill` 17 pending / 1 processing, ~100,721 remaining,
+  `ingestRatePerHour=2085`, last 200-record root batch `lastBatchDurationMs=379,996`
+  (≈6.3 min/batch), est. completion 2026-08-10.
+- **Local benchmark** (throwaway project in /tmp, real model + real CT.gov fixture terms):
+  - Cold (no cache) match cost: **185.8 ms/term** single-shot on this Mac
+    (MeshBench synthetic set: 99 ms/term). Droplet (2 vCPU) ≈ 300-500 ms/term.
+  - Per 200-record batch ≈ 4-6k Match calls, most unique → 380s/batch explained
+    **fully by MeSH matching** (inference + 61,794 × 768 cosine scan per unique term).
+  - ONNX model input is `-1x128`: batch dim dynamic, **sequence length FIXED at 128** →
+    dynamic-seq-length is impossible without re-exporting the model (out of scope).
+  - Batched inference (N=16, pad to 128): **1.22x** speedup, results **bit-identical**
+    (6/6 terms, max score delta 0.0) — candidate for a follow-up PR.
+- **Stale plan items found:** the "early exact-match exit before ONNX inference" plan item
+  ALREADY exists (`MeSHMatcher.cs` `_meshNameLookup` check before `ComputeEmbedding`), and
+  `mesh_terms.json` already includes entry terms/synonyms (e.g. "Fetal Anomalies" → CUIs), so
+  exact-match coverage is already as good as it gets without new data files.
+- **Root cause ranking:** per-term inference dominates; the 50k-entry `MeSHMatchCache` cap
+  clears ~4x over the remaining corpus vocabulary (~150-250k unique terms), re-paying
+  inference for every hot term each clear; `GetMeshDescriptorId` re-opens a fresh context on
+  every CUI miss (misses were not cached).
+
+### Changes (this branch)
+
+1. **`MeSHMatchCache.MaxEntries` 50k → 250k** — holds the whole corpus vocabulary; each term
+   pays inference exactly once (~30-40MB, under the 768m ingestion limit). Biggest safe win.
+2. **`StudyRepository.GetMeshDescriptorId`** — cache `-1` misses so absent CUIs stop
+   re-opening fresh contexts per occurrence.
+3. **Batch phase timing logs** — `LogBatchPhaseTimes` (prefetch / map+match / save / post)
+   via optional `ILogger<StudyRepository>` (wired in IngestionApp); confirms the match-vs-DB
+   split on the next deploy and targets the follow-up batching PR.
+
+### Tests
+
+- `MeSHMatchCacheTests.Add_BeyondCap` updated for the new cap (250_001 + surviving entry).
+- Full Release suite: 643/643 (Scrapers.Tests 399, DataApi.Tests 99, Integration 38,
+  Frontend.Tests 107), 0 warnings, `dotnet build -c Release` 0 errors.
+
+### Not done (candidate follow-up PRs, in order of value)
+
+- **Batch ONNX inference** in a repository-level `MatchBatch` path (N=16, verified bit-identical,
+  ~1.2-1.5x on the match phase) — deferred because it requires restructuring the
+  data-loss-critical mapping loop; the new timing logs will confirm it's worth it.
+- SIMD cosine scan (~10-25% on the droplet, memory-bandwidth-bound) — float-ordering changes
+  make results not bit-identical; only if A/B tolerance is acceptable.
+- Splitting openpayments/enrichment out of the ingestion container (OOM headroom, issue #364 watch item).

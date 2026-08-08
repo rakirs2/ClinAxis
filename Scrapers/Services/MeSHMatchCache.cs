@@ -5,11 +5,17 @@ namespace Scrapers.Services;
 /// <summary>
 /// Bounded memo-cache for <see cref="MeSHMatcher"/> results (issue #335).
 /// Repeated terms (e.g. "diabetes") dominate ingest workloads; the cache lets
-/// a repeat call skip BERT inference and the 26k-embedding cosine scan.
+/// a repeat call skip BERT inference and the 61k-embedding cosine scan.
 /// </summary>
 internal sealed class MeSHMatchCache
 {
-    private const int MaxEntries = 50_000;
+    // Cap raised 50k -> 250k (issue #434): the full-corpus backfill's unique-term
+    // vocabulary (~150-250k) is larger than 50k, so the old cap cleared ~4x during
+    // the remaining sweep and re-paid inference for every hot term each time
+    // (~300-500ms each on the 2-vCPU droplet). 250k entries ≈ 30-40MB, well under
+    // the 768m ingestion container limit, and the cap now holds the whole corpus
+    // vocabulary so each term pays inference exactly once.
+    private const int MaxEntries = 250_000;
 
     private readonly Dictionary<string, (int BestIdx, float BestScore)> _entries =
         new(StringComparer.Ordinal);
