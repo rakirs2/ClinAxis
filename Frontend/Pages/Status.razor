@@ -140,6 +140,31 @@ else
 
     <div class="row">
         <div class="col-md-6">
+            <h3 class="mt-4">Scraper Progress Today</h3>
+            @if (scraperProgress is null)
+            {
+                <p class="text-muted">Loading...</p>
+            }
+            else
+            {
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Studies added in the last 24 hours</span>
+                        <strong class="display-6">@scraperProgress.addedLast24h.ToString("N0")</strong>
+                    </div>
+                    @if (scraperProgress.sinceUtc.HasValue)
+                    {
+                        <small class="text-muted">
+                            Since @scraperProgress.sinceUtc.Value.ToString("MMM d, HH:mm 'UTC'")
+                        </small>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
             <h3 class="mt-4">Investigator Enrichment</h3>
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
@@ -684,6 +709,8 @@ else
         public double? ingestRatePerHour { get; set; }
         public int? remainingStudies { get; set; }
         public DateTime? estimatedCompletionUtc { get; set; }
+        public int addedLast24h { get; set; }
+        public DateTime? sinceUtc { get; set; }
         public DateTime lastChecked { get; set; }
     }
 

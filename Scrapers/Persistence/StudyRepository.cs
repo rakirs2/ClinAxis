@@ -768,6 +768,15 @@ namespace Scrapers.Persistence
         }
 
         /// <summary>
+        /// Count of studies first persisted at or after <paramref name="fromUtc"/> (based on created_at).
+        /// </summary>
+        public async Task<int> CountStudiesAddedSinceAsync(DateTime fromUtc, CancellationToken cancellationToken = default)
+        {
+            using ClinicalTrialsContext context = CreateContext();
+            return await context.Studies.CountAsync(s => s.CreatedAt >= fromUtc, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Count of studies not flagged as removed from the source (i.e., currently on CT.gov).
         /// </summary>
         public async Task<int> CountActiveStudiesAsync(CancellationToken cancellationToken = default)

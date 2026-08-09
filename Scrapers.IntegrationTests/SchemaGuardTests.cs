@@ -25,6 +25,11 @@ public sealed class SchemaGuardTests : DbTestBase
         Assert.IsNotNull(enrollment,
             "Missing index on studies(enrollment_count). " +
             $"Found indexes: {string.Join(", ", indexes)}");
+
+        var createdAt = indexes.FirstOrDefault(i => i.Contains("created_at", StringComparison.Ordinal));
+        Assert.IsNotNull(createdAt,
+            "Missing index on studies(created_at). " +
+            $"Found indexes: {string.Join(", ", indexes)}");
     }
 
     [TestMethod]

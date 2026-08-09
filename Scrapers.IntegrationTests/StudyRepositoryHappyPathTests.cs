@@ -121,6 +121,8 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
 
         Assert.AreEqual(1, await _repo.CountStudiesAsync());
         Assert.AreEqual(1, await _repo.CountInvestigatorsAsync());
+        Assert.AreEqual(1, await _repo.CountStudiesAddedSinceAsync(DateTime.UtcNow.AddHours(-24)));
+        Assert.AreEqual(0, await _repo.CountStudiesAddedSinceAsync(DateTime.UtcNow.AddHours(24)));
         Assert.AreEqual(1, await Context.StudyKeywords.AsNoTracking().CountAsync(k => k.StudyNctId == record.NctId));
         Assert.AreEqual(1, await Context.StudyPhases.AsNoTracking().CountAsync(p => p.StudyNctId == record.NctId));
         Assert.AreEqual(1, await Context.StudyLocations.AsNoTracking().CountAsync(l => l.StudyNctId == record.NctId));
@@ -137,6 +139,8 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
         var preservedStudy = await Context.Studies.AsNoTracking().SingleAsync(s => s.NctId == record.NctId);
         Assert.AreEqual("Study Three", preservedStudy.BriefTitle);
         Assert.AreEqual("ACTIVE", preservedStudy.OverallStatus);
+        Assert.AreEqual(1, await _repo.CountStudiesAddedSinceAsync(DateTime.UtcNow.AddHours(-24)),
+            "Re-upserting must not move created_at; the study must still count as added in the window.");
         Assert.AreEqual(1, await Context.StudyKeywords.AsNoTracking().CountAsync(k => k.StudyNctId == record.NctId));
         Assert.AreEqual(2, await Context.StudyOutcomes.AsNoTracking().CountAsync(o => o.StudyNctId == record.NctId));
         Assert.AreEqual(1, await Context.StudyInterventions.AsNoTracking().CountAsync(i => i.StudyNctId == record.NctId));
