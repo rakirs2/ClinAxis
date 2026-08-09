@@ -140,24 +140,17 @@ internal sealed class InvestigatorEnrichmentService : BackgroundService
         if (person.NpiLookupAttemptedAt != null)
             return;
 
-        // Parse name for API queries — try multiple formats for better matching
-        var nameParts = person.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var firstName = nameParts.Length > 1 ? nameParts[0] : "";
-        var lastName = nameParts.Length > 1 ? nameParts[^1] : nameParts[0];
-
-        // Generate name variations: "John A Smith" → try "John"+"Smith", then "John"+"A Smith"
-        var nameVariations = new List<(string First, string Last)>
+        // Generate name variations: "John A Smith" → try "John"+"Smith", then "John"+"A Smith".
+        // An empty result means the stored name is unusable for NPPES lookups
+        // (empty, whitespace-only, or all prefix/suffix tokens).
+        var nameVariations = PersonNameParts.Variations(person.FullName);
+        if (nameVariations.Count == 0)
         {
-            (firstName, lastName)
-        };
-
-        if (nameParts.Length > 2)
-        {
-            nameVariations.Add((nameParts[0], string.Join(" ", nameParts[1..])));
-            if (nameParts.Length == 3 && nameParts[1].Length <= 2)
-            {
-                nameVariations.Add((nameParts[0], nameParts[^1]));
-            }
+            person.NpiEnrichmentResult = "not_found";
+            person.NpiLookupAttemptedAt = DateTime.UtcNow;
+            person.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            return;
         }
 
         // Build the person signal profile: primary affiliation + specialty derived from
