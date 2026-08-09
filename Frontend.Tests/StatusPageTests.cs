@@ -159,6 +159,21 @@ public sealed class StatusPageTests
             timeout: TimeSpan.FromSeconds(5));
     }
 
+    [TestMethod]
+    public void StatusPageShowsScraperProgressTodayCard()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Scraper Progress Today", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        Assert.IsTrue(cut.Markup.Contains("Studies added in the last 24 hours", StringComparison.Ordinal));
+        Assert.IsTrue(cut.Markup.Contains("1,234", StringComparison.Ordinal), "Added-last-24h count should render");
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();
@@ -216,7 +231,17 @@ public sealed class StatusPageTests
         }
 
         mockHttp.When("http://localhost:5003/api/scraper-progress")
-            .Respond("application/json", JsonSerializer.Serialize(new { }, JsonOptions));
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                totalAvailable = 500000,
+                totalInDb = 400000,
+                percentScraped = 80.0,
+                ingestRatePerHour = 1200.0,
+                remainingStudies = 100000,
+                estimatedCompletionUtc = DateTime.UtcNow.AddDays(1),
+                addedLast24h = 1234,
+                sinceUtc = DateTime.UtcNow.AddHours(-24)
+            }, JsonOptions));
 
         mockHttp.When("http://localhost:5003/api/page-views/stats?period=day")
             .Respond("application/json", JsonSerializer.Serialize(new { totalViews = 10, uniqueVisitors = 4 }, JsonOptions));

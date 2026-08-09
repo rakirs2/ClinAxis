@@ -580,3 +580,46 @@ remediation is complete (all 7 priorities FIXED), so remaining MVP work is this 
   the number only. Existing `Tab0IsActiveByDefault` link-count assertion bumped 4 → 5.
 - Full Release suite: 664/664 (Scrapers.Tests 418, DataApi.Tests 99, Integration 38,
   Frontend.Tests 109), 0 warnings, 0 errors.
+
+---
+
+# Scraper Progress Today card (Status page)
+
+## Status: PR open
+
+### Problem
+
+Status page showed total sweep progress but nothing about recent ingest velocity. The
+user wants a "Scraper Progress Today" card next to the full progress showing rows added
+in the last day.
+
+### Decisions (user)
+
+- **Window:** rolling last 24h UTC (`created_at >= nowUtc - 24h`), not calendar day.
+- **Placement:** new card in its own row below the Scraper Progress / Database row.
+- **Metric:** new studies first persisted (`studies.created_at`). It is stamped only at
+  first insert (StudyRepository.cs:162) and never touched by upsert (`MapRecordToEntity`),
+  so hourly incremental runs, full re-syncs, and DLQ re-processes cannot double-count.
+  Child tables are cleared/re-added per upsert and have no timestamps — not countable.
+- **No reset-db in this PR** — index-only migration, deploy with `reset_db=false`.
+
+### Change
+
+- Migration `AddStudiesCreatedAtIndex` — `IX_studies_created_at` (index only, no data).
+- `StudyRepository.CountStudiesAddedSinceAsync(DateTime fromUtc)`.
+- Pure helper `Scrapers/Utilities/IngestProgressWindow.Last24Hours(nowUtc)` (DB-free,
+  unit-tested; same pattern as `PageViewStatsAggregator`).
+- `/api/scraper-progress` extended with `addedLast24h` + `sinceUtc` (same 5-min cache).
+- Status.razor: "Scraper Progress Today" card (count + window start), DTO extended.
+
+### Tests
+
+- `IngestProgressWindowTests` (3 DB-free): fixed now → expected boundary, day-boundary
+  cross, subsecond precision preserved.
+- `StatusPageShowsScraperProgressTodayCard` bUnit; `MockDefaultsWithStats` scraper-progress
+  mock now returns full payload (was empty object).
+- Schema guard `StudiesTable_HasQueryIndexes` extended with `IX_studies_created_at`.
+- `StudyRepositoryHappyPathTests` upsert test extended: count=1 in 24h window after
+  insert, 0 outside; re-upsert must NOT move created_at.
+- Full Release suite: 668/668 (Scrapers.Tests 421, DataApi.Tests 99, Integration 38,
+  Frontend.Tests 110), 0 warnings, 0 errors.

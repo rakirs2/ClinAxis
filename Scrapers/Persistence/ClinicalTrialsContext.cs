@@ -80,6 +80,7 @@ namespace Scrapers.Persistence
 
                 entity.HasIndex(e => new { e.OverallStatus, e.StartDate });
                 entity.HasIndex(e => e.EnrollmentCount);
+                entity.HasIndex(e => e.CreatedAt);
             });
 
             modelBuilder.Entity<PubmedPaperEntity>(entity =>

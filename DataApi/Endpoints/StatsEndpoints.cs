@@ -5,6 +5,7 @@ using Scrapers.Persistence;
 using Scrapers.Persistence.Entities;
 using Scrapers.Services;
 using Scrapers.Services.EventQueue;
+using Scrapers.Utilities;
 
 namespace DataApi.Endpoints;
 
@@ -127,6 +128,8 @@ internal static class StatsEndpoints
 
             var repo = new StudyRepository(connectionString);
             var totalInDb = await repo.CountStudiesAsync();
+            var sinceUtc = IngestProgressWindow.Last24Hours(DateTime.UtcNow);
+            var addedLast24h = await repo.CountStudiesAddedSinceAsync(sinceUtc);
 
             ScrapeEta? eta = null;
             var recentEvents = await repo.GetRecentScrapeEventsAsync(limit: 500);
@@ -148,6 +151,8 @@ internal static class StatsEndpoints
                 ingestRatePerHour = eta != null ? Math.Round(eta.RatePerHour, 1) : (double?)null,
                 remainingStudies = eta?.RemainingStudies,
                 estimatedCompletionUtc = eta?.EstimatedCompletionUtc,
+                addedLast24h,
+                sinceUtc,
                 lastChecked = DateTime.UtcNow
             };
 
