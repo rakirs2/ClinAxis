@@ -20,7 +20,7 @@
         <a class="nav-link @(activeTab == 3 ? "active" : "")" href="/data-quality/3">NPI Enrichment</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link @(activeTab == 4 ? "active" : "")" href="/data-quality/4">Matcher A/B</a>
+        <a class="nav-link @(activeTab == 4 ? "active" : "")" href="/data-quality/4">Keyword Gate</a>
     </li>
 </ul>
 
@@ -374,10 +374,10 @@ else if (activeTab == 4)
 {
     <div class="d-flex justify-content-between align-items-start mb-2">
         <div>
-            <h5>Single-matcher decision (P4 step ⑤)</h5>
+            <h5>Keyword acceptance gate (BERT)</h5>
             <small class="text-muted">
-                A/B gate agreement: how often the rule-based Side A and the BERT Side B agree.
-                Sample the disagreement buckets below to decide whether to keep BERT only.
+                BERT is the single matcher gating keyword acceptance. Sample the evaluations
+                below to measure the false-reject rate at the 0.65 similarity threshold.
             </small>
         </div>
     </div>
@@ -398,28 +398,12 @@ else if (activeTab == 4)
                 <div class="card text-bg-primary">
                     <div class="card-body text-center">
                         <h5 class="card-title display-6">@abSummary.total.ToString("N0")</h5>
-                        <p class="card-text">Total rejected</p>
+                        <p class="card-text">Total evaluations</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-2 mb-3">
                 <div class="card text-bg-success">
-                    <div class="card-body text-center">
-                        <h5 class="card-title display-6">@(abSummary.agreement.ToString("P1"))</h5>
-                        <p class="card-text">Agreement</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-3">
-                <div class="card text-bg-danger">
-                    <div class="card-body text-center">
-                        <h5 class="card-title display-6">@abSummary.disagreements.ToString("N0")</h5>
-                        <p class="card-text">Disagreements</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2 mb-3">
-                <div class="card text-bg-secondary">
                     <div class="card-body text-center">
                         <h5 class="card-title display-6">@abSummary.accepted.ToString("N0")</h5>
                         <p class="card-text">Accepted</p>
@@ -427,7 +411,7 @@ else if (activeTab == 4)
                 </div>
             </div>
             <div class="col-md-2 mb-3">
-                <div class="card text-bg-dark">
+                <div class="card text-bg-danger">
                     <div class="card-body text-center">
                         <h5 class="card-title display-6">@abSummary.rejected.ToString("N0")</h5>
                         <p class="card-text">Rejected</p>
@@ -436,7 +420,7 @@ else if (activeTab == 4)
             </div>
         </div>
 
-        <h6>Similarity bands (disagreement density)</h6>
+        <h6>Similarity bands</h6>
         <table class="table table-sm" style="max-width: 500px">
             <tbody>
                 @if (abSummary.similarityBands is not null)
@@ -453,8 +437,8 @@ else if (activeTab == 4)
         </table>
 
         <div class="d-flex justify-content-between align-items-center mt-3 mb-1">
-            <h6 class="mb-0">Disagreement samples (Side A vs Side B)</h6>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="() => LoadAbSamples(true)">Refresh</button>
+            <h6 class="mb-0">Recent evaluations</h6>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAbSamples">Refresh</button>
         </div>
         <table class="table table-sm table-striped" style="max-width: 100%">
             <thead>
@@ -462,8 +446,7 @@ else if (activeTab == 4)
                     <th>Term</th>
                     <th>Study</th>
                     <th>Source</th>
-                    <th>Side A valid</th>
-                    <th>Side B matched</th>
+                    <th>Matched</th>
                     <th>MeSH term</th>
                     <th>Similarity</th>
                     <th>Accepted</th>
@@ -472,7 +455,7 @@ else if (activeTab == 4)
             <tbody>
                 @if (abSamples is null || abSamples.Count == 0)
                 {
-                    <tr><td colspan="8" class="text-muted">No disagreements to sample.</td></tr>
+                    <tr><td colspan="7" class="text-muted">No evaluations yet.</td></tr>
                 }
                 else
                 {
@@ -482,7 +465,6 @@ else if (activeTab == 4)
                             <td>@item.value</td>
                             <td>@item.studyNctId</td>
                             <td>@item.source</td>
-                            <td>@item.sideAValid</td>
                             <td>@item.sideBMatched</td>
                             <td>@item.sideBMeshTerm</td>
                             <td>@item.sideBSimilarity.ToString("F3")</td>
@@ -738,7 +720,7 @@ else if (activeTab == 4)
         }
     }
 
-    // ============== Matcher A/B Tab ==============
+    // ============== Keyword Gate Tab ==============
 
     private AbSummaryItem? abSummary;
     private List<RejectedTermItem>? abSamples;
@@ -765,11 +747,11 @@ else if (activeTab == 4)
         }
     }
 
-    private async Task LoadAbSamples(bool _ = false)
+    private async Task LoadAbSamples()
     {
         try
         {
-            var response = await Client.GetFromJsonAsync<RejectedTermsListResponse>("/api/rejected-terms?disagreementOnly=true&pageSize=50");
+            var response = await Client.GetFromJsonAsync<RejectedTermsListResponse>("/api/rejected-terms?pageSize=50");
             abSamples = response?.data;
         }
         catch
@@ -828,7 +810,6 @@ else if (activeTab == 4)
         public string? studyNctId { get; set; }
         public string? value { get; set; }
         public string? source { get; set; }
-        public bool sideAValid { get; set; }
         public bool sideBMatched { get; set; }
         public string? sideBMeshTerm { get; set; }
         public float sideBSimilarity { get; set; }
@@ -847,8 +828,6 @@ else if (activeTab == 4)
     private class AbSummaryItem
     {
         public int total { get; set; }
-        public double agreement { get; set; }
-        public int disagreements { get; set; }
         public int accepted { get; set; }
         public int rejected { get; set; }
         public Dictionary<string, int>? similarityBands { get; set; }

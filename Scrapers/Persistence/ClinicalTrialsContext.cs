@@ -714,7 +714,6 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.StudyNctId).HasColumnName("study_nct_id").HasMaxLength(20);
                 entity.Property(e => e.Value).HasColumnName("value");
                 entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(20).HasDefaultValue("condition");
-                entity.Property(e => e.SideAValid).HasColumnName("side_a_valid");
                 entity.Property(e => e.SideBMatched).HasColumnName("side_b_matched");
                 entity.Property(e => e.SideBMeshTerm).HasColumnName("side_b_mesh_term");
                 entity.Property(e => e.SideBMeshCui).HasColumnName("side_b_mesh_cui");

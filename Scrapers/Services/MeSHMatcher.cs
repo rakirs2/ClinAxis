@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Scrapers.Models;
@@ -267,7 +266,6 @@ public sealed class MeSHMatcher : IDisposable
             Value = value,
             StudyNctId = studyNctId,
             Source = source,
-            SideAValid = IsValidConditionSimple(value),
             SideBMatched = matched,
             MeshTerm = matched ? _meshNames[bestIdx] : "",
             MeshCui = matched ? _meshCuis[bestIdx] : "",
@@ -472,25 +470,6 @@ public sealed class MeSHMatcher : IDisposable
 
         return words;
     }
-
-    private static bool IsValidConditionSimple(string condition)
-    {
-        if (condition.Contains('"', StringComparison.Ordinal) ||
-            condition.Contains('\'', StringComparison.Ordinal))
-            return false;
-
-        if (condition.Contains('.', StringComparison.Ordinal))
-            return false;
-
-        if (s_icdRegex.IsMatch(condition))
-            return false;
-
-        return true;
-    }
-
-    private static readonly Regex s_icdRegex = new(
-        @"\b[A-TV-Z][0-9][0-9AB]\.?[0-9]{0,4}\b|\b[0-9]{3}\.?[0-9]{0,2}\b",
-        RegexOptions.Compiled);
 
     private static Dictionary<string, int> LoadVocab(string vocabPath)
     {

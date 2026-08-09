@@ -623,3 +623,41 @@ in the last day.
   insert, 0 outside; re-upsert must NOT move created_at.
 - Full Release suite: 668/668 (Scrapers.Tests 421, DataApi.Tests 99, Integration 38,
   Frontend.Tests 110), 0 warnings, 0 errors.
+
+---
+
+# Remove Side A — single matcher (BERT) gates keyword acceptance (P4 step ⑤, issue #356 part 5)
+
+## Status: PR open
+
+### Why
+
+The framework's P4 step ⑤ decision: keep BERT only, delete Side A. The A/B read path
+(PR #440) already proved the gate was BERT-only — `MeSHMatchResult.Accepted =>
+SideBMatched` — so Side A (`IsValidConditionSimple` rule + `side_a_valid` column) was
+pure dead weight recorded alongside every evaluation.
+
+### Change
+
+- Deleted `IsValidConditionSimple` + `s_icdRegex` (MeSHMatcher), `SideAValid` from
+  `MeSHMatchResult` / `RejectedTermEntity` / context mapping / persist block.
+- `RejectedTermsSummary` slimmed to (Total, Accepted, Rejected, SimilarityBands);
+  `RejectedTermRow` to (SideBMatched, SideBSimilarity, Accepted); dropped
+  `disagreementOnly` from `GetRejectedTermsPagedAsync` and the API.
+- `/api/rejected-terms` and `/summary` no longer expose `sideAValid`/`agreement`/
+  `disagreements`. DataQuality tab 4 is now "Keyword Gate": BERT-only summary cards,
+  similarity bands, recent evaluations (no Side A column).
+- Migration `RemoveSideAMatcher` drops `side_a_valid` (data-loss warning expected and
+  intentional — column served the A/B decision, which is complete).
+- Removed dead `rejectedConditions` variable and the unreachable `RejectionReason`
+  "unknown" branch.
+- Docs: MVP_framework P4 marked done; scraper_architecture §7.7 updated.
+
+### Tests
+
+- `RejectedTermsSummaryTests` rewritten for BERT-only summary (4 tests: empty, counts,
+  band boundaries, accepted-flag driving totals).
+- `MeSHMatcherBatchTests` lost the SideAValid equality assertion (SideB fields still
+  bit-identical between batch and serial).
+- `Tab4ShowsKeywordGateSummaryAndSamples` bUnit (mock updated, no sideAValid).
+- Full Release suite: 668/668, 0 warnings, 0 errors.

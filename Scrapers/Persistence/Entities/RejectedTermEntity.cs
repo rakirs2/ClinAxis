@@ -9,7 +9,6 @@ public class RejectedTermEntity
     public string StudyNctId { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public string Source { get; set; } = "condition";
-    public bool SideAValid { get; set; }
     public bool SideBMatched { get; set; }
     public string SideBMeshTerm { get; set; } = string.Empty;
     public string SideBMeshCui { get; set; } = string.Empty;
