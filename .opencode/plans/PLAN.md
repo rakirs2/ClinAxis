@@ -628,7 +628,7 @@ in the last day.
 
 # Remove Side A — single matcher (BERT) gates keyword acceptance (P4 step ⑤, issue #356 part 5)
 
-## Status: PR open
+## Status: shipped (PR #444, deployed 2026-08-09 run 31335560370)
 
 ### Why
 
