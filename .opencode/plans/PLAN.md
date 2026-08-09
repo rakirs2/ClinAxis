@@ -585,7 +585,7 @@ remediation is complete (all 7 priorities FIXED), so remaining MVP work is this 
 
 # Scraper Progress Today card (Status page)
 
-## Status: PR open
+## Status: shipped (PR #442, deployed 2026-08-09 run 31332786292)
 
 ### Problem
 
