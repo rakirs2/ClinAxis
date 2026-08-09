@@ -85,7 +85,6 @@ namespace Scrapers.Persistence
             var rejectedInvestigatorContexts = new List<RejectedInvestigatorContext>();
             var rejectedKeywords = new List<string>();
             var rejectedAffiliations = new List<string>();
-            var rejectedConditions = new List<string>();
             var meshMatchResults = new List<MeSHMatchResult>();
             var personAffiliationStats = new Dictionary<Guid, Dictionary<string, (int Count, DateOnly? LatestDate)>>();
             var batchCount = 0;
@@ -586,7 +585,6 @@ namespace Scrapers.Persistence
                         StudyNctId = m.StudyNctId,
                         Value = m.Value,
                         Source = m.Source,
-                        SideAValid = m.SideAValid,
                         SideBMatched = m.SideBMatched,
                         SideBMeshTerm = m.MeshTerm,
                         SideBMeshCui = m.MeshCui,
@@ -898,7 +896,7 @@ namespace Scrapers.Persistence
         }
 
         public async Task<(List<RejectedTermEntity> Items, int Total)> GetRejectedTermsPagedAsync(
-            string? source = null, bool? disagreementOnly = null, int page = 1, int pageSize = 50,
+            string? source = null, int page = 1, int pageSize = 50,
             CancellationToken cancellationToken = default)
         {
             using ClinicalTrialsContext context = CreateContext();
@@ -907,11 +905,6 @@ namespace Scrapers.Persistence
             if (!string.IsNullOrWhiteSpace(source))
             {
                 query = query.Where(r => r.Source == source);
-            }
-
-            if (disagreementOnly == true)
-            {
-                query = query.Where(r => r.SideAValid != r.SideBMatched);
             }
 
             var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
@@ -925,9 +918,8 @@ namespace Scrapers.Persistence
         }
 
         /// <summary>
-        /// A/B agreement summary for the single-matcher decision (#356 part 5 / P4 step ⑤):
-        /// how often Side A (rule) and Side B (BERT) agree, plus the disagreement buckets
-        /// by similarity band so a human can sample them.
+        /// BERT keyword-gate summary: accepted/rejected counts and the similarity-band
+        /// distribution of evaluations, for false-reject-rate sampling (P4 step ⑤).
         /// </summary>
         public async Task<RejectedTermsSummary> GetRejectedTermsSummaryAsync(
             string? source = null, CancellationToken cancellationToken = default)
@@ -941,7 +933,7 @@ namespace Scrapers.Persistence
             }
 
             var rows = await query
-                .Select(r => new RejectedTermRow(r.SideAValid, r.SideBMatched, r.SideBSimilarity, r.Accepted))
+                .Select(r => new RejectedTermRow(r.SideBMatched, r.SideBSimilarity, r.Accepted))
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -2348,15 +2340,13 @@ namespace Scrapers.Persistence
     }
 
     /// <summary>
-    /// A/B gate agreement summary for the single-matcher decision (P4 step ⑤):
-    /// how often the rule-based Side A and the BERT Side B agree, and disagreement
-    /// counts by similarity band for human sampling. <see cref="Compute"/> is pure
-    /// (DB-free) so it can be unit-tested per the testing pyramid.
+    /// BERT keyword-gate summary: accepted/rejected counts and the similarity-band
+    /// distribution of evaluations, for false-reject-rate sampling (P4 step ⑤).
+    /// <see cref="Compute"/> is pure (DB-free) so it can be unit-tested per the
+    /// testing pyramid.
     /// </summary>
     public sealed record RejectedTermsSummary(
         int Total,
-        double Agreement,
-        int Disagreements,
         int Accepted,
         int Rejected,
         IReadOnlyDictionary<string, int> SimilarityBands)
@@ -2365,16 +2355,12 @@ namespace Scrapers.Persistence
         {
             ArgumentNullException.ThrowIfNull(rows);
 
-            var disagreements = rows.Count(r => r.SideAValid != r.SideBMatched);
             var accepted = rows.Count(r => r.Accepted);
-            var rejected = rows.Count(r => !r.Accepted);
 
             return new RejectedTermsSummary(
                 Total: rows.Count,
-                Agreement: rows.Count == 0 ? 1.0 : (double)(rows.Count - disagreements) / rows.Count,
-                Disagreements: disagreements,
                 Accepted: accepted,
-                Rejected: rejected,
+                Rejected: rows.Count - accepted,
                 SimilarityBands: new Dictionary<string, int>
                 {
                     ["0.00-0.50"] = rows.Count(r => r.SideBSimilarity < 0.5f),
@@ -2385,6 +2371,6 @@ namespace Scrapers.Persistence
         }
     }
 
-    /// <summary>One rejected term's A/B outcome row (all data needed for the summary).</summary>
-    public readonly record struct RejectedTermRow(bool SideAValid, bool SideBMatched, float SideBSimilarity, bool Accepted);
+    /// <summary>One BERT keyword-gate evaluation row (all data needed for the summary).</summary>
+    public readonly record struct RejectedTermRow(bool SideBMatched, float SideBSimilarity, bool Accepted);
 }

@@ -105,7 +105,7 @@ public sealed class DataQualityPageTests
     }
 
     [TestMethod]
-    public void Tab4ShowsMatcherAgreementAndDisagreementSamples()
+    public void Tab4ShowsKeywordGateSummaryAndSamples()
     {
         using var ctx = new BunitContext();
         using var mockHttp = new MockHttpMessageHandler();
@@ -114,8 +114,6 @@ public sealed class DataQualityPageTests
             .Respond("application/json", JsonSerializer.Serialize(new
             {
                 total = 1000,
-                agreement = 0.92,
-                disagreements = 80,
                 accepted = 300,
                 rejected = 700,
                 similarityBands = new Dictionary<string, int>
@@ -137,7 +135,6 @@ public sealed class DataQualityPageTests
                         studyNctId = "NCT001",
                         value = "Zebrafish",
                         source = "condition",
-                        sideAValid = true,
                         sideBMatched = false,
                         sideBMeshTerm = "unmapped",
                         sideBSimilarity = 0.6,
@@ -155,8 +152,9 @@ public sealed class DataQualityPageTests
             parameters => parameters.Add(p => p.Tab, 4));
 
         cut.WaitForState(() => cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
-        Assert.IsTrue(cut.Markup.Contains("92.0", StringComparison.Ordinal), "Agreement percentage should render");
-        Assert.IsTrue(cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), "Disagreement sample should render");
+        Assert.IsTrue(cut.Markup.Contains("Keyword acceptance gate (BERT)", StringComparison.Ordinal), "Tab heading should render");
+        Assert.IsTrue(cut.Markup.Contains("700", StringComparison.Ordinal), "Rejected count should render");
+        Assert.IsTrue(cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), "Sample should render");
         Assert.IsTrue(cut.Markup.Contains("0.600", StringComparison.Ordinal), "Similarity should render with three decimals");
     }
 

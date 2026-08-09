@@ -118,7 +118,6 @@ foreach (var m in meshResults)
         StudyNctId = m.StudyNctId,
         Value = m.Value,
         Source = m.Source,
-        SideAValid = m.SideAValid,
         SideBMatched = m.SideBMatched,
         SideBMeshTerm = m.MeshTerm,
         SideBMeshCui = m.MeshCui,
@@ -134,14 +133,12 @@ await ctx.SaveChangesAsync();
 
 Console.WriteLine("\n--- A/B Test Results ---");
 var accepted = meshResults.Count(m => m.Accepted);
-var sideA = meshResults.Count(m => m.SideAValid);
 var sideB = meshResults.Count(m => m.SideBMatched);
 var disease = meshResults.Count(m => m.Category == "disease" && m.SideBMatched);
 var nonDisease = meshResults.Count(m => m.Category != "disease" && m.Category != "unmapped" && m.SideBMatched);
 var unmatched = meshResults.Count(m => !m.SideBMatched);
 
 Console.WriteLine($"Total terms:          {meshResults.Count}");
-Console.WriteLine($"Side A (IsValid):    {sideA}");
 Console.WriteLine($"Side B (MeSH match): {sideB}");
 Console.WriteLine($"Accepted (disease):  {accepted}");
 Console.WriteLine($"  Disease matched:   {disease}");

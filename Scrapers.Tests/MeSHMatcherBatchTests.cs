@@ -81,7 +81,6 @@ public sealed class MeSHMatcherBatchTests
             var batched = batchResults[i];
 
             Assert.AreEqual(serial.Value, batched.Value, $"Value mismatch at {i}: '{terms[i]}'");
-            Assert.AreEqual(serial.SideAValid, batched.SideAValid, $"SideAValid mismatch at {i}: '{terms[i]}'");
             Assert.AreEqual(serial.SideBMatched, batched.SideBMatched, $"SideBMatched mismatch at {i}: '{terms[i]}'");
             Assert.AreEqual(serial.MeshTerm, batched.MeshTerm, $"MeshTerm mismatch at {i}: '{terms[i]}'");
             Assert.AreEqual(serial.MeshCui, batched.MeshCui, $"MeshCui mismatch at {i}: '{terms[i]}'");

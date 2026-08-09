@@ -34,7 +34,7 @@ _Last synced with merged PRs through #423 (2026-08-07). P6 Phase 1 (rule-based) 
 ### P4 — Keyword & location cleaning
 
 - **Definition of done:** measured false-reject rate on keywords; acronyms resolve to descriptors; locations normalized + geo-searchable; per-field coverage on DataQuality page; **a single matcher (BERT) gates keyword acceptance — Side A removed**.
-- **Current state:** MeSH gate + design-descriptor allowlist live (#343 → #391); acronyms expand to canonical terms before filtering (#355 → #398); locations normalized at ingest (#380 → #399); A/B data recorded in `rejected_terms` but not yet sampled to pick a single matcher; 22 CT.gov fields unpersisted (`docs/data_loss_remediation.md`).
+- **Current state:** MeSH gate + design-descriptor allowlist live (#343 → #391); acronyms expand to canonical terms before filtering (#355 → #398); locations normalized at ingest (#380 → #399); bio-SBERT embeddings + threshold 0.8→0.65 landed (#404); data-loss remediation complete; **single-matcher decision landed — Side A removed** (PR #444: `side_a_valid` + `IsValidConditionSimple` deleted, BERT-only read path, Keyword Gate tab on DataQuality); 22 CT.gov fields unpersisted (`docs/data_loss_remediation.md`).
 - **PR order:** ① #355 acronym+gate (also serves P2) → landed (#398, #391) ② #380 location normalization → landed (#399) ③ remaining data-loss fields in #356 re-sync ④ #404 bio-SBERT upgrade + threshold re-pick → landed (0.8→0.65) ⑤ **Single-matcher decision:** read-only `/api/rejected-terms` → sample prod buckets (A/B disagreements, similarity bands, accepted) → labeled review → keep BERT only, delete Side A (`side_a_valid` + `IsValidConditionSimple`).
 
 ### P5 — Additional data sources
