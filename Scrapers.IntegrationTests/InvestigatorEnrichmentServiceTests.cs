@@ -141,6 +141,47 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
         Assert.AreEqual(2, Context.PersonIdentifierCandidates.AsNoTracking().Count(c => c.PersonId == duplicate.Id));
     }
 
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task Enrichment_EmptyFullName_CompletesWithoutDeadLettering()
+    {
+        // Degenerate names (all prefix/suffix tokens, e.g. "MD") parse to an
+        // empty stored FullName. Before the fix, the name-variation builder
+        // indexed an empty token array (IndexOutOfRangeException) and the
+        // event dead-lettered after 3 retries.
+        var person = new InvestigatorPersonEntity
+        {
+            FullName = "",
+            IsHuman = true
+        };
+        Context.InvestigatorPersons.Add(person);
+        await Context.SaveChangesAsync();
+
+        var fixture = await File.ReadAllTextAsync("Data/NppesNpi/search-multiple-results.json");
+        var handler = new FakeNppesHandler(fixture);
+        var queue = new RecordingEventQueue();
+        var service = new InvestigatorEnrichmentService(
+            queue,
+            new NppesNpiRegistryClient(new HttpClient(handler)),
+            new OrcidApiClient(new HttpClient(new FakeNppesHandler("{}"))),
+            modelService: null,
+            ConnectionString,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InvestigatorEnrichmentService>.Instance);
+
+        await service.ProcessEnrichmentEventAsync(
+            new PipelineEventEntity { Data = person.Id.ToString() },
+            CancellationToken.None);
+
+        var savedPerson = Context.InvestigatorPersons.AsNoTracking().Single(p => p.Id == person.Id);
+        Assert.AreEqual("not_found", savedPerson.NpiEnrichmentResult);
+        Assert.IsNotNull(savedPerson.NpiLookupAttemptedAt);
+        Assert.IsNull(savedPerson.Npi);
+
+        // No NPPES lookup happened: no candidates, no downstream events.
+        Assert.AreEqual(0, Context.PersonIdentifierCandidates.AsNoTracking().Count(c => c.PersonId == person.Id));
+        Assert.AreEqual(0, queue.Enqueued.Count);
+    }
+
     private sealed class FakeNppesHandler : HttpMessageHandler
     {
         private readonly string _json;
