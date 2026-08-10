@@ -26,6 +26,9 @@ internal sealed class InMemoryEventQueueService : IEventQueueService
 
     public Task CompleteEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
 
+    public Task UpdateEventProgressAsync(int eventId, int processed, int total, CancellationToken ct = default)
+        => Task.CompletedTask;
+
     public Task FailEventAsync(int eventId, string errorMessage, CancellationToken ct = default) => Task.CompletedTask;
 
     public Task<List<PipelineEventEntity>> GetDeadLetterEventsAsync(int limit = 100, CancellationToken ct = default)

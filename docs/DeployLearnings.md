@@ -5,6 +5,24 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-10 — Post-deploy ClinicalTrials.gov pagination invalidation
+
+- **Issue:** [#452](https://github.com/rakirs2/ClinicalTrialData/issues/452) — scraper stalled after the MeSH optimization deploy.
+- **Run:** [deploy #31405292209](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31405292209)
+- **Symptom:** Containers and `/health` were healthy, but the ingestion run had processed 0 batches and 0 records. The source state reported `syncing` with a stale cursor and the error `ClinicalTrials.gov returned 400 (BadRequest): The data have probably changed while you were paginating.`
+- **Root cause:** ClinicalTrials.gov invalidated a pagination token while the client was traversing a changing result set. The client retried the invalid token instead of restarting pagination from the first page.
+- **Fix:** `ClinicalTrialsGov.GetTrialRecordsBatchedAsync` now recognizes this specific response, restarts from page one up to three times when no batch callback has run, and lets the existing event retry path handle invalidation after persistence has begun.
+- **Prevention:** Keep pagination-change handling distinct from ordinary HTTP retries, bound whole-pagination restarts, and never replay a persisted batch callback inside the same ingest call.
+
+### 2026-08-10 — Long-running discovery event reclaimed during ingestion
+
+- **Issue:** [#458](https://github.com/rakirs2/ClinicalTrialData/issues/458) — active ingestion was repeatedly reset before the backfill could run.
+- **Run:** [deploy #31416461452](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31416461452)
+- **Symptom:** The `studies.discovered` event processed batches but was reclaimed after the ordinary 30-minute claim timeout. Its progress reset, the distinct database count stayed flat because the event updated existing studies, and the 95,950-study backfill remained pending.
+- **Root cause:** `ReleaseStuckEventsAsync` used only `ClaimedAt`; it ignored the live `ProgressUpdatedAt` heartbeat written after each completed batch.
+- **Fix:** Claim release now uses the latest progress heartbeat, falls back to claim time before the first heartbeat, and clears stale progress fields on a new claim.
+- **Prevention:** Long-running events must heartbeat their claim lease; a claim timeout must measure inactivity, not total elapsed processing time.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

@@ -54,7 +54,9 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
         var ordinaryEvent = await queue.ClaimNextPendingEventAsync("ordinary-worker", eventTypes: ["studies.discovered"]);
         Assert.IsNotNull(ordinaryEvent);
 
-        ordinaryEvent!.ClaimedAt = DateTime.UtcNow.AddMinutes(-20);
+        await queue.UpdateEventProgressAsync(ordinaryEvent!.Id, 1, 10);
+        ordinaryEvent.ClaimedAt = DateTime.UtcNow.AddMinutes(-45);
+        ordinaryEvent.ProgressUpdatedAt = DateTime.UtcNow;
         Context.PipelineEvents.Update(ordinaryEvent);
         await Context.SaveChangesAsync();
 
@@ -64,9 +66,9 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
             .AsNoTracking()
             .SingleAsync(e => e.Id == ordinaryEvent.Id);
         Assert.AreEqual("processing", ordinaryStillProcessing.Status,
-            "Ordinary claims newer than the short timeout must remain processing.");
+            "Ordinary claims with a recent progress heartbeat must remain processing.");
 
-        ordinaryEvent.ClaimedAt = DateTime.UtcNow.AddMinutes(-45);
+        ordinaryEvent.ProgressUpdatedAt = DateTime.UtcNow.AddMinutes(-45);
         Context.PipelineEvents.Update(ordinaryEvent);
         await Context.SaveChangesAsync();
 

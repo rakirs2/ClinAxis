@@ -437,6 +437,9 @@ namespace Scrapers.Persistence
                 entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
                 entity.Property(e => e.ClaimedBy).HasColumnName("claimed_by").HasMaxLength(100);
                 entity.Property(e => e.ClaimedAt).HasColumnName("claimed_at");
+                entity.Property(e => e.ProgressProcessed).HasColumnName("progress_processed");
+                entity.Property(e => e.ProgressTotal).HasColumnName("progress_total");
+                entity.Property(e => e.ProgressUpdatedAt).HasColumnName("progress_updated_at");
                 entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
                 entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
                 entity.Property(e => e.RetryCount).HasColumnName("retry_count");

@@ -22,7 +22,16 @@ public sealed class PipelineEventEntity
     
     /// <summary>Timestamp when event was claimed</summary>
     public DateTime? ClaimedAt { get; set; }
-    
+
+    /// <summary>Units of work processed so far while the event is in flight (e.g., ingested studies).</summary>
+    public int? ProgressProcessed { get; set; }
+
+    /// <summary>Total units of work for the in-flight event (e.g., studies in the discovery count).</summary>
+    public int? ProgressTotal { get; set; }
+
+    /// <summary>Timestamp of the last progress write for the in-flight event.</summary>
+    public DateTime? ProgressUpdatedAt { get; set; }
+
     /// <summary>Timestamp when event was completed successfully</summary>
     public DateTime? CompletedAt { get; set; }
     

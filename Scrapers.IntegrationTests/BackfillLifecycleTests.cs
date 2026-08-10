@@ -64,6 +64,18 @@ public sealed class BackfillLifecycleTests : DbTestBase
 
         var first = await queue.ClaimNextPendingEventAsync("test-worker", eventTypes: ["studies.backfill"]);
         Assert.IsNotNull(first);
+
+        // In-flight progress must surface in the breakdown while the event is processing.
+        await queue.UpdateEventProgressAsync(first!.Id, 50, 100);
+        var inFlightBreakdown = await queue.GetEventTypeBreakdownAsync();
+        var inFlightBackfill = inFlightBreakdown.Single(et => et.EventType == "studies.backfill");
+        Assert.IsNotNull(inFlightBackfill.InFlight, "The claimed backfill event must appear as in-flight.");
+        Assert.AreEqual(first.Id, inFlightBackfill.InFlight!.EventId);
+        Assert.AreEqual(50, inFlightBackfill.InFlight.Processed);
+        Assert.AreEqual(100, inFlightBackfill.InFlight.Total);
+        Assert.AreEqual(50.0, inFlightBackfill.InFlight.Percent!.Value, 0.001);
+        Assert.IsNotNull(inFlightBackfill.InFlight.RatePerMin, "A claimed event with progress must yield a rate.");
+
         await queue.CompleteEventAsync(first!.Id);
 
         var toDeadLetter = await queue.ClaimNextPendingEventAsync("test-worker", eventTypes: ["studies.backfill"]);
@@ -122,5 +134,15 @@ public sealed class BackfillLifecycleTests : DbTestBase
         snapshot = await coordinator.GetChunkQueueSnapshotAsync();
         Assert.AreEqual(2, snapshot.PendingOrProcessing, "The reset chunk is claimable again alongside the untouched pending chunk.");
         Assert.AreEqual(0, snapshot.DeadLettered, "No backfill chunks remain dead-lettered after retry.");
+
+        // Heartbeat: the completed backfill chunk counts within the last 15 minutes,
+        // while the enrichment event (never completed) reports zero.
+        var heartbeatBreakdown = await queue.GetEventTypeBreakdownAsync();
+        var backfillHeartbeat = heartbeatBreakdown.Single(et => et.EventType == "studies.backfill");
+        var enrichmentHeartbeat = heartbeatBreakdown.Single(et => et.EventType == "investigator.enrichment");
+        Assert.IsTrue(backfillHeartbeat.CompletedLast15m >= 1, "The completed chunk must count toward the 15-minute heartbeat.");
+        Assert.IsTrue(backfillHeartbeat.CompletedLast1h >= 1, "The completed chunk must count toward the 1-hour heartbeat.");
+        Assert.AreEqual(0, enrichmentHeartbeat.CompletedLast15m, "A type with no completions must report a zero heartbeat.");
+        Assert.IsNull(backfillHeartbeat.InFlight, "No in-flight event remains after completion.");
     }
 }

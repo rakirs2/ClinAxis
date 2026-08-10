@@ -11,7 +11,9 @@ public class ClinicalTrialsGov
     private const string StudiesPath = "studies";
     private const int MaxPageSize = 500;
     private const int MaxRetryAttempts = 5;
+    private const int MaxPaginationRestartAttempts = 3;
     private static readonly TimeSpan _initialBackoff = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan _paginationRestartDelay = TimeSpan.FromSeconds(1);
     private static readonly JsonSerializerOptions _serializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -82,12 +84,55 @@ public class ClinicalTrialsGov
             return 0;
         }
 
+        var paginationRestartAttempts = 0;
+        var emittedAnyBatch = false;
+
+        while (true)
+        {
+            try
+            {
+                return await GetTrialRecordsBatchedOnceAsync(
+                    count,
+                    async batch =>
+                    {
+                        emittedAnyBatch = true;
+                        await onBatch(batch).ConfigureAwait(false);
+                    },
+                    lastUpdatedPost,
+                    lastUpdatedPostTo,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (PaginationChangedException) when (
+                !emittedAnyBatch && paginationRestartAttempts < MaxPaginationRestartAttempts)
+            {
+                paginationRestartAttempts++;
+                _log?.Invoke(
+                    $"ClinicalTrials.gov pagination was invalidated; restarting from the first page " +
+                    $"(attempt {paginationRestartAttempts}/{MaxPaginationRestartAttempts}).");
+                await Task.Delay(_paginationRestartDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task<int> GetTrialRecordsBatchedOnceAsync(
+        int count,
+        Func<IReadOnlyList<ClinicalTrialRecord>, Task> onBatch,
+        DateTime? lastUpdatedPost,
+        DateTime? lastUpdatedPostTo,
+        CancellationToken cancellationToken)
+    {
         var totalFetched = 0;
         string? pageToken = null;
 
         while (totalFetched < count)
         {
-            StudyListResponse response = await FetchPageAsync(pageToken, lastUpdatedPost, lastUpdatedPostTo, pageSize: null, countTotal: false, cancellationToken).ConfigureAwait(false);
+            StudyListResponse response = await FetchPageAsync(
+                pageToken,
+                lastUpdatedPost,
+                lastUpdatedPostTo,
+                pageSize: null,
+                countTotal: false,
+                cancellationToken).ConfigureAwait(false);
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
             if (studies.Count == 0)
             {
@@ -190,12 +235,22 @@ public class ClinicalTrialsGov
                     return payload ?? new StudyListResponse();
                 }
 
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                if (IsPaginationChangedResponse(body))
+                {
+                    throw new PaginationChangedException(
+                        $"ClinicalTrials.gov pagination was invalidated. Body: {body}");
+                }
+
                 if (!IsTransientStatus(response.StatusCode) || attempt == MaxRetryAttempts)
                 {
-                    var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                     throw new HttpRequestException(
                         $"ClinicalTrials.gov returned {(int)response.StatusCode} ({response.StatusCode}). Body: {body}");
                 }
+            }
+            catch (PaginationChangedException)
+            {
+                throw;
             }
             catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < MaxRetryAttempts)
             {
@@ -212,6 +267,11 @@ public class ClinicalTrialsGov
         }
 
         throw new InvalidOperationException("Unable to reach ClinicalTrials.gov after multiple attempts.");
+    }
+
+    private static bool IsPaginationChangedResponse(string body)
+    {
+        return body.Contains("probably changed while you were paginating", StringComparison.OrdinalIgnoreCase);
     }
 
     private string BuildRequestUri(string? pageToken, DateTime? lastUpdatedPost = null, DateTime? lastUpdatedPostTo = null, int? pageSize = null, bool countTotal = false)
@@ -256,5 +316,22 @@ public class ClinicalTrialsGov
     private static bool IsTransientException(Exception exception, CancellationToken cancellationToken)
     {
         return (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && exception is HttpRequestException or TimeoutException or TaskCanceledException or OperationCanceledException;
+    }
+
+    private sealed class PaginationChangedException : HttpRequestException
+    {
+        public PaginationChangedException()
+        {
+        }
+
+        public PaginationChangedException(string message)
+            : base(message)
+        {
+        }
+
+        public PaginationChangedException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
     }
 }

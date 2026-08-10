@@ -7,6 +7,14 @@ namespace Scrapers.Tests;
 public sealed class MeSHMatcherTests
 {
     [TestMethod]
+    public void BuildSearchOrder_DeduplicatesEmbeddingsAndPreservesFirstAliasOrder()
+    {
+        var searchOrder = MeSHMatcher.BuildSearchOrder([2, 1, 2, 0, 1]);
+
+        CollectionAssert.AreEqual(new[] { 0, 1, 3 }, searchOrder);
+    }
+
+    [TestMethod]
     public void Constructor_CorruptModelFile_ThrowsOnnxRuntimeException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

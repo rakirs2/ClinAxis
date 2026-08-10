@@ -661,3 +661,116 @@ pure dead weight recorded alongside every evaluation.
   bit-identical between batch and serial).
 - `Tab4ShowsKeywordGateSummaryAndSamples` bUnit (mock updated, no sideAValid).
 - Full Release suite: 668/668, 0 warnings, 0 errors.
+
+---
+
+# MeSH cosine scan alias deduplication
+
+## Status: implemented locally (`feature/mesh-ingest-performance`)
+
+### Problem
+
+The MeSH resource contains 61,794 aliases but only 31,110 unique CUI embeddings.
+`FindBestMatch` scanned every alias and recalculated the same 768-value dot product
+for aliases sharing an embedding. This was redundant work in both scalar and batched
+matching paths.
+
+### Change
+
+- Build a constructor-time search order containing the first alias for each embedding.
+- Scan unique embeddings only while preserving the original alias order, strict `>` tie
+  handling, and therefore the previous winner and score arithmetic.
+- Expose the candidate/alias counts internally for a real-resource regression guard.
+- Do not repeat the previously rejected SIMD approach: its changed floating-point
+  accumulation order was not bit-identical.
+
+### Verification
+
+- Unit test verifies duplicate removal and first-alias ordering.
+- Real-resource integration test verifies the loaded matcher has fewer search candidates
+  than aliases.
+- Existing scalar/batch MeSH equivalence tests remain green.
+- Controlled `MeshBench` run on the same machine: `origin/main` cold pass 100.52 ms/term;
+  optimized branch 76.59 ms/term (approximately 23.8% lower). Warm cached passes remained
+  effectively 0 ms/term.
+- Full suite: 688 tests passed (Scrapers 437, DataApi 99, Integration 41, Frontend 111);
+  Debug and Release builds passed with 0 warnings and 0 errors.
+
+---
+
+# ClinicalTrials.gov invalidated pagination recovery
+
+## Status: implemented locally (`feature/retry-ctgov-pagination-reset`)
+
+### Incident
+
+- Deploy run [#31405292209](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31405292209)
+  reported healthy containers and an active sync, but the post-deploy watchdog opened
+  [issue #452](https://github.com/rakirs2/ClinicalTrialData/issues/452).
+- Production had processed 0 records and 0 batches in the new run. The latest source error
+  was ClinicalTrials.gov HTTP 400: "The data have probably changed while you were paginating."
+- The event queue stats endpoint also exceeded its 30-second watchdog limit, but the recovery
+  endpoint remained reachable and reported no dead-lettered study events.
+
+### Change
+
+- Detect the specific pagination-invalidated response instead of treating it as an ordinary
+  permanent 400.
+- Restart pagination from page one up to three times when no persistence callback has run.
+- If a batch has already been emitted, rethrow to the existing event-level retry mechanism so
+  persisted callbacks are never replayed within one client call.
+
+### Verification
+
+- Added fake-client tests for restart-before-first-batch, no callback replay, and bounded restart
+  attempts.
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 691 tests each (Scrapers 440, DataApi 99,
+  Integration 41, Frontend 111).
+
+---
+
+# Status page CT.gov live-study count
+
+## Status: implemented locally (`feature/status-ctgov-live-count`)
+
+### Problem
+
+The Status page labeled `CountActiveStudiesAsync()` as "Studies (live, on CT.gov)".
+That value is only the local row count excluding studies previously marked removed;
+the CT.gov total already exists as `/api/scraper-progress.totalAvailable`.
+
+### Change
+
+- The live CT.gov row now renders the external `totalAvailable` count.
+- Status requests now fail independently, so a slow event-queue telemetry request cannot
+  prevent scraper-progress data from refreshing.
+
+### Verification
+
+- Added bUnit coverage for distinct local and CT.gov totals and queue-stat failure isolation.
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 693 tests each (Scrapers 440, DataApi 99,
+  Integration 41, Frontend 113).
+
+---
+
+# Long-running event progress heartbeat
+
+## Status: implemented locally (`feature/long-running-event-heartbeat`)
+
+### Problem
+
+The ordinary event claim timeout was 30 minutes, but long-running ClinicalTrials.gov
+ingestion events report progress between batches. The release query used only the
+original `ClaimedAt`, so event 14054 was reclaimed while processing and restarted from
+the beginning. Its processed studies were existing-row updates, while the pending
+backfill never got a worker slot.
+
+### Change
+
+- Use `ProgressUpdatedAt` as the claim heartbeat for ordinary and backfill events, falling
+  back to `ClaimedAt` before the first progress report.
+- Clear stale progress fields on every new claim so a retry must establish a fresh heartbeat.
+- Extend the existing integration test to prove a recent progress heartbeat prevents release
+  and an old heartbeat still releases the claim.

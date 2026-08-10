@@ -129,7 +129,7 @@ else
             <table class="table table-sm" style="max-width: 400px">
                 <tbody>
                     <tr><th>Studies</th><td>@(telemetry.db?.totalStudies ?? 0)</td></tr>
-                    <tr><th>Studies (live, on CT.gov)</th><td>@(telemetry.db?.totalStudiesLive ?? 0)</td></tr>
+                    <tr><th>Studies (live, on CT.gov)</th><td>@FormatCtGovTotal()</td></tr>
                     <tr><th>Investigators</th><td>@(telemetry.db?.totalInvestigators ?? 0)</td></tr>
                     <tr><th>PubMed Papers</th><td>@(telemetry.db?.totalPubmedPapers ?? 0)</td></tr>
                     <tr><th>Keywords</th><td>@(telemetry.db?.totalKeywords ?? 0)</td></tr>
@@ -381,8 +381,66 @@ else
 
     @if (queueStats?.byEventType is { Count: > 0 })
     {
+        var inFlight = queueStats.byEventType.Where(et => et.inFlight != null).ToList();
+        if (inFlight.Count > 0)
+        {
+            <h3 class="mt-4">In-flight Events</h3>
+            <table class="table table-sm table-striped" style="max-width: 1000px">
+                <thead>
+                    <tr>
+                        <th>Event Type</th>
+                        <th>Claimed At</th>
+                        <th>Progress</th>
+                        <th>Percent</th>
+                        <th>Rate</th>
+                        <th>ETA</th>
+                        <th>Last Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var et in inFlight)
+                    {
+                        var f = et.inFlight!;
+                        <tr>
+                            <td><code>@et.eventType</code> <span class="text-muted">#@f.eventId</span></td>
+                            <td>@FormatDate(f.claimedAt)</td>
+                            <td>@(f.processed?.ToString("N0") ?? "?") / @(f.total?.ToString("N0") ?? "?")</td>
+                            <td>
+                                @if (f.percent.HasValue)
+                                {
+                                    var barClass = f.percent >= 90 ? "bg-success" : f.percent >= 50 ? "bg-warning" : "bg-info";
+                                    <div class="progress" style="height: 18px; min-width: 120px">
+                                        <div class="progress-bar @barClass" role="progressbar"
+                                             style="width: @Math.Min(f.percent.Value, 100).ToString("F1")%">
+                                            @f.percent.Value.ToString("F1")%
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">--</span>
+                                }
+                            </td>
+                            <td>@(f.ratePerMin.HasValue ? $"{f.ratePerMin.Value:N1}/min" : "--")</td>
+                            <td>@(f.etaUtc.HasValue ? FormatDate(f.etaUtc.Value) : "--")</td>
+                            <td>
+                                @if (f.progressUpdatedAt.HasValue)
+                                {
+                                    <small title="Last batch reported">@FormatDate(f.progressUpdatedAt.Value)</small>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">awaiting first batch</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
         <h3 class="mt-4">Event Type Breakdown</h3>
-        <table class="table table-sm table-striped" style="max-width: 800px">
+        <table class="table table-sm table-striped" style="max-width: 1000px">
             <thead>
                 <tr>
                     <th>Event Type</th>
@@ -392,6 +450,8 @@ else
                     <th>Failed</th>
                     <th>Dead Letter</th>
                     <th>Avg Time</th>
+                    <th>Done 15m</th>
+                    <th>Done 1h</th>
                 </tr>
             </thead>
             <tbody>
@@ -414,6 +474,16 @@ else
                             else { @et.deadLetter }
                         </td>
                         <td>@(et.averageProcessingTimeMs > 0 ? $"{et.averageProcessingTimeMs:F1}ms" : "--")</td>
+                        <td>
+                            @if (et.completedLast15m > 0) { <span class="badge bg-success">@et.completedLast15m</span> }
+                            else if (et.processing > 0) { <span class="badge bg-warning">@et.completedLast15m</span> }
+                            else { @et.completedLast15m }
+                        </td>
+                        <td>
+                            @if (et.completedLast1h > 0) { <span class="badge bg-success">@et.completedLast1h</span> }
+                            else if (et.processing > 0) { <span class="badge bg-warning">@et.completedLast1h</span> }
+                            else { @et.completedLast1h }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -488,21 +558,26 @@ else
 
     private async Task LoadAllData()
     {
+        telemetry = await TryLoadAsync(() => Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry")) ?? telemetry;
+        dataSourceStates = await TryLoadAsync(() => Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state")) ?? dataSourceStates;
+        scraperProgress = await TryLoadAsync(() => Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress")) ?? scraperProgress;
+        queueStats = await TryLoadAsync(() => Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats")) ?? queueStats;
+        rejectedNames = await TryLoadAsync(() => Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names")) ?? rejectedNames;
+        pageViewsDay = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day")) ?? pageViewsDay;
+        pageViewsWeek = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week")) ?? pageViewsWeek;
+        pageViewsMonth = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=month")) ?? pageViewsMonth;
+        lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
+    }
+
+    private static async Task<T?> TryLoadAsync<T>(Func<Task<T?>> load)
+    {
         try
         {
-            telemetry = await Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry");
-            dataSourceStates = await Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state");
-            queueStats = await Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats");
-            rejectedNames = await Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names");
-            scraperProgress = await Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress");
-            pageViewsDay = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day");
-            pageViewsWeek = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week");
-            pageViewsMonth = await Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=month");
-            lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
+            return await load();
         }
         catch
         {
-            // Keep showing last successful data
+            return default;
         }
     }
 
@@ -567,6 +642,11 @@ else
 
     private static string FormatDate(DateTime dt) =>
         dt.ToString("yyyy-MM-dd HH:mm 'UTC'");
+
+    private string FormatCtGovTotal() =>
+        scraperProgress is { totalAvailable: > 0 } progress
+            ? progress.totalAvailable.ToString("N0")
+            : "Unavailable";
 
     private static RenderFragment StatusBadge(string? status) => builder =>
     {
@@ -699,6 +779,21 @@ else
         public int failed { get; set; }
         public int deadLetter { get; set; }
         public double averageProcessingTimeMs { get; set; }
+        public int completedLast15m { get; set; }
+        public int completedLast1h { get; set; }
+        public InFlightItem? inFlight { get; set; }
+    }
+
+    private class InFlightItem
+    {
+        public int eventId { get; set; }
+        public DateTime claimedAt { get; set; }
+        public DateTime? progressUpdatedAt { get; set; }
+        public int? processed { get; set; }
+        public int? total { get; set; }
+        public double? percent { get; set; }
+        public double? ratePerMin { get; set; }
+        public DateTime? etaUtc { get; set; }
     }
 
     private class ScraperProgressItem
