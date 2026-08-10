@@ -5,6 +5,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-10 — Post-deploy ClinicalTrials.gov pagination invalidation
+
+- **Issue:** [#452](https://github.com/rakirs2/ClinicalTrialData/issues/452) — scraper stalled after the MeSH optimization deploy.
+- **Run:** [deploy #31405292209](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31405292209)
+- **Symptom:** Containers and `/health` were healthy, but the ingestion run had processed 0 batches and 0 records. The source state reported `syncing` with a stale cursor and the error `ClinicalTrials.gov returned 400 (BadRequest): The data have probably changed while you were paginating.`
+- **Root cause:** ClinicalTrials.gov invalidated a pagination token while the client was traversing a changing result set. The client retried the invalid token instead of restarting pagination from the first page.
+- **Fix:** `ClinicalTrialsGov.GetTrialRecordsBatchedAsync` now recognizes this specific response, restarts from page one up to three times when no batch callback has run, and lets the existing event retry path handle invalidation after persistence has begun.
+- **Prevention:** Keep pagination-change handling distinct from ordinary HTTP retries, bound whole-pagination restarts, and never replay a persisted batch callback inside the same ingest call.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

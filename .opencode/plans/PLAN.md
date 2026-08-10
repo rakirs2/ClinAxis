@@ -695,3 +695,35 @@ matching paths.
   effectively 0 ms/term.
 - Full suite: 688 tests passed (Scrapers 437, DataApi 99, Integration 41, Frontend 111);
   Debug and Release builds passed with 0 warnings and 0 errors.
+
+---
+
+# ClinicalTrials.gov invalidated pagination recovery
+
+## Status: implemented locally (`feature/retry-ctgov-pagination-reset`)
+
+### Incident
+
+- Deploy run [#31405292209](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31405292209)
+  reported healthy containers and an active sync, but the post-deploy watchdog opened
+  [issue #452](https://github.com/rakirs2/ClinicalTrialData/issues/452).
+- Production had processed 0 records and 0 batches in the new run. The latest source error
+  was ClinicalTrials.gov HTTP 400: "The data have probably changed while you were paginating."
+- The event queue stats endpoint also exceeded its 30-second watchdog limit, but the recovery
+  endpoint remained reachable and reported no dead-lettered study events.
+
+### Change
+
+- Detect the specific pagination-invalidated response instead of treating it as an ordinary
+  permanent 400.
+- Restart pagination from page one up to three times when no persistence callback has run.
+- If a batch has already been emitted, rethrow to the existing event-level retry mechanism so
+  persisted callbacks are never replayed within one client call.
+
+### Verification
+
+- Added fake-client tests for restart-before-first-batch, no callback replay, and bounded restart
+  attempts.
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 691 tests each (Scrapers 440, DataApi 99,
+  Integration 41, Frontend 111).
