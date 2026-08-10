@@ -174,6 +174,77 @@ public sealed class StatusPageTests
         Assert.IsTrue(cut.Markup.Contains("1,234", StringComparison.Ordinal), "Added-last-24h count should render");
     }
 
+    [TestMethod]
+    public void StatusPageRendersInFlightProgressAndHeartbeatColumns()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaults(mockHttp);
+        mockHttp.When("http://localhost:5003/api/event-queue/stats")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                pendingCount = 18,
+                processingCount = 1,
+                completedCount = 242,
+                deadLetterCount = 0,
+                failedCount = 0,
+                averageProcessingTimeMs = 0.0,
+                failureRate = 0.0,
+                estimatedTimeRemainingMs = (double?)null,
+                byEventType = new[]
+                {
+                    new
+                    {
+                        eventType = "studies.backfill",
+                        pending = 18,
+                        processing = 1,
+                        completed = 242,
+                        failed = 0,
+                        deadLetter = 0,
+                        averageProcessingTimeMs = 0.0,
+                        completedLast15m = 0,
+                        completedLast1h = 0,
+                        inFlight = (object?)new
+                        {
+                            eventId = 30473,
+                            claimedAt = DateTime.UtcNow.AddMinutes(-30),
+                            progressUpdatedAt = DateTime.UtcNow.AddMinutes(-15),
+                            processed = 400,
+                            total = 1011,
+                            percent = 39.6,
+                            ratePerMin = 13.3,
+                            etaUtc = DateTime.UtcNow.AddMinutes(46)
+                        }
+                    },
+                    new
+                    {
+                        eventType = "investigator.enrichment",
+                        pending = 0,
+                        processing = 0,
+                        completed = 2,
+                        failed = 0,
+                        deadLetter = 0,
+                        averageProcessingTimeMs = 1200.0,
+                        completedLast15m = 2,
+                        completedLast1h = 2,
+                        inFlight = (object?)null
+                    }
+                }
+            }, JsonOptions));
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("In-flight Events", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        var markup = cut.Markup;
+        Assert.IsTrue(markup.Contains("#30473", StringComparison.Ordinal), "In-flight event id should render");
+        Assert.IsTrue(markup.Contains("400 / 1,011", StringComparison.Ordinal), "Processed/total progress should render");
+        Assert.IsTrue(markup.Contains("39.6%", StringComparison.Ordinal), "Percent should render");
+        Assert.IsTrue(markup.Contains("13.3/min", StringComparison.Ordinal), "Rate should render");
+        Assert.IsTrue(markup.Contains("Done 15m", StringComparison.Ordinal), "Heartbeat column header should render");
+        Assert.IsTrue(markup.Contains("Done 1h", StringComparison.Ordinal), "Heartbeat column header should render");
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();

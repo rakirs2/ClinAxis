@@ -30,6 +30,19 @@ internal static class EventQueueEndpoints
                     et.Failed,
                     et.DeadLetter,
                     et.AverageProcessingTimeMs,
+                    et.CompletedLast15m,
+                    et.CompletedLast1h,
+                    inFlight = et.InFlight != null ? new
+                    {
+                        et.InFlight.EventId,
+                        et.InFlight.ClaimedAt,
+                        et.InFlight.ProgressUpdatedAt,
+                        et.InFlight.Processed,
+                        et.InFlight.Total,
+                        et.InFlight.Percent,
+                        et.InFlight.RatePerMin,
+                        et.InFlight.EtaUtc
+                    } : null,
                     percentiles = et.Percentiles != null ? new
                     {
                         et.Percentiles.Count,

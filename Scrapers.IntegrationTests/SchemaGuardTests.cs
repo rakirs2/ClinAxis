@@ -128,6 +128,20 @@ public sealed class SchemaGuardTests : DbTestBase
         Assert.IsTrue(columns.Any(c => c.Name == "manual_run_mode"), "manual_run_mode column missing");
     }
 
+    [TestMethod]
+    [TestCategory("Integration")]
+    public async Task PipelineEventsTable_HasInFlightProgressColumns()
+    {
+        var columns = await GetColumnsAsync("pipeline_events");
+
+        Assert.IsTrue(columns.Any(c => c.Name == "progress_processed" && c.Type == "integer" && c.Nullable),
+            "progress_processed column missing or not nullable integer");
+        Assert.IsTrue(columns.Any(c => c.Name == "progress_total" && c.Type == "integer" && c.Nullable),
+            "progress_total column missing or not nullable integer");
+        Assert.IsTrue(columns.Any(c => c.Name == "progress_updated_at" && c.Type == "timestamp with time zone" && c.Nullable),
+            "progress_updated_at column missing or not nullable timestamptz");
+    }
+
     private async Task<List<string>> GetIndexesAsync(string tableName, string indexPrefix)
     {
         DbContextOptions<ClinicalTrialsContext> opts = new DbContextOptionsBuilder<ClinicalTrialsContext>()

@@ -36,6 +36,12 @@ public interface IEventQueueService
     Task CompleteEventAsync(int eventId, CancellationToken ct = default);
 
     /// <summary>
+    /// Record incremental progress for a claimed (processing) event so operators can
+    /// observe long-running work between completions. No-op if the event is not claimed.
+    /// </summary>
+    Task UpdateEventProgressAsync(int eventId, int processed, int total, CancellationToken ct = default);
+
+    /// <summary>
     /// Mark an event as failed and schedule for retry with exponential backoff.
     /// After 4 failures, event moves to dead-letter queue.
     /// </summary>
