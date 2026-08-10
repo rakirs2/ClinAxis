@@ -5,7 +5,7 @@ namespace Scrapers.Services;
 /// <summary>
 /// Bounded memo-cache for <see cref="MeSHMatcher"/> results (issue #335).
 /// Repeated terms (e.g. "diabetes") dominate ingest workloads; the cache lets
-/// a repeat call skip BERT inference and the 61k-embedding cosine scan.
+/// a repeat call skip BERT inference and the 31k-embedding cosine scan.
 /// </summary>
 internal sealed class MeSHMatchCache
 {

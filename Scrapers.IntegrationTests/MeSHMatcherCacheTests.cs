@@ -53,4 +53,14 @@ public sealed class MeSHMatcherCacheTests
         Assert.AreEqual(first.MeshTerm, second.MeshTerm);
         Assert.AreEqual(1, matcher.CacheHits);
     }
+
+    [TestMethod]
+    public void Matcher_SearchesEachEmbeddingOnce()
+    {
+        using var matcher = new MeSHMatcher(MeshResourcesPath);
+
+        Assert.IsTrue(
+            matcher.SearchCandidateCount < matcher.AliasCount,
+            $"Expected duplicate aliases to be removed from the search ({matcher.SearchCandidateCount}/{matcher.AliasCount})");
+    }
 }

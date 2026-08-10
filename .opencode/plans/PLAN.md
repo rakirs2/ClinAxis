@@ -661,3 +661,37 @@ pure dead weight recorded alongside every evaluation.
   bit-identical between batch and serial).
 - `Tab4ShowsKeywordGateSummaryAndSamples` bUnit (mock updated, no sideAValid).
 - Full Release suite: 668/668, 0 warnings, 0 errors.
+
+---
+
+# MeSH cosine scan alias deduplication
+
+## Status: implemented locally (`feature/mesh-ingest-performance`)
+
+### Problem
+
+The MeSH resource contains 61,794 aliases but only 31,110 unique CUI embeddings.
+`FindBestMatch` scanned every alias and recalculated the same 768-value dot product
+for aliases sharing an embedding. This was redundant work in both scalar and batched
+matching paths.
+
+### Change
+
+- Build a constructor-time search order containing the first alias for each embedding.
+- Scan unique embeddings only while preserving the original alias order, strict `>` tie
+  handling, and therefore the previous winner and score arithmetic.
+- Expose the candidate/alias counts internally for a real-resource regression guard.
+- Do not repeat the previously rejected SIMD approach: its changed floating-point
+  accumulation order was not bit-identical.
+
+### Verification
+
+- Unit test verifies duplicate removal and first-alias ordering.
+- Real-resource integration test verifies the loaded matcher has fewer search candidates
+  than aliases.
+- Existing scalar/batch MeSH equivalence tests remain green.
+- Controlled `MeshBench` run on the same machine: `origin/main` cold pass 100.52 ms/term;
+  optimized branch 76.59 ms/term (approximately 23.8% lower). Warm cached passes remained
+  effectively 0 ms/term.
+- Full suite: 688 tests passed (Scrapers 437, DataApi 99, Integration 41, Frontend 111);
+  Debug and Release builds passed with 0 warnings and 0 errors.

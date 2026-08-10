@@ -29,6 +29,7 @@ public sealed class MeSHMatcher : IDisposable
     private readonly string[] _meshCategories;
     private readonly float[] _meshEmbeddings;
     private readonly int[] _meshEmbeddingIndex;
+    private readonly int[] _meshSearchOrder;
     private readonly Dictionary<string, int> _meshNameLookup;
     private readonly MeSHMatchCache _matchCache = new();
 
@@ -60,6 +61,11 @@ public sealed class MeSHMatcher : IDisposable
             throw new InvalidOperationException($"Embedding buffer wrong size: {_meshEmbeddings.Length} (expected {uniqueTerms * EmbedDim})");
         if (_meshEmbeddingIndex.Length != _meshNames.Length)
             throw new InvalidOperationException($"Index length mismatch: {_meshEmbeddingIndex.Length} (expected {_meshNames.Length})");
+
+        // Multiple aliases can point to the same CUI embedding. Keep the first
+        // alias for each embedding so tie resolution remains identical to the
+        // original alias-by-alias scan without repeating the dot product.
+        _meshSearchOrder = BuildSearchOrder(_meshEmbeddingIndex);
 
         _meshNameLookup = new Dictionary<string, int>(_meshNames.Length, StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < _meshNames.Length; i++)
@@ -164,6 +170,10 @@ public sealed class MeSHMatcher : IDisposable
 
     internal int CacheHits => _matchCache.CacheHits;
 
+    internal int AliasCount => _meshNames.Length;
+
+    internal int SearchCandidateCount => _meshSearchOrder.Length;
+
     private float[] ComputeEmbedding(int[] tokenIds, int[] attentionMask)
     {
         var inputIds = new DenseTensor<long>([1, MaxSeqLen]);
@@ -228,25 +238,42 @@ public sealed class MeSHMatcher : IDisposable
     }
 
     /// <summary>
-    /// Full cosine scan over every MeSH descriptor embedding for one query
-    /// embedding. Shared by the single-term and batched paths so both pick the
-    /// same best match for identical inputs.
+    /// Cosine scan over each unique MeSH CUI embedding for one query embedding.
+    /// Search order is the first alias order, so this remains bit-identical to
+    /// scanning every alias while avoiding duplicate dot products. Shared by
+    /// the single-term and batched paths so both pick the same best match.
     /// </summary>
     private (int BestIdx, float BestScore) FindBestMatch(float[] embedding)
     {
         int bestIdx = -1;
         float bestScore = 0f;
-        for (int i = 0; i < _meshNames.Length; i++)
+        for (int i = 0; i < _meshSearchOrder.Length; i++)
         {
-            float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[i]);
+            int meshNameIndex = _meshSearchOrder[i];
+            float sim = CosineSimilarity(embedding, _meshEmbeddingIndex[meshNameIndex]);
             if (sim > bestScore)
             {
                 bestScore = sim;
-                bestIdx = i;
+                bestIdx = meshNameIndex;
             }
         }
 
         return (bestIdx, bestScore);
+    }
+
+    internal static int[] BuildSearchOrder(IReadOnlyList<int> embeddingIndex)
+    {
+        ArgumentNullException.ThrowIfNull(embeddingIndex);
+
+        var seen = new HashSet<int>();
+        var searchOrder = new List<int>(embeddingIndex.Count);
+        for (int i = 0; i < embeddingIndex.Count; i++)
+        {
+            if (seen.Add(embeddingIndex[i]))
+                searchOrder.Add(i);
+        }
+
+        return searchOrder.ToArray();
     }
 
     // Re-picked for S-BioBert-snli-multinli-stsb (issue #355 P4-e): on the
