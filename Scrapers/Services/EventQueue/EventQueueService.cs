@@ -226,6 +226,27 @@ public sealed class EventQueueService : IEventQueueService
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
+    public async Task UpdateEventProgressAsync(int eventId, int processed, int total, CancellationToken ct = default)
+    {
+        using var context = new ClinicalTrialsContext(
+            new DbContextOptionsBuilder<ClinicalTrialsContext>()
+                .ConfigureNpgsql(_connectionString)
+                .Options);
+
+        // Only claimed events may carry progress; a released or completed event
+        // (e.g., after a claim timeout) must not be resurrected by a late write.
+        await context.PipelineEvents
+            .Where(e => e.Id == eventId && e.Status == "processing")
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(e => e.ProgressProcessed, processed)
+                    .SetProperty(e => e.ProgressTotal, total)
+                    .SetProperty(e => e.ProgressUpdatedAt, DateTime.UtcNow)
+                    .SetProperty(e => e.UpdatedAt, DateTime.UtcNow),
+                ct)
+            .ConfigureAwait(false);
+    }
+
     public async Task ReleaseEventAsync(int eventId, CancellationToken ct = default)
     {
         using var context = new ClinicalTrialsContext(
@@ -425,10 +446,41 @@ public sealed class EventQueueService : IEventQueueService
             .GroupBy(d => d.EventType)
             .ToDictionary(g => g.Key, g => g.Select(d => d.Ms).ToList());
 
+        var heartbeatCutoff15m = DateTime.UtcNow.AddMinutes(-15);
+        var heartbeatCutoff1h = DateTime.UtcNow.AddHours(-1);
+        var heartbeats = await context.PipelineEvents
+            .Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.CompletedAt >= heartbeatCutoff1h)
+            .Select(e => new { e.EventType, e.CompletedAt })
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var inFlightEvents = await context.PipelineEvents
+            .Where(e => e.Status == "processing" && e.ClaimedAt.HasValue)
+            .OrderByDescending(e => e.ClaimedAt)
+            .AsNoTracking()
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var inFlightByType = inFlightEvents
+            .GroupBy(e => e.EventType)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var now = DateTime.UtcNow;
         return groups.Select(r =>
         {
             List<double>? durations = null;
             durationsByType.TryGetValue(r.EventType, out durations);
+
+            var typeHeartbeats = heartbeats.Where(h => h.EventType == r.EventType).ToList();
+            var inFlightEntity = inFlightByType.GetValueOrDefault(r.EventType);
+            var (percent, ratePerMin, etaUtc) = inFlightEntity is null
+                ? ((double?)null, (double?)null, (DateTime?)null)
+                : InFlightProgress.Calculate(
+                    inFlightEntity.ProgressProcessed,
+                    inFlightEntity.ProgressTotal,
+                    inFlightEntity.ClaimedAt,
+                    now);
 
             return new EventTypeBreakdown
             {
@@ -439,7 +491,20 @@ public sealed class EventQueueService : IEventQueueService
                 Failed = r.Failed,
                 DeadLetter = r.DeadLetter,
                 AverageProcessingTimeMs = r.AvgProcessingMs,
-                Percentiles = durations is { Count: > 0 } ? DurationPercentileCalculator.ComputePercentiles(durations) : null
+                Percentiles = durations is { Count: > 0 } ? DurationPercentileCalculator.ComputePercentiles(durations) : null,
+                CompletedLast15m = typeHeartbeats.Count(h => h.CompletedAt >= heartbeatCutoff15m),
+                CompletedLast1h = typeHeartbeats.Count,
+                InFlight = inFlightEntity is null ? null : new InFlightEventInfo
+                {
+                    EventId = inFlightEntity.Id,
+                    ClaimedAt = inFlightEntity.ClaimedAt!.Value,
+                    ProgressUpdatedAt = inFlightEntity.ProgressUpdatedAt,
+                    Processed = inFlightEntity.ProgressProcessed,
+                    Total = inFlightEntity.ProgressTotal,
+                    Percent = percent,
+                    RatePerMin = ratePerMin,
+                    EtaUtc = etaUtc
+                }
             };
         }).ToList();
     }

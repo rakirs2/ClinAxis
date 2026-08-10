@@ -21,6 +21,12 @@ internal sealed class EventProcessingService : BackgroundService
             new EventId(2, "ProcessingLoopError"),
             "EventProcessingService error");
 
+    private static readonly Action<ILogger, int, Exception?> LogProgressWriteFailed =
+        LoggerMessage.Define<int>(
+            LogLevel.Warning,
+            new EventId(3, "ProgressWriteFailed"),
+            "Failed to record in-flight progress for event {EventId}; continuing");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly IDataSourceStateService _dataSourceStateService;
     private readonly ClinicalTrialsIngestionService _ingestionService;
@@ -138,6 +144,33 @@ internal sealed class EventProcessingService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Best-effort live progress write. Telemetry must never fail a long-running ingest:
+    /// a transient DB error is logged and swallowed so the batch keeps going.
+    /// </summary>
+    private async Task ReportProgressAsync(
+        Scrapers.Persistence.Entities.PipelineEventEntity @event,
+        int processed,
+        int total,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _eventQueueService.UpdateEventProgressAsync(@event.Id, processed, total, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (_logger != null && _logger.IsEnabled(LogLevel.Warning))
+            {
+                LogProgressWriteFailed(_logger, @event.Id, ex);
+            }
+        }
+    }
+
     private async Task DispatchEventAsync(Scrapers.Persistence.Entities.PipelineEventEntity @event, CancellationToken ct)
     {
         switch (@event.EventType)
@@ -173,6 +206,7 @@ internal sealed class EventProcessingService : BackgroundService
                 count,
                 payload.LastUpdatedPost,
                 payload.LastUpdatedPostTo,
+                onBatchProgress: (processed, total) => ReportProgressAsync(@event, processed, total, timeoutCts.Token),
                 cancellationToken: timeoutCts.Token).ConfigureAwait(false);
 
             if (ingested < count)
@@ -228,6 +262,7 @@ internal sealed class EventProcessingService : BackgroundService
                 lastUpdatedPost: payload.DateFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 lastUpdatedPostTo: payload.DateTo.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 lastSeenInSweepUtc: payload.SweepStartedUtc,
+                onBatchProgress: (processed, total) => ReportProgressAsync(@event, processed, total, timeoutCts.Token),
                 cancellationToken: timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)

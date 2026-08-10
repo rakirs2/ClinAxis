@@ -22,6 +22,27 @@ public sealed class EventTypeBreakdown
     public int DeadLetter { get; set; }
     public double AverageProcessingTimeMs { get; set; }
     public DurationPercentiles? Percentiles { get; set; }
+
+    /// <summary>Events completed in the last 15 minutes (heartbeat check).</summary>
+    public int CompletedLast15m { get; set; }
+
+    /// <summary>Events completed in the last 1 hour (heartbeat check).</summary>
+    public int CompletedLast1h { get; set; }
+
+    /// <summary>Progress of the event of this type that is currently claimed, if any.</summary>
+    public InFlightEventInfo? InFlight { get; set; }
+}
+
+public sealed class InFlightEventInfo
+{
+    public int EventId { get; set; }
+    public DateTime ClaimedAt { get; set; }
+    public DateTime? ProgressUpdatedAt { get; set; }
+    public int? Processed { get; set; }
+    public int? Total { get; set; }
+    public double? Percent { get; set; }
+    public double? RatePerMin { get; set; }
+    public DateTime? EtaUtc { get; set; }
 }
 
 public sealed class DurationPercentiles

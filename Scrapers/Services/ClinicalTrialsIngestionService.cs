@@ -46,11 +46,14 @@ public class ClinicalTrialsIngestionService
     /// fetches only studies updated in the inclusive window — used by backfill chunk events.</param>
     /// <param name="lastSeenInSweepUtc">When set (backfill chunks), stamped on every upserted
     /// study as proof it exists on CT.gov during the sweep.</param>
+    /// <param name="onBatchProgress">Optional callback invoked after each batch with the
+    /// cumulative processed count and the total count, for live progress reporting.</param>
     public async Task<int> IngestAsync(
         int count,
         DateTime? lastUpdatedPost = null,
         DateTime? lastUpdatedPostTo = null,
         DateTime? lastSeenInSweepUtc = null,
+        Func<int, int, Task>? onBatchProgress = null,
         CancellationToken cancellationToken = default)
     {
         if (count <= 0)
@@ -90,6 +93,11 @@ public class ClinicalTrialsIngestionService
                 await _progressReporter
                     .ReportBatchCompletedAsync(new IngestBatchInfo(batchNumber, batch.Count, batchSw.Elapsed, nctIds), cancellationToken)
                     .ConfigureAwait(false);
+            }
+
+            if (onBatchProgress != null)
+            {
+                await onBatchProgress(totalIngested, count).ConfigureAwait(false);
             }
         }, lastUpdatedPost: lastUpdatedPost, lastUpdatedPostTo: lastUpdatedPostTo, cancellationToken: cancellationToken).ConfigureAwait(false);
 
