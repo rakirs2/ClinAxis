@@ -233,6 +233,77 @@ public sealed class ClinicalTrialsGovClientTests
     }
 
     [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_RestartsWhenPaginationIsInvalidatedBeforeFirstBatch()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(
+            """{"error":"The data have probably changed while you were paginating. Please, start over from the first page."}""",
+            HttpStatusCode.BadRequest);
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        var fetched = 0;
+        await client.GetTrialRecordsBatchedAsync(
+            count: 1,
+            onBatch: batch =>
+            {
+                fetched += batch.Count;
+                return Task.CompletedTask;
+            });
+
+        Assert.AreEqual(1, fetched);
+        Assert.AreEqual(2, handler.Requests.Count, "The client should restart from the first page once.");
+        Assert.IsFalse(
+            handler.Requests[1].Query.Contains("pageToken=", StringComparison.Ordinal),
+            "A pagination restart must not reuse the invalid page token.");
+    }
+
+    [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_DoesNotReplayCallbackAfterPaginationInvalidation()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(
+            """{"studies":[{"protocolSection":{"identificationModule":{"nctId":"NCT-FIRST"}}}],"nextPageToken":"stale"}""");
+        handler.EnqueueJsonResponse(
+            """{"error":"The data have probably changed while you were paginating. Please, start over from the first page."}""",
+            HttpStatusCode.BadRequest);
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        var callbackCount = 0;
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetTrialRecordsBatchedAsync(
+            count: 2,
+            onBatch: _ =>
+            {
+                callbackCount++;
+                return Task.CompletedTask;
+            }));
+
+        Assert.AreEqual(1, callbackCount, "A batch already emitted before invalidation must not be replayed in the same call.");
+        Assert.AreEqual(2, handler.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_BoundsPaginationRestarts()
+    {
+        var handler = new FakeHttpMessageHandler();
+        for (var attempt = 0; attempt <= 3; attempt++)
+        {
+            handler.EnqueueJsonResponse(
+                """{"error":"The data have probably changed while you were paginating."}""",
+                HttpStatusCode.BadRequest);
+        }
+
+        ClinicalTrialsGov client = CreateClient(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetTrialRecordsBatchedAsync(
+            count: 1,
+            onBatch: _ => Task.CompletedTask));
+
+        Assert.AreEqual(4, handler.Requests.Count, "Pagination restart attempts must be bounded.");
+    }
+
+    [TestMethod]
     public void Constructor_AcceptsMaxPageSize_RejectsOutOfRange()
     {
         _ = new ClinicalTrialsGov(pageSize: 500);
