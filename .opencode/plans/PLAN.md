@@ -727,3 +727,28 @@ matching paths.
 - Debug and Release builds passed with 0 warnings and 0 errors.
 - Debug and Release full suites passed: 691 tests each (Scrapers 440, DataApi 99,
   Integration 41, Frontend 111).
+
+---
+
+# Status page CT.gov live-study count
+
+## Status: implemented locally (`feature/status-ctgov-live-count`)
+
+### Problem
+
+The Status page labeled `CountActiveStudiesAsync()` as "Studies (live, on CT.gov)".
+That value is only the local row count excluding studies previously marked removed;
+the CT.gov total already exists as `/api/scraper-progress.totalAvailable`.
+
+### Change
+
+- The live CT.gov row now renders the external `totalAvailable` count.
+- Status requests now fail independently, so a slow event-queue telemetry request cannot
+  prevent scraper-progress data from refreshing.
+
+### Verification
+
+- Added bUnit coverage for distinct local and CT.gov totals and queue-stat failure isolation.
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 693 tests each (Scrapers 440, DataApi 99,
+  Integration 41, Frontend 113).
