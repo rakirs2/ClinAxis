@@ -175,6 +175,42 @@ public sealed class StatusPageTests
     }
 
     [TestMethod]
+    public void StatusPageUsesCtGovTotalForLiveStudies()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp);
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Studies (live, on CT.gov)", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        var row = cut.FindAll("tr").Single(tr => tr.TextContent.Contains("Studies (live, on CT.gov)", StringComparison.Ordinal));
+
+        StringAssert.Contains(row.TextContent, "500,000", StringComparison.Ordinal);
+        Assert.IsFalse(row.TextContent.Contains("400,000", StringComparison.Ordinal),
+            "The live CT.gov row must not use the local database count.");
+    }
+
+    [TestMethod]
+    public void StatusPageStillLoadsScraperProgressWhenQueueStatsFail()
+    {
+        using var ctx = new BunitContext();
+        using var mockHttp = new MockHttpMessageHandler();
+        MockDefaultsWithStats(mockHttp);
+        mockHttp.When("http://localhost:5003/api/event-queue/stats")
+            .Respond(_ => throw new HttpRequestException("queue stats timeout"));
+        var client = BuildClient(mockHttp);
+        ctx.Services.AddSingleton(client);
+        IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
+
+        cut.WaitForState(() => cut.Markup.Contains("Studies (live, on CT.gov)", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
+        var row = cut.FindAll("tr").Single(tr => tr.TextContent.Contains("Studies (live, on CT.gov)", StringComparison.Ordinal));
+
+        StringAssert.Contains(row.TextContent, "500,000", StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void StatusPageRendersInFlightProgressAndHeartbeatColumns()
     {
         using var ctx = new BunitContext();
@@ -257,7 +293,7 @@ public sealed class StatusPageTests
         mockHttp.When("http://localhost:5003/api/telemetry")
             .Respond("application/json", JsonSerializer.Serialize(new
             {
-                db = new { totalStudies = 100, totalInvestigators = 50, totalPubmedPapers = 20, totalKeywords = 200, totalAuthors = 0 },
+                 db = new { totalStudies = 100, totalStudiesLive = 400000, totalInvestigators = 50, totalPubmedPapers = 20, totalKeywords = 200, totalAuthors = 0 },
                 recentEvents = Array.Empty<object>()
             }, JsonOptions));
 
