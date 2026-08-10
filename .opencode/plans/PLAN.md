@@ -752,3 +752,25 @@ the CT.gov total already exists as `/api/scraper-progress.totalAvailable`.
 - Debug and Release builds passed with 0 warnings and 0 errors.
 - Debug and Release full suites passed: 693 tests each (Scrapers 440, DataApi 99,
   Integration 41, Frontend 113).
+
+---
+
+# Long-running event progress heartbeat
+
+## Status: implemented locally (`feature/long-running-event-heartbeat`)
+
+### Problem
+
+The ordinary event claim timeout was 30 minutes, but long-running ClinicalTrials.gov
+ingestion events report progress between batches. The release query used only the
+original `ClaimedAt`, so event 14054 was reclaimed while processing and restarted from
+the beginning. Its processed studies were existing-row updates, while the pending
+backfill never got a worker slot.
+
+### Change
+
+- Use `ProgressUpdatedAt` as the claim heartbeat for ordinary and backfill events, falling
+  back to `ClaimedAt` before the first progress report.
+- Clear stale progress fields on every new claim so a retry must establish a fresh heartbeat.
+- Extend the existing integration test to prove a recent progress heartbeat prevents release
+  and an old heartbeat still releases the claim.
