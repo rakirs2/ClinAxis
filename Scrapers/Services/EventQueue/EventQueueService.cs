@@ -98,6 +98,9 @@ public sealed class EventQueueService : IEventQueueService
                 @event.Status = "processing";
                 @event.ClaimedBy = claimedBy;
                 @event.ClaimedAt = DateTime.UtcNow;
+                @event.ProgressProcessed = null;
+                @event.ProgressTotal = null;
+                @event.ProgressUpdatedAt = null;
                 @event.UpdatedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync(ct).ConfigureAwait(false);
             }
@@ -691,8 +694,10 @@ public sealed class EventQueueService : IEventQueueService
         var stuckEvents = await context.PipelineEvents
             .Where(e => e.Status == "processing"
                         && e.ClaimedAt.HasValue
-                        && ((e.EventType == "studies.backfill" && e.ClaimedAt < backfillThreshold)
-                            || (e.EventType != "studies.backfill" && e.ClaimedAt < ordinaryThreshold)))
+                        && ((e.EventType == "studies.backfill"
+                                && (e.ProgressUpdatedAt ?? e.ClaimedAt) < backfillThreshold)
+                            || (e.EventType != "studies.backfill"
+                                && (e.ProgressUpdatedAt ?? e.ClaimedAt) < ordinaryThreshold)))
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
