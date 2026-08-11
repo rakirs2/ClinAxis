@@ -45,6 +45,9 @@ public sealed class DataApiSmokeTests
         Assert.IsTrue(doc.RootElement.TryGetProperty("version", out _));
         Assert.IsTrue(doc.RootElement.TryGetProperty("informationalVersion", out _));
         Assert.IsTrue(doc.RootElement.TryGetProperty("framework", out _));
+
+        using HttpResponseMessage queueResponse = await _client.GetAsync("/api/event-queue/stats");
+        Assert.AreEqual(HttpStatusCode.OK, queueResponse.StatusCode);
     }
 
     [TestMethod]
