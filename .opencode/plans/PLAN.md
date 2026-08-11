@@ -782,6 +782,28 @@ Status page requests exceeded 30 seconds.
 
 ---
 
+# Parallel event-queue telemetry reads
+
+## Status: implemented locally (`feature/telemetry-parallel-query`)
+
+### Problem
+
+The first telemetry optimization still left `/api/event-queue/stats` waiting for the
+queue summary query and event-type breakdown query serially. Production watchdogs
+continued to observe timeouts after deployment.
+
+### Change
+
+- Start the independent queue summary and event-type breakdown queries together.
+- Preserve the existing bounded queries and 15-second response cache.
+
+### Verification
+
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 699 tests each.
+
+---
+
 # Long-running event progress heartbeat
 
 ## Status: implemented locally (`feature/long-running-event-heartbeat`)
