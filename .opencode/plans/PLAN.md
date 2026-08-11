@@ -798,3 +798,25 @@ Production continued to receive invalidated page-token responses after 10+ minut
 
 - Added a client test proving the next request occurs before the first batch callback.
 - Updated invalidation coverage for failures after a previously emitted batch.
+
+---
+
+# Bounded incremental ClinicalTrials.gov windows
+
+## Status: implemented locally (`feature/bounded-incremental-windows`)
+
+### Problem
+
+The source cursor was 43 hours behind, creating one 2,089-study incremental event. Even
+with page prefetching, the changing ClinicalTrials.gov result set invalidated the sequence
+repeatedly before its first batch completed.
+
+### Change
+
+- Cap each incremental discovery event to a 24-hour window.
+- Let successful events advance the cursor one bounded window at a time.
+- Preserve inclusive boundary-day re-fetching because upserts are idempotent.
+
+### Verification
+
+- Added pure tests for no cursor, stale cursor, recent cursor, and invalid time ordering.

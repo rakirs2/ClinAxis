@@ -32,6 +32,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 - **Fix:** The client now prefetches the next page before invoking the current batch callback, while preserving ordered callbacks and bounded restart behavior.
 - **Prevention:** Do not hold live API page tokens across slow persistence or model work; fetch the next page before processing the current batch.
 
+### 2026-08-11 — Long stale incremental window remained unstable
+
+- **Issue:** [#463](https://github.com/rakirs2/ClinicalTrialData/issues/463) — a 2,089-study incremental event remained unable to start after repeated pagination restarts.
+- **Run:** [deploy #31509135462](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31509135462)
+- **Symptom:** The source cursor was 43 hours old and the bounded restart logic still exhausted all attempts before the first batch. The full-corpus backfill remained pending.
+- **Root cause:** One incremental event covered too much changing source data for a stable pagination sequence.
+- **Fix:** Incremental discovery windows are now capped at 24 hours; successful events advance the cursor to the bounded window end.
+- **Prevention:** Never allow an unresolved incremental event to grow into an unbounded historical window.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

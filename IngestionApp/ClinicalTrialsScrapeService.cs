@@ -137,7 +137,7 @@ internal sealed class ClinicalTrialsScrapeService : BackgroundService
         // Get last sync timestamp for incremental fetching
         var state = await _dataSourceStateService.GetStateAsync(SourceName, ct).ConfigureAwait(false);
         var lastSyncTimestamp = state?.LastSyncTimestamp;
-        var windowEnd = DateTime.UtcNow;
+        var windowEnd = IncrementalWindowPlanner.NextWindowEnd(lastSyncTimestamp, DateTime.UtcNow);
 
         // Count new/updated studies from CT.gov API since last sync (lightweight countTotal call)
         var studyCount = await ctClient.CountStudiesAsync(
