@@ -50,6 +50,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 - **Fix:** Group status counts into one query, bound per-type averages to the recent sample, serialize and cache the stats response for 15 seconds, and render explicit unavailable states for failed telemetry sections.
 - **Prevention:** Keep operational telemetry bounded and cached; never let one endpoint failure suppress or masquerade as another telemetry section.
 
+### 2026-08-11 — Queue telemetry remained serial after first optimization
+
+- **Issue:** [#465](https://github.com/rakirs2/ClinicalTrialData/issues/465) remains open for follow-up.
+- **Run:** [deploy #31516309931](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31516309931)
+- **Symptom:** `/api/event-queue/stats` continued to exceed the watchdog budget after bounded aggregation and caching were deployed.
+- **Root cause:** The endpoint still awaited the queue summary and event-type breakdown queries serially, so their latencies accumulated.
+- **Fix:** Follow-up change runs both independent reads concurrently while retaining the short cache.
+- **Prevention:** Operational telemetry endpoints must parallelize independent database reads and remain bounded/cached.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

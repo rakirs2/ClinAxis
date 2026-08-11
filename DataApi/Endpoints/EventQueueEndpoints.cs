@@ -27,8 +27,11 @@ internal static class EventQueueEndpoints
                 }
 
                 var eventQueueService = new EventQueueService(connectionString);
-                var stats = await eventQueueService.GetStatsAsync(ct).ConfigureAwait(false);
-                var byEventType = await eventQueueService.GetEventTypeBreakdownAsync(ct).ConfigureAwait(false);
+                Task<EventQueueStats> statsTask = eventQueueService.GetStatsAsync(ct);
+                Task<List<EventTypeBreakdown>> breakdownTask = eventQueueService.GetEventTypeBreakdownAsync(ct);
+                await Task.WhenAll(statsTask, breakdownTask).ConfigureAwait(false);
+                var stats = await statsTask.ConfigureAwait(false);
+                var byEventType = await breakdownTask.ConfigureAwait(false);
                 var response = new
                 {
                     stats.PendingCount,
