@@ -774,3 +774,27 @@ backfill never got a worker slot.
 - Clear stale progress fields on every new claim so a retry must establish a fresh heartbeat.
 - Extend the existing integration test to prove a recent progress heartbeat prevents release
   and an old heartbeat still releases the claim.
+
+---
+
+# Prefetch ClinicalTrials.gov pages before slow persistence
+
+## Status: implemented locally (`feature/prefetch-ctgov-pages`)
+
+### Problem
+
+Even with bounded pagination restarts and claim heartbeats, the client fetched the next
+ClinicalTrials.gov page only after the current batch finished MeSH matching and persistence.
+Production continued to receive invalidated page-token responses after 10+ minute batches.
+
+### Change
+
+- Fetch the next page immediately after receiving the current page and before invoking the
+  slow batch callback.
+- Hold one page in memory so the next token is not left idle during model processing.
+- Preserve callback ordering and the existing no-replay behavior when a later page fails.
+
+### Verification
+
+- Added a client test proving the next request occurs before the first batch callback.
+- Updated invalidation coverage for failures after a previously emitted batch.
