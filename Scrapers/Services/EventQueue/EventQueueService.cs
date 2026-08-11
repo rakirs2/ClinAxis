@@ -356,19 +356,20 @@ public sealed class EventQueueService : IEventQueueService
                 .ConfigureNpgsql(_connectionString)
                 .Options);
 
-        var pending = await context.PipelineEvents.CountAsync(e => e.Status == "pending", cancellationToken: ct)
-            .ConfigureAwait(false);
-        var processing = await context.PipelineEvents.CountAsync(e => e.Status == "processing", cancellationToken: ct)
-            .ConfigureAwait(false);
-        var completed = await context.PipelineEvents.CountAsync(e => e.Status == "completed", cancellationToken: ct)
-            .ConfigureAwait(false);
-        var deadLetter = await context.PipelineEvents.CountAsync(e => e.Status == "dead-letter", cancellationToken: ct)
-            .ConfigureAwait(false);
-        var failed = await context.PipelineEvents.CountAsync(e => e.Status == "failed", cancellationToken: ct)
+        var countsByStatus = await context.PipelineEvents
+            .AsNoTracking()
+            .GroupBy(e => e.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Status, x => x.Count, ct)
             .ConfigureAwait(false);
 
+        var pending = countsByStatus.GetValueOrDefault("pending");
+        var processing = countsByStatus.GetValueOrDefault("processing");
+        var completed = countsByStatus.GetValueOrDefault("completed");
+        var deadLetter = countsByStatus.GetValueOrDefault("dead-letter");
+        var failed = countsByStatus.GetValueOrDefault("failed");
+
         var totalProcessed = completed + deadLetter + failed;
-        var totalEvents = pending + processing + completed + deadLetter + failed;
 
         var avgProcessingTime = 0.0;
         if (completed > 0)
@@ -428,9 +429,7 @@ public sealed class EventQueueService : IEventQueueService
                 Processing = g.Count(e => e.Status == "processing"),
                 Completed = g.Count(e => e.Status == "completed"),
                 Failed = g.Count(e => e.Status == "failed"),
-                DeadLetter = g.Count(e => e.Status == "dead-letter"),
-                AvgProcessingMs = g.Where(e => e.Status == "completed" && e.CompletedAt.HasValue && e.ClaimedAt.HasValue)
-                    .Average(e => (double?)(e.CompletedAt!.Value - e.ClaimedAt!.Value).TotalMilliseconds) ?? 0.0
+                DeadLetter = g.Count(e => e.Status == "dead-letter")
             })
             .AsNoTracking()
             .ToListAsync(ct)
@@ -493,7 +492,7 @@ public sealed class EventQueueService : IEventQueueService
                 Completed = r.Completed,
                 Failed = r.Failed,
                 DeadLetter = r.DeadLetter,
-                AverageProcessingTimeMs = r.AvgProcessingMs,
+                AverageProcessingTimeMs = durations is { Count: > 0 } ? durations.Average() : 0.0,
                 Percentiles = durations is { Count: > 0 } ? DurationPercentileCalculator.ComputePercentiles(durations) : null,
                 CompletedLast15m = typeHeartbeats.Count(h => h.CompletedAt >= heartbeatCutoff15m),
                 CompletedLast1h = typeHeartbeats.Count,

@@ -41,7 +41,9 @@ else
             <h3 class="mt-4">Scraper Progress</h3>
             @if (scraperProgress is null)
             {
-                <p class="text-muted">Loading...</p>
+                <p class="@(scraperProgressUnavailable ? "text-warning" : "text-muted")">
+                    @(scraperProgressUnavailable ? "Scraper progress telemetry unavailable." : "Loading...")
+                </p>
             }
             else
             {
@@ -276,7 +278,11 @@ else
     }
 
     <h3 class="mt-4">Data Source State</h3>
-    @if (dataSourceStates is null || dataSourceStates.Count == 0)
+    @if (dataSourceStatesUnavailable)
+    {
+        <p class="text-warning">Data source telemetry unavailable.</p>
+    }
+    else if (dataSourceStates is null || dataSourceStates.Count == 0)
     {
         <p class="text-muted">No data sources initialized.</p>
     }
@@ -360,7 +366,11 @@ else
     }
 
     <h3 class="mt-4">Event Queue Health</h3>
-    @if (queueStats is not null)
+    @if (queueStatsUnavailable)
+    {
+        <p class="text-warning">Queue telemetry unavailable.</p>
+    }
+    else if (queueStats is not null)
     {
         <table class="table table-sm" style="max-width: 600px">
             <tbody>
@@ -538,6 +548,9 @@ else
     private PageViewsStatsItem? pageViewsDay;
     private PageViewsStatsItem? pageViewsWeek;
     private PageViewsStatsItem? pageViewsMonth;
+    private bool dataSourceStatesUnavailable;
+    private bool queueStatsUnavailable;
+    private bool scraperProgressUnavailable;
     private readonly HashSet<Guid> selectedOverrideIds = [];
     private string? OverrideNote { get; set; }
     private bool overrideBusy;
@@ -559,9 +572,12 @@ else
     private async Task LoadAllData()
     {
         telemetry = await TryLoadAsync(() => Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry")) ?? telemetry;
-        dataSourceStates = await TryLoadAsync(() => Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state")) ?? dataSourceStates;
-        scraperProgress = await TryLoadAsync(() => Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress")) ?? scraperProgress;
-        queueStats = await TryLoadAsync(() => Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats")) ?? queueStats;
+        dataSourceStates = await TryLoadAsync(() => Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state"));
+        dataSourceStatesUnavailable = dataSourceStates is null;
+        scraperProgress = await TryLoadAsync(() => Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress"));
+        scraperProgressUnavailable = scraperProgress is null;
+        queueStats = await TryLoadAsync(() => Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats"));
+        queueStatsUnavailable = queueStats is null;
         rejectedNames = await TryLoadAsync(() => Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names")) ?? rejectedNames;
         pageViewsDay = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day")) ?? pageViewsDay;
         pageViewsWeek = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week")) ?? pageViewsWeek;

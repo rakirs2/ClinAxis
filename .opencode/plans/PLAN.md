@@ -755,6 +755,33 @@ the CT.gov total already exists as `/api/scraper-progress.totalAvailable`.
 
 ---
 
+# System Status telemetry timeout reduction (issue #465)
+
+## Status: implemented locally (`feature/system-status-telemetry-timeouts`)
+
+### Problem
+
+`/api/event-queue/stats` performed five full-table counts plus an unbounded historical
+per-event-type average on every request. Under production event volume, watchdog and
+Status page requests exceeded 30 seconds.
+
+### Change
+
+- Replace the five status counts with one grouped count query.
+- Calculate per-type averages from the existing bounded recent-duration sample.
+- Serialize concurrent stats requests through a short 15-second in-memory response cache.
+- Show explicit unavailable states in the Status page when individual telemetry requests fail.
+
+### Verification
+
+- Extended existing integration coverage for grouped queue counts and the DataApi smoke path.
+- Added frontend timeout and partial-response coverage.
+- Debug and Release builds passed with 0 warnings and 0 errors.
+- Debug and Release full suites passed: 699 tests each (Scrapers 445, DataApi 99,
+  Integration 41, Frontend 113).
+
+---
+
 # Long-running event progress heartbeat
 
 ## Status: implemented locally (`feature/long-running-event-heartbeat`)

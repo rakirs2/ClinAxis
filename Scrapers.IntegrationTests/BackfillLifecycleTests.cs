@@ -135,6 +135,10 @@ public sealed class BackfillLifecycleTests : DbTestBase
         Assert.AreEqual(2, snapshot.PendingOrProcessing, "The reset chunk is claimable again alongside the untouched pending chunk.");
         Assert.AreEqual(0, snapshot.DeadLettered, "No backfill chunks remain dead-lettered after retry.");
 
+        var queueStats = await queue.GetStatsAsync();
+        Assert.IsTrue(queueStats.PendingCount >= 2, "Grouped queue counts must include pending events.");
+        Assert.AreEqual(0, queueStats.DeadLetterCount, "Grouped queue counts must include the cleared dead-letter state.");
+
         // Heartbeat: the completed backfill chunk counts within the last 15 minutes,
         // while the enrichment event (never completed) reports zero.
         var heartbeatBreakdown = await queue.GetEventTypeBreakdownAsync();

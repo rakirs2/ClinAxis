@@ -197,9 +197,17 @@ public sealed class StatusPageTests
     {
         using var ctx = new BunitContext();
         using var mockHttp = new MockHttpMessageHandler();
-        MockDefaultsWithStats(mockHttp);
+        MockDefaults(mockHttp);
         mockHttp.When("http://localhost:5003/api/event-queue/stats")
             .Respond(_ => throw new HttpRequestException("queue stats timeout"));
+        mockHttp.When("http://localhost:5003/api/scraper-progress")
+            .Respond("application/json", JsonSerializer.Serialize(new
+            {
+                totalAvailable = 500000,
+                totalInDb = 400000,
+                percentScraped = 80.0,
+                addedLast24h = 1234
+            }, JsonOptions));
         var client = BuildClient(mockHttp);
         ctx.Services.AddSingleton(client);
         IRenderedComponent<Frontend.Pages.Status> cut = ctx.Render<Frontend.Pages.Status>();
@@ -208,6 +216,7 @@ public sealed class StatusPageTests
         var row = cut.FindAll("tr").Single(tr => tr.TextContent.Contains("Studies (live, on CT.gov)", StringComparison.Ordinal));
 
         StringAssert.Contains(row.TextContent, "500,000", StringComparison.Ordinal);
+        Assert.IsTrue(cut.Markup.Contains("Queue telemetry unavailable", StringComparison.Ordinal));
     }
 
     [TestMethod]

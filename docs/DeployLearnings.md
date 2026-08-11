@@ -41,6 +41,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 - **Fix:** Incremental discovery windows are now capped at 24 hours; successful events advance the cursor to the bounded window end.
 - **Prevention:** Never allow an unresolved incremental event to grow into an unbounded historical window.
 
+### 2026-08-11 — System Status telemetry timeouts under event volume
+
+- **Issue:** [#465](https://github.com/rakirs2/ClinicalTrialData/issues/465) — System Status telemetry was unreliable on the instance.
+- **Runs:** [watchdog #31511239808](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31511239808), [watchdog #31508153869](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31508153869)
+- **Symptom:** `/api/event-queue/stats` repeatedly exceeded the 30-second watchdog limit; `/api/data-source-state` also failed during some load/deployment windows. The Status page could retain incomplete telemetry.
+- **Root cause:** Queue stats ran multiple full-table aggregates and an unbounded historical per-type average on every request, while concurrent Status/watchdog requests had no shared response cache.
+- **Fix:** Group status counts into one query, bound per-type averages to the recent sample, serialize and cache the stats response for 15 seconds, and render explicit unavailable states for failed telemetry sections.
+- **Prevention:** Keep operational telemetry bounded and cached; never let one endpoint failure suppress or masquerade as another telemetry section.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),
