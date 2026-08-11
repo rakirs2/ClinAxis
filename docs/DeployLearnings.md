@@ -23,6 +23,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 - **Fix:** Claim release now uses the latest progress heartbeat, falls back to claim time before the first heartbeat, and clears stale progress fields on a new claim.
 - **Prevention:** Long-running events must heartbeat their claim lease; a claim timeout must measure inactivity, not total elapsed processing time.
 
+### 2026-08-11 — Pagination token expired during slow batch processing
+
+- **Issue:** [#461](https://github.com/rakirs2/ClinicalTrialData/issues/461) — bounded pagination restarts still failed during a long ingestion batch.
+- **Run:** [deploy #31419103617](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31419103617)
+- **Symptom:** ClinicalTrials.gov continued returning the pagination-change 400 after the client exhausted its three whole-pagination restarts. The backfill remained pending.
+- **Root cause:** The client waited for slow MeSH matching and persistence to finish before requesting the next page, leaving the page token idle for more than ten minutes.
+- **Fix:** The client now prefetches the next page before invoking the current batch callback, while preserving ordered callbacks and bounded restart behavior.
+- **Prevention:** Do not hold live API page tokens across slow persistence or model work; fetch the next page before processing the current batch.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

@@ -122,17 +122,21 @@ public class ClinicalTrialsGov
         CancellationToken cancellationToken)
     {
         var totalFetched = 0;
-        string? pageToken = null;
+        StudyListResponse? prefetchedResponse = null;
 
         while (totalFetched < count)
         {
-            StudyListResponse response = await FetchPageAsync(
-                pageToken,
-                lastUpdatedPost,
-                lastUpdatedPostTo,
-                pageSize: null,
-                countTotal: false,
-                cancellationToken).ConfigureAwait(false);
+            // Fetch the next page before the batch callback starts. Persistence and
+            // MeSH matching can take minutes; holding the next response prevents its
+            // page token from expiring while the current batch is processed.
+            StudyListResponse response = prefetchedResponse ?? await FetchPageAsync(
+                    null,
+                    lastUpdatedPost,
+                    lastUpdatedPostTo,
+                    pageSize: null,
+                    countTotal: false,
+                    cancellationToken).ConfigureAwait(false);
+            prefetchedResponse = null;
             List<StudyListResponse.StudyPayload> studies = response.Studies ?? new List<StudyListResponse.StudyPayload>();
             if (studies.Count == 0)
             {
@@ -155,17 +159,27 @@ public class ClinicalTrialsGov
                 }
             }
 
+            bool hasNextPage = totalFetched < count && !string.IsNullOrWhiteSpace(response.NextPageToken);
+            if (hasNextPage)
+            {
+                prefetchedResponse = await FetchPageAsync(
+                    response.NextPageToken,
+                    lastUpdatedPost,
+                    lastUpdatedPostTo,
+                    pageSize: null,
+                    countTotal: false,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             if (batch.Count > 0)
             {
                 await onBatch(batch).ConfigureAwait(false);
             }
 
-            if (totalFetched >= count || string.IsNullOrWhiteSpace(response.NextPageToken))
+            if (!hasNextPage)
             {
                 break;
             }
-
-            pageToken = response.NextPageToken;
         }
 
         return totalFetched;

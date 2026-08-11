@@ -37,6 +37,27 @@ public sealed class ClinicalTrialsGovClientTests
     }
 
     [TestMethod]
+    public async Task GetTrialRecordsBatchedAsync_PrefetchesNextPageBeforeBatchCallback()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page1.json"));
+        handler.EnqueueJsonResponse(FixtureLoader.LoadClinicalTrialsGovJson("studies-page2.json"));
+
+        ClinicalTrialsGov client = CreateClient(handler);
+        var requestsDuringFirstCallback = 0;
+        await client.GetTrialRecordsBatchedAsync(
+            count: 3,
+            onBatch: _ =>
+            {
+                requestsDuringFirstCallback = handler.Requests.Count;
+                return Task.CompletedTask;
+            });
+
+        Assert.AreEqual(2, requestsDuringFirstCallback,
+            "The next API page must be fetched before slow batch persistence begins.");
+    }
+
+    [TestMethod]
     public async Task GetTrialsAsync_ReturnsSingleStudy()
     {
         var handler = new FakeHttpMessageHandler();
@@ -265,6 +286,8 @@ public sealed class ClinicalTrialsGovClientTests
         handler.EnqueueJsonResponse(
             """{"studies":[{"protocolSection":{"identificationModule":{"nctId":"NCT-FIRST"}}}],"nextPageToken":"stale"}""");
         handler.EnqueueJsonResponse(
+            """{"studies":[{"protocolSection":{"identificationModule":{"nctId":"NCT-SECOND"}}}],"nextPageToken":"stale-again"}""");
+        handler.EnqueueJsonResponse(
             """{"error":"The data have probably changed while you were paginating. Please, start over from the first page."}""",
             HttpStatusCode.BadRequest);
 
@@ -272,7 +295,7 @@ public sealed class ClinicalTrialsGovClientTests
         var callbackCount = 0;
 
         await Assert.ThrowsAsync<HttpRequestException>(() => client.GetTrialRecordsBatchedAsync(
-            count: 2,
+            count: 3,
             onBatch: _ =>
             {
                 callbackCount++;
@@ -280,7 +303,7 @@ public sealed class ClinicalTrialsGovClientTests
             }));
 
         Assert.AreEqual(1, callbackCount, "A batch already emitted before invalidation must not be replayed in the same call.");
-        Assert.AreEqual(2, handler.Requests.Count);
+        Assert.AreEqual(3, handler.Requests.Count);
     }
 
     [TestMethod]
