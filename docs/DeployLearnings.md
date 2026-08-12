@@ -5,6 +5,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-12 — Legacy discovery event blocked bounded scraper recovery
+
+- **Issue:** [#472](https://github.com/rakirs2/ClinicalTrialData/issues/472) — post-MiniLM watchdog verification reported a stale and stuck scraper.
+- **Runs:** [deploy #31609814309](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31609814309), [watchdog #31612062885](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31612062885)
+- **Symptom:** The instance was healthy and actively syncing, but legacy `studies.discovered` event `1` owned the queue with `596,902` records, only `400` processed, and an ETA near August 28. Its old pagination error remained in source state.
+- **Root cause:** Legacy count-only discovery events cannot resume a bounded date window. Recovery handled pending legacy events only, so a stale processing event survived deployment and continued blocking bounded discovery.
+- **Fix:** Worker startup now supersedes pending and processing legacy count-only discovery events, clears their in-flight progress, and prevents the stale event from being claimed again. Recovery integration coverage now includes a processing legacy event.
+- **Prevention:** Every deployment restart must recover stale legacy discovery events before claiming new work; bounded discovery payloads remain the only resumable discovery format.
+
 ### 2026-08-10 — Post-deploy ClinicalTrials.gov pagination invalidation
 
 - **Issue:** [#452](https://github.com/rakirs2/ClinicalTrialData/issues/452) — scraper stalled after the MeSH optimization deploy.

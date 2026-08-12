@@ -730,6 +730,45 @@ matching paths.
 
 ---
 
+# Production legacy discovery stall recovery
+
+## Investigation
+
+**Date:** 2026-08-12
+
+- Fresh watchdog run [#31612062885](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31612062885)
+  fetched current production payloads after the MiniLM deployment.
+- The instance was healthy but still had one processing `studies.discovered`
+  event with `eventId=1`, `total=596902`, `processed=400`, and an estimated
+  completion of 2026-08-28. The current incremental progress was only about
+  26.4 studies/minute.
+- The event is a legacy count-only discovery payload. The existing recovery
+  endpoint handled pending legacy events only, so this stale processing event
+  continued to own the source sync and block bounded discovery.
+
+## Fix
+
+- Recover both pending and processing legacy count-only discovery events.
+- Run legacy recovery once when `EventProcessingService` starts, before it
+  claims new work. This is safe after deployment because the previous worker
+  has stopped, and prevents the stale event from being claimed again.
+- Clear in-flight progress fields when superseding the event.
+- Extend the existing recovery integration test to cover a claimed processing
+  legacy event.
+- The first validation build caught CA1848 on the new startup log calls; those
+  calls were converted to `LoggerMessage` delegates to match repository style.
+
+## Verification
+
+- `git diff --check` passed.
+- `dotnet build ClinicalTrialData.slnx -c Release --no-restore` passed with
+  0 warnings and 0 errors.
+- Full tests passed: DataApi 99, Frontend 113, Scrapers 452, Integration 41;
+  705 total.
+- `bash scripts/test-health-check.sh` passed: 28/28 checks.
+
+---
+
 # Status page CT.gov live-study count
 
 ## Status: implemented locally (`feature/status-ctgov-live-count`)

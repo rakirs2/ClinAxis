@@ -220,6 +220,9 @@ public sealed class InvestigatorEnrichmentServiceTests : DbTestBase
         public Task<bool> HasUnresolvedDiscoveryEventAsync(DateTime? lastUpdatedPost, CancellationToken ct = default)
             => Task.FromResult(false);
 
+        public Task<List<int>> RecoverLegacyDiscoveryEventsAsync(bool apply, CancellationToken ct = default)
+            => Task.FromResult<List<int>>([]);
+
         public Task CompleteEventAsync(int eventId, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task UpdateEventProgressAsync(int eventId, int processed, int total, CancellationToken ct = default)

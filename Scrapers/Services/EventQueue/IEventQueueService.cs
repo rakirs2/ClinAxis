@@ -31,6 +31,12 @@ public interface IEventQueueService
     Task<bool> HasUnresolvedDiscoveryEventAsync(DateTime? lastUpdatedPost, CancellationToken ct = default);
 
     /// <summary>
+    /// Supersedes legacy count-only discovery events that cannot resume safely.
+    /// Returns the affected event IDs for operator visibility.
+    /// </summary>
+    Task<List<int>> RecoverLegacyDiscoveryEventsAsync(bool apply, CancellationToken ct = default);
+
+    /// <summary>
     /// Mark an event as successfully completed.
     /// </summary>
     Task CompleteEventAsync(int eventId, CancellationToken ct = default);

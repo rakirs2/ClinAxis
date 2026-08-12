@@ -248,13 +248,18 @@ public sealed class BackfillChunkedIngestTests : DbTestBase
         await queue.EnqueueAsync("studies.discovered", legacyPayload);
         await queue.EnqueueAsync("studies.discovered", boundedRecoveryPayload);
 
+        var legacyProcessingEvent = await queue.ClaimNextPendingEventAsync(
+            "legacy-worker",
+            eventTypes: ["studies.discovered"]);
+        Assert.IsNotNull(legacyProcessingEvent);
+
         var previewIds = await queue.RecoverLegacyDiscoveryEventsAsync(apply: false);
         Assert.AreEqual(1, previewIds.Count);
 
         var legacyBeforeApply = await Context.PipelineEvents
             .AsNoTracking()
             .SingleAsync(e => e.Data == legacyPayload);
-        Assert.AreEqual("pending", legacyBeforeApply.Status);
+        Assert.AreEqual("processing", legacyBeforeApply.Status);
 
         var appliedIds = await queue.RecoverLegacyDiscoveryEventsAsync(apply: true);
         CollectionAssert.AreEqual(previewIds, appliedIds);

@@ -160,13 +160,14 @@ public sealed class EventQueueService : IEventQueueService
                 .ConfigureNpgsql(_connectionString)
                 .Options);
 
-        var pendingEvents = await context.PipelineEvents
-            .Where(e => e.EventType == "studies.discovered" && e.Status == "pending")
+        var legacyCandidates = await context.PipelineEvents
+            .Where(e => e.EventType == "studies.discovered" &&
+                        (e.Status == "pending" || e.Status == "processing"))
             .OrderBy(e => e.CreatedAt)
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        var legacyEvents = pendingEvents
+        var legacyEvents = legacyCandidates
             .Where(e => IncrementalDiscoveryEventPayload.TryParse(e.Data, out var payload) &&
                         payload is { HasWindow: false })
             .ToList();
@@ -181,6 +182,9 @@ public sealed class EventQueueService : IEventQueueService
                 @event.ErrorMessage = "Superseded by full-corpus backfill recovery.";
                 @event.ClaimedBy = null;
                 @event.ClaimedAt = null;
+                @event.ProgressProcessed = null;
+                @event.ProgressTotal = null;
+                @event.ProgressUpdatedAt = null;
                 @event.UpdatedAt = now;
             }
 
