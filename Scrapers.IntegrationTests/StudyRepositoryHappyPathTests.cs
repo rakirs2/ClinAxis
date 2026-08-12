@@ -429,15 +429,17 @@ public sealed class StudyRepositoryHappyPathTests : DbTestBase
             "myocardial infarction",
             "Expanded form must be recorded for analysis");
         var expandedMatch = evaluations.First(e => e.Value == "myocardial infarction");
-        Assert.IsTrue(expandedMatch.SideBMatched, "Expanded term resolves to its MeSH descriptor (>= 0.65)");
+        Assert.IsTrue(expandedMatch.SideBMatched, "Expanded term resolves to its MeSH descriptor (>= 0.55)");
         Assert.AreEqual("Myocardial Infarction", expandedMatch.SideBMeshTerm);
         var rawMi = evaluations.First(e => e.Value == "MI");
         Assert.IsTrue(rawMi.SideBMatched,
-            "Raw 'MI' scores 0.71 with the BioBERT model — above the 0.65 re-picked threshold, so the gate rescues it even unexpanded");
+            "MiniLM maps raw 'MI' above the 0.55 threshold, so the gate rescues it even unexpanded");
         var rawCva = evaluations.First(e => e.Value == "CVA");
         Assert.IsFalse(rawCva.SideBMatched,
-            "Raw acronym 'CVA' (0.54) scores below the threshold — expansion is what rescues it");
-        Assert.AreEqual(5, evaluations.Count(e => e.SideBMatched), "4 expanded canonical terms + raw MI match MeSH");
+            "Raw acronym 'CVA' remains below the threshold — expansion is what rescues it");
+        // MiniLM at the MVP threshold also accepts one additional raw acronym
+        // compared with the previous BioBERT bundle.
+        Assert.AreEqual(6, evaluations.Count(e => e.SideBMatched), "4 expanded canonical terms + two raw acronyms match MeSH");
     }
 
     [TestMethod]

@@ -15,6 +15,50 @@ public sealed class MeSHMatcherTests
     }
 
     [TestMethod]
+    public void GetSequenceLength_ReadsFixedSequenceDimensionFromDynamicBatchShape()
+    {
+        Assert.AreEqual(128, MeSHMatcher.GetSequenceLength([-1, 128]));
+    }
+
+    [TestMethod]
+    public void GetSequenceLength_RejectsDynamicSequenceDimension()
+    {
+        Assert.Throws<InvalidOperationException>(() => MeSHMatcher.GetSequenceLength([-1, -1]));
+    }
+
+    [TestMethod]
+    public void LoadDoLowerCase_ReadsTokenizerConfiguration()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mesh-tokenizer-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, "{\"do_lower_case\":true}");
+
+            Assert.IsTrue(MeSHMatcher.LoadDoLowerCase(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public void LoadMatchThreshold_UsesConfiguredValue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mesh-matcher-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, "{\"match_threshold\":0.42}");
+
+            Assert.AreEqual(0.42f, MeSHMatcher.LoadMatchThreshold(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void Constructor_CorruptModelFile_ThrowsOnnxRuntimeException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

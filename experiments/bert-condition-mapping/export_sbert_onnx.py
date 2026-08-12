@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Export S-PubMedBert-MS-MARCO (biomedical Sentence-BERT) to ONNX + pre-compute
-MeSH embeddings (issue #355 P4-e; supersedes all-MiniLM-L6-v2).
+Export MiniLM-L6-v2 to ONNX + pre-compute MeSH embeddings for the MVP.
 
 Outputs to Scrapers/Resources/mesh/:
   - model.onnx          Sentence-BERT transformer backbone
   - tokenizer.json      HuggingFace tokenizer
-  - vocab.txt           BERT vocab for C# tokenizer
+  - vocab.txt           WordPiece vocab for the C# tokenizer
   - mesh_terms.bin      Pickled dict with names, cuis, tree_numbers, categories
-  - mesh_embeddings.bin Raw float32 array (num_terms x 768)
+  - mesh_embeddings.bin Raw float32 array (num_terms x embedding_dimension)
+  - matcher_config.json MeSH acceptance threshold used by the C# matcher
 """
 
 import json
@@ -23,16 +23,22 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(__file__))
-from config import MESH_INDEX_FILE, MESH_DIR
+from config import MESH_INDEX_FILE, MESH_THRESHOLD, SENTENCE_BERT_MODEL
 
-SBERT_MODEL = "pritamdeka/S-BioBert-snli-multinli-stsb"
+SBERT_MODEL = SENTENCE_BERT_MODEL
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "Scrapers", "Resources", "mesh")
 MAX_SEQ_LEN = 128
-EMBED_DIM = 768
 
 
 def export_onnx():
     os.makedirs(OUT_DIR, exist_ok=True)
+
+    # Prevent a previous model bundle from leaving stale weights or tokenizer
+    # files beside the newly exported model.
+    for stale_name in ("model.onnx", "model.onnx.data", "tokenizer.model"):
+        stale_path = os.path.join(OUT_DIR, stale_name)
+        if os.path.exists(stale_path):
+            os.remove(stale_path)
 
     print("Loading Sentence-BERT model on CPU ...")
     model = SentenceTransformer(SBERT_MODEL, device="cpu")
@@ -75,12 +81,10 @@ def export_onnx():
     print(f"  Saved tokenizer files to {OUT_DIR}")
 
     vocab_path = os.path.join(OUT_DIR, "vocab.txt")
-    tokenizer.save_vocabulary(OUT_DIR)
-    if not os.path.exists(vocab_path):
-        for f in os.listdir(OUT_DIR):
-            if f.endswith(".txt") or "vocab" in f:
-                os.rename(os.path.join(OUT_DIR, f), vocab_path)
-                break
+    vocab = tokenizer.get_vocab()
+    with open(vocab_path, "w") as f:
+        for token, _ in sorted(vocab.items(), key=lambda item: item[1]):
+            f.write(f"{token}\n")
     print(f"  Saved vocab.txt")
 
 
@@ -99,7 +103,7 @@ def compute_mesh_embeddings():
     categories = index["categories"]
     print(f"  {len(names)} MeSH terms loaded")
 
-    print("Loading Sentence-BERT model for encoding ...")
+    print("Loading MiniLM model for encoding ...")
     model = SentenceTransformer(SBERT_MODEL)
 
     # Deduplicate by CUI: keep first occurrence per descriptor
@@ -152,6 +156,12 @@ def compute_mesh_embeddings():
         f.write(arr.tobytes())
     idx_size = os.path.getsize(idx_path) / (1024 * 1024)
     print(f"  Saved mesh_term_index.bin ({len(embedding_index)} int32, {idx_size:.1f} MB)")
+
+    config_path = os.path.join(OUT_DIR, "matcher_config.json")
+    with open(config_path, "w") as f:
+        json.dump({"match_threshold": MESH_THRESHOLD}, f, indent=2)
+        f.write("\n")
+    print(f"  Saved matcher_config.json (threshold={MESH_THRESHOLD})")
 
 
 def main():

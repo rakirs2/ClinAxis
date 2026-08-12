@@ -31,9 +31,14 @@ def build_or_load_embeddings(model, names: list[str]) -> np.ndarray:
         print(f"  Loading cached MeSH embeddings from {MESH_EMBEDDINGS_FILE} ...")
         return np.load(MESH_EMBEDDINGS_FILE)
 
-    print(f"  Encoding {len(names)} MeSH terms with Sentence-BERT ...")
+    print(f"  Encoding {len(names)} MeSH terms with MiniLM ...")
     os.makedirs(MESH_DIR, exist_ok=True)
-    embeddings = model.encode(names, show_progress_bar=True, convert_to_numpy=True)
+    embeddings = model.encode(
+        names,
+        show_progress_bar=True,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
     np.save(MESH_EMBEDDINGS_FILE, embeddings)
     print(f"    Saved embeddings shape {embeddings.shape}")
     return embeddings
@@ -98,7 +103,7 @@ def match_all():
     mesh_trees = index["tree_numbers"]
     mesh_categories = index["categories"]
 
-    print("\n--- Loading Sentence-BERT ---")
+    print("\n--- Loading MiniLM ---")
     model = SentenceTransformer(SENTENCE_BERT_MODEL)
 
     mesh_embeddings = build_or_load_embeddings(model, mesh_names)

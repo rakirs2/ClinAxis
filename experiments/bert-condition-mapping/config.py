@@ -35,10 +35,10 @@ TRAINING_KEYWORDS_URL = f"{API_BASE_URL}/api/export/training/keywords"
 CT_GOV_API = "https://clinicaltrials.gov/api/v2/studies"
 CT_GOV_PAGE_SIZE = 50
 
-MESH_THRESHOLD = 0.65  # re-picked for S-BioBert (issue #355 P4-e), see MeSHMatcher.cs
+MESH_THRESHOLD = 0.55  # calibrated for MiniLM-L6-v2 MVP bundle, see MeSHMatcher.cs
 
 BERT_MODEL_NAME = "distilbert-base-uncased"
-SENTENCE_BERT_MODEL = "pritamdeka/S-BioBert-snli-multinli-stsb"  # issue #355 P4-e
+SENTENCE_BERT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # MVP MeSH matcher
 MAX_SEQ_LEN = 64
 BATCH_SIZE = 16
 EPOCHS = 3

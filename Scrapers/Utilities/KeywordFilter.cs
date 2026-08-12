@@ -183,8 +183,8 @@ namespace Scrapers.Utilities
         /// <summary>
         /// MeSH gate (issue #343): keywords rejected for structural reasons
         /// (short acronyms, punctuation, length) that still match a MeSH
-        /// descriptor at the A/B threshold (&gt;= 0.65, re-picked in #355 P4-e
-        /// for S-BioBert) are legitimate medical terms and are kept. Junk
+        /// descriptor at the MVP embedding threshold (&gt;= 0.55) are legitimate
+        /// medical terms and are kept. Junk
         /// blocklist rejections are excluded by the caller via
         /// <see cref="IsJunkBlocked"/>.
         /// </summary>

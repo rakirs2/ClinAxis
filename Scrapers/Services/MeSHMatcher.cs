@@ -9,19 +9,24 @@ namespace Scrapers.Services;
 
 public sealed class MeSHMatcher : IDisposable
 {
-    private const int MaxSeqLen = 128;
-    // S-BioBert-snli-multinli-stsb embedding dimension (issue #355 P4-e,
-    // supersedes all-MiniLM-L6-v2's 384).
-    private const int EmbedDim = 768;
     // Measured sweet spot for batched ONNX inference (issue #434 follow-up):
     // N=16 runs ~1.22x faster than N=1 with bit-identical scores.
     private const int MaxBatchSize = 16;
-    private const int ClsTokenId = 101;
-    private const int SepTokenId = 102;
-    private const int UnkTokenId = 100;
-    private const int PadTokenId = 0;
+    private const int DefaultClsTokenId = 101;
+    private const int DefaultSepTokenId = 102;
+    private const int DefaultUnkTokenId = 100;
+    private const int DefaultPadTokenId = 0;
+    private const float DefaultMatchThreshold = 0.65f;
 
     private readonly InferenceSession _session;
+    private readonly int _maxSeqLen;
+    private readonly int _embedDim;
+    private readonly int _clsTokenId;
+    private readonly int _sepTokenId;
+    private readonly int _unkTokenId;
+    private readonly int _padTokenId;
+    private readonly bool _doLowerCase;
+    private readonly float _matchThreshold;
     private readonly Dictionary<string, int> _vocab;
     private readonly string[] _meshNames;
     private readonly string[] _meshCuis;
@@ -44,21 +49,28 @@ public sealed class MeSHMatcher : IDisposable
     {
         ArgumentNullException.ThrowIfNull(resourcesPath);
         _session = new InferenceSession(Path.Combine(resourcesPath, "model.onnx"));
+        _maxSeqLen = GetSequenceLength(_session.InputMetadata["input_ids"].Dimensions);
 
         var vocabPath = Path.Combine(resourcesPath, "vocab.txt");
         _vocab = LoadVocab(vocabPath);
+        _clsTokenId = GetTokenId(_vocab, "[CLS]", DefaultClsTokenId);
+        _sepTokenId = GetTokenId(_vocab, "[SEP]", DefaultSepTokenId);
+        _unkTokenId = GetTokenId(_vocab, "[UNK]", DefaultUnkTokenId);
+        _padTokenId = GetTokenId(_vocab, "[PAD]", DefaultPadTokenId);
+        _doLowerCase = LoadDoLowerCase(Path.Combine(resourcesPath, "tokenizer_config.json"));
+        _matchThreshold = LoadMatchThreshold(Path.Combine(resourcesPath, "matcher_config.json"));
 
         var termsPath = Path.Combine(resourcesPath, "mesh_terms.json");
         (_meshNames, _meshCuis, _meshTreeNumbers, _meshCategories) = LoadMeshTerms(termsPath);
 
         var embPath = Path.Combine(resourcesPath, "mesh_embeddings.bin");
-        _meshEmbeddings = LoadMeshEmbeddings(embPath, out int uniqueTerms);
+        _meshEmbeddings = LoadMeshEmbeddings(embPath, out int uniqueTerms, out _embedDim);
 
         var idxPath = Path.Combine(resourcesPath, "mesh_term_index.bin");
         _meshEmbeddingIndex = LoadIndex(idxPath, _meshNames.Length);
 
-        if (_meshEmbeddings.Length != uniqueTerms * EmbedDim)
-            throw new InvalidOperationException($"Embedding buffer wrong size: {_meshEmbeddings.Length} (expected {uniqueTerms * EmbedDim})");
+        if (_meshEmbeddings.Length != uniqueTerms * _embedDim)
+            throw new InvalidOperationException($"Embedding buffer wrong size: {_meshEmbeddings.Length} (expected {uniqueTerms * _embedDim})");
         if (_meshEmbeddingIndex.Length != _meshNames.Length)
             throw new InvalidOperationException($"Index length mismatch: {_meshEmbeddingIndex.Length} (expected {_meshNames.Length})");
 
@@ -88,8 +100,8 @@ public sealed class MeSHMatcher : IDisposable
                 var (tokenIds, attentionMask) = Tokenize(value);
                 var embedding = ComputeEmbedding(tokenIds, attentionMask);
 
-                if (embedding == null || embedding.Length != EmbedDim)
-                    throw new InvalidOperationException($"Embedding has wrong size: {embedding?.Length ?? 0} (expected {EmbedDim})");
+                if (embedding == null || embedding.Length != _embedDim)
+                    throw new InvalidOperationException($"Embedding has wrong size: {embedding?.Length ?? 0} (expected {_embedDim})");
 
                 (bestIdx, bestScore) = FindBestMatch(embedding);
             }
@@ -176,10 +188,10 @@ public sealed class MeSHMatcher : IDisposable
 
     private float[] ComputeEmbedding(int[] tokenIds, int[] attentionMask)
     {
-        var inputIds = new DenseTensor<long>([1, MaxSeqLen]);
-        var mask = new DenseTensor<long>([1, MaxSeqLen]);
+        var inputIds = new DenseTensor<long>([1, _maxSeqLen]);
+        var mask = new DenseTensor<long>([1, _maxSeqLen]);
 
-        for (int i = 0; i < MaxSeqLen; i++)
+        for (int i = 0; i < _maxSeqLen; i++)
         {
             inputIds[0, i] = tokenIds[i];
             mask[0, i] = attentionMask[i];
@@ -194,13 +206,13 @@ public sealed class MeSHMatcher : IDisposable
         using var results = _session.Run(inputs);
         var hiddenState = results[0].AsTensor<float>();
 
-        var pooled = new float[EmbedDim];
+        var pooled = new float[_embedDim];
         int validTokens = 0;
-        for (int i = 0; i < MaxSeqLen; i++)
+        for (int i = 0; i < _maxSeqLen; i++)
         {
             if (attentionMask[i] == 0) continue;
             validTokens++;
-            for (int j = 0; j < EmbedDim; j++)
+            for (int j = 0; j < _embedDim; j++)
             {
                 pooled[j] += hiddenState[0, i, j];
             }
@@ -209,19 +221,19 @@ public sealed class MeSHMatcher : IDisposable
         if (validTokens > 0)
         {
             float invCount = 1f / validTokens;
-            for (int i = 0; i < EmbedDim; i++)
+            for (int i = 0; i < _embedDim; i++)
                 pooled[i] *= invCount;
         }
 
         float norm = 0f;
-        for (int i = 0; i < EmbedDim; i++)
+        for (int i = 0; i < _embedDim; i++)
             norm += pooled[i] * pooled[i];
         norm = MathF.Sqrt(norm);
 
         if (norm > 1e-10f)
         {
             float invNorm = 1f / norm;
-            for (int i = 0; i < EmbedDim; i++)
+            for (int i = 0; i < _embedDim; i++)
                 pooled[i] *= invNorm;
         }
 
@@ -231,8 +243,8 @@ public sealed class MeSHMatcher : IDisposable
     private float CosineSimilarity(float[] embedding, int meshIdx)
     {
         float dot = 0f;
-        int offset = meshIdx * EmbedDim;
-        for (int i = 0; i < EmbedDim; i++)
+        int offset = meshIdx * _embedDim;
+        for (int i = 0; i < _embedDim; i++)
             dot += embedding[i] * _meshEmbeddings[offset + i];
         return dot;
     }
@@ -276,17 +288,9 @@ public sealed class MeSHMatcher : IDisposable
         return searchOrder.ToArray();
     }
 
-    // Re-picked for S-BioBert-snli-multinli-stsb (issue #355 P4-e): on the
-    // 139-keyword labeled set (ctgov-keywords.csv) 0.65 rescues 85.6% (vs
-    // 50.4% at 0.8) and is the distribution knee (0.7 -> 74.8%). All
-    // non-descriptor junk in the labeled set scores < 0.65 ("Type 1" 0.61,
-    // "treatment" 0.61); junk that IS a MeSH descriptor ("Safety" 1.0)
-    // is kept out by the KeywordFilter blocklist, not this threshold.
-    private const float MatchThreshold = 0.65f;
-
     private MeSHMatchResult BuildResult(string value, string source, string studyNctId, int bestIdx, float bestScore)
     {
-        bool matched = bestIdx >= 0 && bestScore >= MatchThreshold;
+        bool matched = bestIdx >= 0 && bestScore >= _matchThreshold;
 
         return new MeSHMatchResult
         {
@@ -310,12 +314,12 @@ public sealed class MeSHMatcher : IDisposable
     private float[][] ComputeEmbeddingsBatch(List<(int[] TokenIds, int[] AttentionMask)> tokenized)
     {
         int batchSize = tokenized.Count;
-        var inputIds = new DenseTensor<long>([batchSize, MaxSeqLen]);
-        var mask = new DenseTensor<long>([batchSize, MaxSeqLen]);
+        var inputIds = new DenseTensor<long>([batchSize, _maxSeqLen]);
+        var mask = new DenseTensor<long>([batchSize, _maxSeqLen]);
 
         for (int r = 0; r < batchSize; r++)
         {
-            for (int i = 0; i < MaxSeqLen; i++)
+            for (int i = 0; i < _maxSeqLen; i++)
             {
                 inputIds[r, i] = tokenized[r].TokenIds[i];
                 mask[r, i] = tokenized[r].AttentionMask[i];
@@ -334,13 +338,13 @@ public sealed class MeSHMatcher : IDisposable
         var pooled = new float[batchSize][];
         for (int r = 0; r < batchSize; r++)
         {
-            var row = new float[EmbedDim];
+            var row = new float[_embedDim];
             int validTokens = 0;
-            for (int i = 0; i < MaxSeqLen; i++)
+            for (int i = 0; i < _maxSeqLen; i++)
             {
                 if (tokenized[r].AttentionMask[i] == 0) continue;
                 validTokens++;
-                for (int j = 0; j < EmbedDim; j++)
+                for (int j = 0; j < _embedDim; j++)
                 {
                     row[j] += hiddenState[r, i, j];
                 }
@@ -349,19 +353,19 @@ public sealed class MeSHMatcher : IDisposable
             if (validTokens > 0)
             {
                 float invCount = 1f / validTokens;
-                for (int i = 0; i < EmbedDim; i++)
+                for (int i = 0; i < _embedDim; i++)
                     row[i] *= invCount;
             }
 
             float norm = 0f;
-            for (int i = 0; i < EmbedDim; i++)
+            for (int i = 0; i < _embedDim; i++)
                 norm += row[i] * row[i];
             norm = MathF.Sqrt(norm);
 
             if (norm > 1e-10f)
             {
                 float invNorm = 1f / norm;
-                for (int i = 0; i < EmbedDim; i++)
+                for (int i = 0; i < _embedDim; i++)
                     row[i] *= invNorm;
             }
 
@@ -373,11 +377,12 @@ public sealed class MeSHMatcher : IDisposable
 
     private (int[] TokenIds, int[] AttentionMask) Tokenize(string text)
     {
-        var tokens = new List<int> { ClsTokenId };
-        // BioBERT is case-sensitive (tokenizer_config.json do_lower_case=false);
-        // MeSH embeddings were pre-computed from cased terms, so queries must
-        // keep their original case ("MI" and "mi" are different tokens).
+        var tokens = new List<int> { _clsTokenId };
+        // Follow the selected tokenizer bundle: uncased tokenizers lower
+        // queries before WordPiece tokenization.
         var cleaned = RemoveDiacritics(text);
+        if (_doLowerCase)
+            cleaned = cleaned.ToLowerInvariant();
         var words = SplitOnPunctuation(cleaned);
 
         foreach (var word in words)
@@ -387,13 +392,13 @@ public sealed class MeSHMatcher : IDisposable
             tokens.AddRange(wordTokens);
         }
 
-        tokens.Add(SepTokenId);
+        tokens.Add(_sepTokenId);
 
-        if (tokens.Count > MaxSeqLen)
-            tokens = tokens[..MaxSeqLen];
+        if (tokens.Count > _maxSeqLen)
+            tokens = tokens[.._maxSeqLen];
 
-        var tokenIds = new int[MaxSeqLen];
-        var attentionMask = new int[MaxSeqLen];
+        var tokenIds = new int[_maxSeqLen];
+        var attentionMask = new int[_maxSeqLen];
 
         for (int i = 0; i < tokens.Count; i++)
         {
@@ -401,9 +406,9 @@ public sealed class MeSHMatcher : IDisposable
             attentionMask[i] = 1;
         }
 
-        for (int i = tokens.Count; i < MaxSeqLen; i++)
+        for (int i = tokens.Count; i < _maxSeqLen; i++)
         {
-            tokenIds[i] = PadTokenId;
+            tokenIds[i] = _padTokenId;
             attentionMask[i] = 0;
         }
 
@@ -425,7 +430,7 @@ public sealed class MeSHMatcher : IDisposable
         while (start < chars.Length)
         {
             int bestLen = 0;
-            int bestId = UnkTokenId;
+            int bestId = _unkTokenId;
             bool isFirst = start == 0;
 
             int maxLen = Math.Min(chars.Length - start, 20);
@@ -446,7 +451,7 @@ public sealed class MeSHMatcher : IDisposable
 
             if (bestLen == 0)
             {
-                tokens.Add(UnkTokenId);
+                tokens.Add(_unkTokenId);
                 break;
             }
 
@@ -511,6 +516,47 @@ public sealed class MeSHMatcher : IDisposable
         return vocab;
     }
 
+    internal static int GetSequenceLength(IReadOnlyList<int> dimensions)
+    {
+        ArgumentNullException.ThrowIfNull(dimensions);
+        if (dimensions.Count < 2 || dimensions[1] <= 0)
+            throw new InvalidOperationException("The input_ids model shape must have a fixed sequence length");
+
+        return dimensions[1];
+    }
+
+    private static int GetTokenId(Dictionary<string, int> vocab, string token, int fallback)
+    {
+        return vocab.TryGetValue(token, out int id) ? id : fallback;
+    }
+
+    internal static bool LoadDoLowerCase(string path)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        using var file = File.OpenRead(path);
+        using var document = JsonDocument.Parse(file);
+        return document.RootElement.TryGetProperty("do_lower_case", out var value) && value.GetBoolean();
+    }
+
+    internal static float LoadMatchThreshold(string path)
+    {
+        if (!File.Exists(path))
+            return DefaultMatchThreshold;
+
+        using var file = File.OpenRead(path);
+        using var document = JsonDocument.Parse(file);
+        if (!document.RootElement.TryGetProperty("match_threshold", out var value))
+            return DefaultMatchThreshold;
+
+        float threshold = value.GetSingle();
+        if (threshold is < 0 or > 1)
+            throw new InvalidOperationException("The MeSH match threshold must be between 0 and 1");
+
+        return threshold;
+    }
+
     private static (string[] Names, string[] Cuis, string[][] TreeNumbers, string[] Categories) LoadMeshTerms(string path)
     {
         using var file = File.OpenRead(path);
@@ -519,7 +565,7 @@ public sealed class MeSHMatcher : IDisposable
         return (data.Names, data.Cuis, data.TreeNumbers, data.Categories);
     }
 
-    private static float[] LoadMeshEmbeddings(string path, out int numTerms)
+    private static float[] LoadMeshEmbeddings(string path, out int numTerms, out int embeddingDimension)
     {
         using var fs = File.OpenRead(path);
         using var br = new BinaryReader(fs);
@@ -527,6 +573,7 @@ public sealed class MeSHMatcher : IDisposable
         int rows = br.ReadInt32();
         int cols = br.ReadInt32();
         numTerms = rows;
+        embeddingDimension = cols;
 
         var buffer = new float[rows * cols];
         var byteBuffer = new byte[rows * cols * 4];

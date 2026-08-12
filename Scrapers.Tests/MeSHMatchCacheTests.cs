@@ -47,24 +47,24 @@ public sealed class MeSHMatchCacheTests
     }
 
     [TestMethod]
-    public void NormalizeKey_TrimsButPreservesCase()
+    public void NormalizeKey_TrimsAndNormalizesCase()
     {
-        Assert.AreEqual("Diabetes", MeSHMatchCache.NormalizeKey("  Diabetes  "));
-        Assert.AreEqual("Type 2 DIABETES", MeSHMatchCache.NormalizeKey("Type 2 DIABETES"));
+        Assert.AreEqual("diabetes", MeSHMatchCache.NormalizeKey("  Diabetes  "));
+        Assert.AreEqual("type 2 diabetes", MeSHMatchCache.NormalizeKey("Type 2 DIABETES"));
     }
 
     [TestMethod]
-    public void TryGet_MatchesWhitespaceVariants_NotCaseVariants()
+    public void TryGet_MatchesWhitespaceAndCaseVariants()
     {
         var cache = new MeSHMatchCache();
         cache.Add(MeSHMatchCache.NormalizeKey("diabetes"), 7, 0.9f);
 
         Assert.IsTrue(cache.TryGet(MeSHMatchCache.NormalizeKey("  diabetes "), out int idxB, out _));
-        Assert.IsFalse(cache.TryGet(MeSHMatchCache.NormalizeKey("Diabetes"), out _, out _),
-            "BioBERT is cased: case variants tokenize differently and must not share a cache entry");
+        Assert.IsTrue(cache.TryGet(MeSHMatchCache.NormalizeKey("Diabetes"), out int idxC, out _));
         Assert.IsFalse(cache.TryGet("  diabetes ", out _, out _), "Raw keys must be normalized by the caller");
 
         Assert.AreEqual(7, idxB);
+        Assert.AreEqual(7, idxC);
     }
 
     [TestMethod]

@@ -51,10 +51,13 @@ done
 echo "  Build succeeded"
 echo ""
 
-# 3. Export ONNX model + pre-compute MeSH embeddings
+# 3. Export MiniLM ONNX model + pre-compute MeSH embeddings
 MESH_RESOURCES_OUT="Scrapers/Resources/mesh"
-if [ ! -d "$MESH_RESOURCES_OUT" ] || [ ! -f "$MESH_RESOURCES_OUT/mesh_embeddings.bin" ]; then
-    echo "[3/7] Exporting Sentence-BERT ONNX model and MeSH embeddings..."
+if [ ! -d "$MESH_RESOURCES_OUT" ] || \
+   [ ! -f "$MESH_RESOURCES_OUT/mesh_embeddings.bin" ] || \
+   [ ! -f "$MESH_RESOURCES_OUT/matcher_config.json" ] || \
+   [ -f "$MESH_RESOURCES_OUT/tokenizer.model" ]; then
+    echo "[3/7] Exporting MiniLM ONNX model and MeSH embeddings..."
     experiments/bert-condition-mapping/.venv/bin/python \
         experiments/bert-condition-mapping/export_sbert_onnx.py 2>&1 | tail -10
     echo "  ONNX export and embeddings complete"
