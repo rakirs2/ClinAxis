@@ -896,3 +896,88 @@ repeatedly before its first batch completed.
 ### Verification
 
 - Added pure tests for no cursor, stale cursor, recent cursor, and invalid time ordering.
+
+---
+
+# MVP MeSH model benchmark
+
+## Attempt log
+
+**Date:** 2026-08-12
+
+- Created isolated worktree `feature/mvp-mesh-model-benchmark` from `origin/main`.
+- Clean application baseline passed `dotnet restore` and `dotnet build -c Release`
+  with 0 warnings and 0 errors.
+- First benchmark attempt used `dotnet run --no-restore` for the standalone
+  `experiments/MeshBench` project. It failed because the project is not part of
+  `ClinicalTrialData.slnx` and had no standalone `obj/project.assets.json`.
+- Next attempt must restore `MeshBench` independently before running it.
+- The first experiment solution build after the configurability changes failed
+  on CA1859 for the token lookup helper; the parameter was changed to the
+  concrete dictionary type used by the matcher.
+- A subsequent `experiments/Experiments.slnx` build also surfaced unrelated
+  pre-existing `MeshCompare` errors (`ConfigureNpgsql` and an obsolete
+  `StudyConditionEntity.Condition` member), so the benchmark projects are
+  validated directly instead of expanding this PR into a stale experiment fix.
+- Direct benchmark compilation then failed because CLI argument arrays use
+  `Length`, not `Count`; both sites were corrected.
+- Targeted validation then hit a local NuGet cache inconsistency: restored
+  assets referenced analyzer DLLs absent from the global package cache. The
+  application baseline had passed before this cache issue appeared; force
+  restore is required before repeating the tests.
+- After the cache repair, the benchmark build reported CA1859 for the
+  concrete `BatchSizes` property type; it was changed from
+  `IReadOnlyList<int>` to `List<int>`.
+
+## Results
+
+- Current BioBERT baseline: synthetic 364-term cold pass was 40.99s serial and
+  36.70s at batch 16; warm cache was approximately 0ms/term.
+- Dynamic INT8 BioBERT: 33.96s at batch 16 in the measured run (7.5% faster);
+  6 acceptance disagreements and 8 top-CUI disagreements versus baseline.
+- DistilBERT Sentence-Transformer: 26.03s at batch 16 (29.1% faster). At an
+  exploratory threshold of 0.55, condition F1 was 0.934 vs. BioBERT 0.915,
+  but keyword recall was 0.849 vs. 0.856.
+- MiniLM-L6-v2: 10.76s at batch 16 (70.7% faster). At an exploratory threshold
+  of 0.55, condition F1 was 0.933 and keyword recall was 0.957.
+- Initial benchmark decision was to defer the production switch pending review;
+  the later MVP rollout below intentionally chooses MiniLM for throughput.
+- Full solution validation first failed because `Markdig.dll` was missing from
+  the local NuGet global package cache while building Frontend. `git diff
+  --check` passed and all affected Scrapers/benchmark projects built before
+  the Frontend project was reached; a no-cache restore is required.
+
+## Verification
+
+- `git diff --check` passed.
+- `dotnet restore ClinicalTrialData.slnx --force-evaluate --no-cache` passed.
+- `dotnet build ClinicalTrialData.slnx -c Release --no-restore` passed with
+  0 warnings and 0 errors.
+- Full solution tests passed: DataApi.Tests 99, Frontend.Tests 113,
+  Scrapers.Tests 451, Scrapers.IntegrationTests 41; 704 total.
+- `dotnet build experiments/MeshBench/MeshBench.csproj -c Release`
+  passed with 0 warnings and 0 errors.
+
+## MVP rollout
+
+- User selected the practical MVP tradeoff: good-enough matching quality is
+  preferred over perfect BioBERT mapping agreement when BioBERT is the
+  ingestion bottleneck.
+- Promoted MiniLM-L6-v2 into `Scrapers/Resources/mesh` with 384-dimensional
+  embeddings, uncased tokenizer metadata, and `matcher_config.json` threshold
+  0.55. Removed the unused stale BioBERT `tokenizer.model` artifact.
+- Updated the acronym persistence assertion from 5 to 6 accepted evaluations;
+  all persisted keyword rows and evaluation rows remain correct.
+- Final active-bundle benchmark: 8.58s batch-16 cold vs. 36.70s BioBERT
+  baseline (76.6% faster); condition precision 0.921, recall 0.945, F1 0.933.
+- Final local verification rerun: Release build passed with 0 warnings and 0
+  errors; full suite passed with DataApi.Tests 99, Frontend.Tests 113,
+  Scrapers.Tests 451, and Scrapers.IntegrationTests 41 (704 total). The active
+  bundle measured 9.43s batch-16 cold, 10.27s serial cold, and condition F1
+  0.933.
+- Production-only cleanup completed: active exporter/configuration, cache
+  normalization, UI, architecture docs, and startup detection now target
+  MiniLM; the unrelated DistilBERT classifier experiment and historical BERT
+  attempt logs remain preserved. The final cleanup verification passed the
+  full Release suite (704 tests) and measured 8.74s batch-16 cold with
+  condition precision 0.921, recall 0.945, and F1 0.933.

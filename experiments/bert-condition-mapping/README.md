@@ -13,7 +13,9 @@ Two parallel pipelines for normalizing ClinicalTrials.gov conditions to MeSH ter
 
 ## MeSH Pipeline
 
-Maps raw CT.gov conditions and keywords to MeSH 2026 descriptors using `pritamdeka/S-BioBert-snli-multinli-stsb` sentence embeddings with cosine similarity.
+Maps raw CT.gov conditions and keywords to MeSH 2026 descriptors using
+`sentence-transformers/all-MiniLM-L6-v2` sentence embeddings with cosine
+similarity. This is the production MVP embedding bundle.
 
 ### Steps
 
@@ -27,7 +29,7 @@ python run.py all      # All three steps above
 ### How It Works
 
 1. **fetch** — retrieves 50 studies, saves conditions + keywords as per-study CSVs
-2. **mesh** — downloads MeSH desc2026.xml (298 MB, 31K descriptors, 62K terms with synonyms), builds Sentence-BERT embeddings, matches each unique condition/keyword to the nearest MeSH term at ≥0.8 similarity
+2. **mesh** — downloads MeSH desc2026.xml (298 MB, 31K descriptors, 62K terms with synonyms), builds MiniLM embeddings, matches each unique condition/keyword to the nearest MeSH term at ≥0.55 similarity
 3. **report** — generates `mesh-per-study.csv` (long-format per study) with column `type` values:
 
 | type | meaning |
@@ -39,7 +41,7 @@ python run.py all      # All three steps above
 ### Key Logic
 
 - **Category** determined by MeSH tree prefix: `C`/`F03` → disease, `E`/`G`/`H` → procedure, everything else → other
-- **Threshold**: 0.8 (configurable via `MESH_THRESHOLD` in `config.py`)
+- **Threshold**: 0.55 (configurable via `MESH_THRESHOLD` in `config.py`)
 - **Tree numbers** parsed from `<TreeNumberList>` in desc2026.xml (no separate mtrees file needed)
 
 ### Output Files
@@ -129,9 +131,9 @@ Sample ~50 rows from each side, rate "correct condition" or "not a condition" bl
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `MESH_THRESHOLD` | 0.65 | Minimum cosine similarity for MeSH match (re-picked for BioBERT, #355) |
+| `MESH_THRESHOLD` | 0.55 | Minimum cosine similarity for the MiniLM MeSH match (#470) |
 | `BERT_MODEL_NAME` | distilbert-base-uncased | Classifier base model |
-| `SENTENCE_BERT_MODEL` | pritamdeka/S-BioBert-snli-multinli-stsb | Embedding model (#355 P4-e) |
+| `SENTENCE_BERT_MODEL` | sentence-transformers/all-MiniLM-L6-v2 | Production MeSH embedding model (#470) |
 | `EPOCHS` | 3 | Classifier training epochs |
 | `BATCH_SIZE` | 16 | Training batch size |
 | `LEARNING_RATE` | 2e-5 | AdamW learning rate |

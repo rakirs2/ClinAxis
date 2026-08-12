@@ -152,7 +152,7 @@ public sealed class DataQualityPageTests
             parameters => parameters.Add(p => p.Tab, 4));
 
         cut.WaitForState(() => cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), timeout: TimeSpan.FromSeconds(5));
-        Assert.IsTrue(cut.Markup.Contains("Keyword acceptance gate (BERT)", StringComparison.Ordinal), "Tab heading should render");
+        Assert.IsTrue(cut.Markup.Contains("Keyword acceptance gate (MiniLM)", StringComparison.Ordinal), "Tab heading should render");
         Assert.IsTrue(cut.Markup.Contains("700", StringComparison.Ordinal), "Rejected count should render");
         Assert.IsTrue(cut.Markup.Contains("Zebrafish", StringComparison.Ordinal), "Sample should render");
         Assert.IsTrue(cut.Markup.Contains("0.600", StringComparison.Ordinal), "Similarity should render with three decimals");

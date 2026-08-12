@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Scrapers\Scrapers.csproj" />
     <ProjectReference Include="..\IngestionApp\IngestionApp.csproj" />
+    <ProjectReference Include="..\experiments\MeshBench\MeshBench.csproj" />
   </ItemGroup>
 
   <ItemGroup>

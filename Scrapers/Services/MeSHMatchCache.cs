@@ -5,7 +5,7 @@ namespace Scrapers.Services;
 /// <summary>
 /// Bounded memo-cache for <see cref="MeSHMatcher"/> results (issue #335).
 /// Repeated terms (e.g. "diabetes") dominate ingest workloads; the cache lets
-/// a repeat call skip BERT inference and the 31k-embedding cosine scan.
+/// a repeat call skip embedding inference and the 31k-embedding cosine scan.
 /// </summary>
 internal sealed class MeSHMatchCache
 {
@@ -23,9 +23,9 @@ internal sealed class MeSHMatchCache
     /// <summary>Total cache hits since construction (never reset on eviction).</summary>
     public int CacheHits { get; private set; }
 
-    // Case-sensitive: the BioBERT model is cased, so "MI" and "mi" tokenize to
-    // different embeddings and must not share a cache entry (issue #355 P4-e).
-    public static string NormalizeKey(string value) => value.Trim();
+    // MiniLM's tokenizer is uncased, so equivalent case variants should share
+    // one inference result and one cache entry.
+    public static string NormalizeKey(string value) => value.Trim().ToLowerInvariant();
 
     public bool TryGet(string normalizedKey, out int bestIdx, out float bestScore)
     {
