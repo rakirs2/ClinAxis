@@ -59,6 +59,7 @@ PYEOF
 # --- fixtures ---
 EVENT_QUEUE_OK="$WORK_DIR/event-queue-ok.json"
 EVENT_QUEUE_DLQ="$WORK_DIR/event-queue-dlq.json"
+EVENT_QUEUE_STALE="$WORK_DIR/event-queue-stale.json"
 DATA_SOURCE_OK="$WORK_DIR/data-source-ok.json"
 DATA_SOURCE_STALE="$WORK_DIR/data-source-stale.json"
 DATA_SOURCE_STUCK="$WORK_DIR/data-source-stuck.json"
@@ -70,6 +71,7 @@ SCRAPER_PROGRESS="$WORK_DIR/scraper-progress.json"
 
 printf '{"deadLetterCount": 3, "pendingCount": 5, "failureRate": 0.02}' > "$EVENT_QUEUE_OK"
 printf '{"deadLetterCount": 176, "pendingCount": 0, "failureRate": 0.9}' > "$EVENT_QUEUE_DLQ"
+printf '{"deadLetterCount": 0, "telemetryStatus": "stale"}' > "$EVENT_QUEUE_STALE"
 printf '{"deadLetterCount": 0, "pendingCount": 0, "failureRate": 0.0, "byEventType": [{"eventType": "studies.discovered", "pending": 1, "processing": 0}]}' > "$EVENT_QUEUE_NO_CHUNKS"
 printf '{"deadLetterCount": 0, "pendingCount": 5, "failureRate": 0.0, "byEventType": [{"eventType": "studies.backfill", "pending": 5, "processing": 1}]}' > "$EVENT_QUEUE_CHUNKS_ACTIVE"
 
@@ -100,6 +102,7 @@ printf '{"totalAvailable": 600000, "totalInDb": 37477, "percentScraped": 6.2}' >
 echo "== check_dead_letter =="
 assert_clean "$(check_dead_letter "$EVENT_QUEUE_OK")"
 assert_finding "deadLetterCount=176 exceeds threshold=10" "$(check_dead_letter "$EVENT_QUEUE_DLQ")"
+assert_finding "telemetryStatus=stale" "$(check_dead_letter "$EVENT_QUEUE_STALE")"
 assert_finding "exceeds threshold=2" "$(WATCHDOG_DLQ_THRESHOLD=2 check_dead_letter "$EVENT_QUEUE_OK")"
 
 echo "== check_stale_sync =="

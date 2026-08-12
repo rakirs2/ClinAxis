@@ -42,10 +42,14 @@ import json, sys
 
 path, threshold = sys.argv[1], int(sys.argv[2])
 try:
-    count = int(json.load(open(path)).get('deadLetterCount') or 0)
+    payload = json.load(open(path))
+    count = int(payload.get('deadLetterCount') or 0)
 except (ValueError, json.JSONDecodeError):
     print("event-queue: payload unparseable")
     sys.exit(0)
+status = payload.get('telemetryStatus')
+if status and status != 'healthy':
+    print(f"event-queue: telemetryStatus={status}")
 if count > threshold:
     print(f"event-queue: deadLetterCount={count} exceeds threshold={threshold}")
 PYEOF

@@ -1,6 +1,7 @@
 using System.Reflection;
 using DataApi;
 using DataApi.Endpoints;
+using DataApi.Services;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scrapers;
@@ -44,6 +45,10 @@ await SeedMeshDescriptors(startupRepo);
 builder.Services.AddHealthChecks()
     .AddCheck("database", new DatabaseHealthCheck(connectionString), failureStatus: HealthStatus.Unhealthy, tags: ["ready"]);
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(sp => new EventQueueTelemetryCache(
+    connectionString,
+    sp.GetRequiredService<ILogger<EventQueueTelemetryCache>>()));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EventQueueTelemetryCache>());
 
 var meshTreeStore = new MeshTreeStore(connectionString);
 await meshTreeStore.InitializeAsync();
