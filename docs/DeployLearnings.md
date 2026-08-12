@@ -59,6 +59,15 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 - **Fix:** Follow-up change runs both independent reads concurrently while retaining the short cache.
 - **Prevention:** Operational telemetry endpoints must parallelize independent database reads and remain bounded/cached.
 
+### 2026-08-11 — Request-path queue telemetry still timed out
+
+- **Issue:** [#465](https://github.com/rakirs2/ClinicalTrialData/issues/465) remains open for follow-up.
+- **Run:** [deploy #31518918726](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31518918726)
+- **Symptom:** The parallel-query optimization still produced watchdog timeouts because the first request waited for the database work to complete.
+- **Root cause:** A request-path cache cannot protect the first request after restart or cache expiry.
+- **Fix:** Move telemetry refresh to a hosted background service and make the endpoint return the latest snapshot immediately with explicit health metadata.
+- **Prevention:** Health endpoints must never synchronously depend on slow operational aggregates; refresh them asynchronously with bounded cancellation.
+
 ### 2026-08-07 — Recovery workflow consumed retry-list stdin
 
 - **Runs:** [dry run #31226197920](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31226197920),

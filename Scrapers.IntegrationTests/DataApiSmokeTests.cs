@@ -48,6 +48,8 @@ public sealed class DataApiSmokeTests
 
         using HttpResponseMessage queueResponse = await _client.GetAsync("/api/event-queue/stats");
         Assert.AreEqual(HttpStatusCode.OK, queueResponse.StatusCode);
+        using var queueDoc = JsonDocument.Parse(await queueResponse.Content.ReadAsStringAsync());
+        Assert.IsTrue(queueDoc.RootElement.TryGetProperty("telemetryStatus", out _));
     }
 
     [TestMethod]

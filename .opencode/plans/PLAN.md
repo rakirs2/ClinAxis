@@ -804,6 +804,33 @@ continued to observe timeouts after deployment.
 
 ---
 
+# Background event-queue telemetry snapshot
+
+## Status: implemented locally (`feature/background-telemetry-snapshot`)
+
+### Problem
+
+Request-path caching and parallel queries still allowed the first queue telemetry request
+to block for more than the watchdog's 30-second budget.
+
+### Change
+
+- Refresh queue telemetry in a hosted background service with a 25-second database budget.
+- Return the last snapshot immediately from `/api/event-queue/stats` with explicit
+  `telemetryStatus`, timestamp, and error fields.
+- Mark the initial response `warming` and failed refreshes `stale` instead of returning
+  an unparseable timeout.
+- Make the watchdog recognize non-healthy telemetry status.
+
+### Verification
+
+- DataApi smoke coverage asserts the telemetry status field.
+- Script tests pass: 28/28.
+- Release suites pass sequentially: DataApi 99, Scrapers 445, Integration 41,
+  Frontend 113; 698 total.
+
+---
+
 # Long-running event progress heartbeat
 
 ## Status: implemented locally (`feature/long-running-event-heartbeat`)
