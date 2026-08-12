@@ -1020,3 +1020,16 @@ repeatedly before its first batch completed.
   attempt logs remain preserved. The final cleanup verification passed the
   full Release suite (704 tests) and measured 8.74s batch-16 cold with
   condition precision 0.921, recall 0.945, and F1 0.933.
+
+---
+
+# Status page load parallelism
+
+## Attempt log
+
+**Date:** 2026-08-12
+
+- Created `feature/status-page-load-parallelism` from merged `origin/main`.
+- The first validation command ran from the parent worktree after creating the
+  new worktree, so the new worktree had no assets files. The correction is to
+  run restore/build with the new worktree as the working directory.
