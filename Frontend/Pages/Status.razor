@@ -552,6 +552,8 @@ else
     private bool queueStatsUnavailable;
     private bool scraperProgressUnavailable;
     private readonly HashSet<Guid> selectedOverrideIds = [];
+    private readonly SemaphoreSlim refreshGate = new(1, 1);
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
     private string? OverrideNote { get; set; }
     private bool overrideBusy;
     private bool ingestRunBusy;
@@ -571,25 +573,65 @@ else
 
     private async Task LoadAllData()
     {
-        telemetry = await TryLoadAsync(() => Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry")) ?? telemetry;
-        dataSourceStates = await TryLoadAsync(() => Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state"));
-        dataSourceStatesUnavailable = dataSourceStates is null;
-        scraperProgress = await TryLoadAsync(() => Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress"));
-        scraperProgressUnavailable = scraperProgress is null;
-        queueStats = await TryLoadAsync(() => Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats"));
-        queueStatsUnavailable = queueStats is null;
-        rejectedNames = await TryLoadAsync(() => Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names")) ?? rejectedNames;
-        pageViewsDay = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day")) ?? pageViewsDay;
-        pageViewsWeek = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week")) ?? pageViewsWeek;
-        pageViewsMonth = await TryLoadAsync(() => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=month")) ?? pageViewsMonth;
-        lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
-    }
+        if (!await refreshGate.WaitAsync(0))
+        {
+            return;
+        }
 
-    private static async Task<T?> TryLoadAsync<T>(Func<Task<T?>> load)
-    {
         try
         {
-            return await load();
+            var telemetryTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<TelemetryResponse>("/api/telemetry", cancellationToken));
+            var dataSourceStatesTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<List<DataSourceStateItem>>("/api/data-source-state", cancellationToken));
+            var scraperProgressTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<ScraperProgressItem>("/api/scraper-progress", cancellationToken));
+            var queueStatsTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<QueueStatsItem>("/api/event-queue/stats", cancellationToken));
+            var rejectedNamesTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<List<RejectedNameItem>>("/api/rejected-names", cancellationToken));
+            var pageViewsDayTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=day", cancellationToken));
+            var pageViewsWeekTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=week", cancellationToken));
+            var pageViewsMonthTask = TryLoadAsync(
+                cancellationToken => Client.GetFromJsonAsync<PageViewsStatsItem>("/api/page-views/stats?period=month", cancellationToken));
+
+            await Task.WhenAll(
+                telemetryTask,
+                dataSourceStatesTask,
+                scraperProgressTask,
+                queueStatsTask,
+                rejectedNamesTask,
+                pageViewsDayTask,
+                pageViewsWeekTask,
+                pageViewsMonthTask);
+
+            telemetry = await telemetryTask ?? telemetry;
+            dataSourceStates = await dataSourceStatesTask;
+            dataSourceStatesUnavailable = dataSourceStates is null;
+            scraperProgress = await scraperProgressTask;
+            scraperProgressUnavailable = scraperProgress is null;
+            queueStats = await queueStatsTask;
+            queueStatsUnavailable = queueStats is null;
+            rejectedNames = await rejectedNamesTask ?? rejectedNames;
+            pageViewsDay = await pageViewsDayTask ?? pageViewsDay;
+            pageViewsWeek = await pageViewsWeekTask ?? pageViewsWeek;
+            pageViewsMonth = await pageViewsMonthTask ?? pageViewsMonth;
+            lastUpdated = DateTime.UtcNow.ToString("HH:mm:ss 'UTC'");
+        }
+        finally
+        {
+            refreshGate.Release();
+        }
+    }
+
+    private static async Task<T?> TryLoadAsync<T>(Func<CancellationToken, Task<T?>> load)
+    {
+        using var timeoutCts = new CancellationTokenSource(RequestTimeout);
+        try
+        {
+            return await load(timeoutCts.Token);
         }
         catch
         {
@@ -697,6 +739,7 @@ else
     public void Dispose()
     {
         _timer?.Dispose();
+        refreshGate.Dispose();
     }
 
     private class TelemetryResponse

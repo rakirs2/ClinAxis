@@ -290,6 +290,58 @@ public sealed class StatusPageTests
         Assert.IsTrue(markup.Contains("Done 1h", StringComparison.Ordinal), "Heartbeat column header should render");
     }
 
+    [TestMethod]
+    public async Task StatusPageStartsIndependentRequestsConcurrently()
+    {
+        using var ctx = new BunitContext();
+        using var handler = new ConcurrentStatusHandler();
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost:5003") };
+        ctx.Services.AddSingleton(client);
+        _ = ctx.Render<Frontend.Pages.Status>();
+
+        await handler.BothSlowRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        handler.Release.TrySetResult(true);
+    }
+
+    private sealed class ConcurrentStatusHandler : HttpMessageHandler
+    {
+        public TaskCompletionSource<bool> BothSlowRequestsStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private int _slowRequestsStarted;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path is "/api/telemetry" or "/api/scraper-progress")
+            {
+                if (Interlocked.Increment(ref _slowRequestsStarted) == 2)
+                    BothSlowRequestsStarted.TrySetResult(true);
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+
+            var payload = path switch
+            {
+                "/api/telemetry" => "{\"db\":{\"totalStudies\":100,\"totalStudiesLive\":100,\"totalInvestigators\":10,\"totalPubmedPapers\":5,\"totalKeywords\":20,\"totalAuthors\":0},\"enrichment\":{\"totalInvestigators\":10,\"withNpi\":5,\"notFound\":0,\"ambiguous\":0,\"notAttempted\":5,\"npiCoveragePct\":50.0},\"recentEvents\":[]}",
+                "/api/scraper-progress" => "{\"totalAvailable\":100,\"totalInDb\":100,\"percentScraped\":100.0,\"addedLast24h\":0}",
+                "/api/data-source-state" => "[]",
+                "/api/rejected-names" => "[]",
+                _ when path.StartsWith("/api/page-views/stats", StringComparison.Ordinal) => "{\"totalViews\":0,\"uniqueVisitors\":0}",
+                _ => "{\"pendingCount\":0,\"processingCount\":0,\"completedCount\":0,\"deadLetterCount\":0,\"failedCount\":0,\"averageProcessingTimeMs\":0,\"failureRate\":0,\"estimatedTimeRemainingMs\":null}"
+            };
+
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
     private static HttpClient BuildClient(MockHttpMessageHandler mockHttp)
     {
         var client = mockHttp.ToHttpClient();
