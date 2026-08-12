@@ -12,6 +12,17 @@ internal sealed class InMemoryEventQueueService : IEventQueueService
 
     public Exception? ThrowOnGetDeadLetter { get; set; }
 
+    public List<int> LegacyRecoveryEventIds { get; set; } = [];
+
+    public TaskCompletionSource<List<int>> LegacyRecoveryCompleted { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<List<int>> RecoverLegacyDiscoveryEventsAsync(bool apply, CancellationToken ct = default)
+    {
+        LegacyRecoveryCompleted.TrySetResult(LegacyRecoveryEventIds);
+        return Task.FromResult(LegacyRecoveryEventIds);
+    }
+
     public Task EnqueueAsync(string eventType, string? data = null, CancellationToken ct = default) => Task.CompletedTask;
 
     public Task<PipelineEventEntity?> ClaimNextPendingEventAsync(

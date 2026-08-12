@@ -27,6 +27,18 @@ internal sealed class EventProcessingService : BackgroundService
             new EventId(3, "ProgressWriteFailed"),
             "Failed to record in-flight progress for event {EventId}; continuing");
 
+    private static readonly Action<ILogger, int, string, Exception?> LogLegacyEventsRecovered =
+        LoggerMessage.Define<int, string>(
+            LogLevel.Information,
+            new EventId(4, "LegacyEventsRecovered"),
+            "Superseded {Count} legacy count-only discovery events at worker startup: {EventIds}");
+
+    private static readonly Action<ILogger, Exception?> LogLegacyRecoveryFailed =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(5, "LegacyRecoveryFailed"),
+            "Failed to recover legacy count-only discovery events at worker startup");
+
     private readonly IEventQueueService _eventQueueService;
     private readonly IDataSourceStateService _dataSourceStateService;
     private readonly ClinicalTrialsIngestionService _ingestionService;
@@ -61,6 +73,24 @@ internal sealed class EventProcessingService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            var recoveredLegacyEvents = await _eventQueueService
+                .RecoverLegacyDiscoveryEventsAsync(apply: true, stoppingToken)
+                .ConfigureAwait(false);
+            if (recoveredLegacyEvents.Count > 0 && _logger != null && _logger.IsEnabled(LogLevel.Information))
+            {
+                LogLegacyEventsRecovered(_logger, recoveredLegacyEvents.Count, string.Join(",", recoveredLegacyEvents), null);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
+        {
+            if (_logger != null && _logger.IsEnabled(LogLevel.Warning))
+            {
+                LogLegacyRecoveryFailed(_logger, ex);
+            }
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
