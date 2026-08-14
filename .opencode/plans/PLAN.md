@@ -1033,3 +1033,13 @@ repeatedly before its first batch completed.
 - The first validation command ran from the parent worktree after creating the
   new worktree, so the new worktree had no assets files. The correction is to
   run restore/build with the new worktree as the working directory.
+
+## Verification
+
+- `dotnet build ClinicalTrialData.slnx -c Release --no-restore` passed with
+  0 warnings and 0 errors.
+- Full suite passed: DataApi 99, Frontend 114, Scrapers 452, Integration 41;
+  706 total.
+- `bash scripts/test-health-check.sh` passed: 28/28 checks.
+- Added bUnit coverage proving telemetry and scraper-progress requests start
+  concurrently while responses are delayed.
