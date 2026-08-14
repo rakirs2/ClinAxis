@@ -1,3 +1,5 @@
+> Archived 2026-08-14. The MVP roadmap is complete and is retained here for historical reference.
+
 # MVP Framework
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
