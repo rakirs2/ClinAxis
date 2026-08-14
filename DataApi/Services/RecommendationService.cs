@@ -19,7 +19,7 @@ internal class RecommendationService
         var repo = new StudyRepository(_connectionString);
         var prefixes = request.GetAllPrefixes();
 
-        var candidates = await repo.GetInvestigatorFinderCandidatesAsync(prefixes, request.TopN);
+        var candidates = await repo.GetRecommendationCandidatesAsync(prefixes, request.TopN);
         var personIds = candidates.Select(c => c.Uuid).ToList();
         var studyRows = await repo.GetRecommendationStudyRowsAsync(personIds);
         var descriptorNames = await repo.GetDescriptorNamesForPrefixesAsync(prefixes);

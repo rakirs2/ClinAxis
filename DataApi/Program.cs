@@ -98,7 +98,6 @@ app.MapTrainingExportEndpoints(connectionString);
 app.MapPiFeaturesExportEndpoints(connectionString);
 app.MapNpiCandidatesExportEndpoints(connectionString);
 app.MapExportEndpoints(connectionString);
-app.MapInvestigatorFinderEndpoints(connectionString);
 app.MapRecommendationEndpoints(connectionString);
 app.MapPageViewsEndpoints(connectionString);
 

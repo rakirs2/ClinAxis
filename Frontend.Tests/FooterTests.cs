@@ -147,7 +147,7 @@ public sealed class FooterTests
     }
 
     [TestMethod]
-    public void FooterRendersGrandOverlordBadge()
+    public void FooterDoesNotRenderLegacyBadge()
     {
         using BunitContext ctx = new();
         using var mockHttp = new MockHttpMessageHandler();
@@ -157,10 +157,7 @@ public sealed class FooterTests
         IRenderedComponent<MainLayout> cut = ctx.Render<MainLayout>(
             parameters => parameters.Add(p => p.Body, b => b.AddMarkupContent(0, string.Empty)));
 
-        var badge = cut.Find("span.badge");
-        Assert.IsNotNull(badge);
-        Assert.AreEqual("Grand Overlord Uma Mylavarapu", badge.TextContent.Trim());
-        Assert.IsTrue(badge.ClassList.Contains("bg-warning"));
+        Assert.IsFalse(cut.Find("footer").TextContent.Contains("Grand Overlord Uma Mylavarapu", StringComparison.Ordinal));
     }
 
     [TestMethod]

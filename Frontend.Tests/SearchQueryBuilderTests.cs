@@ -60,17 +60,6 @@ public sealed class SearchQueryBuilderTests
     }
 
     [TestMethod]
-    public void BuildStudiesQueryLocationMeshTreePrefixesCommaJoined()
-    {
-        var criteria = NewCriteria();
-        criteria.LocationMeshTreePrefixes = ["Z01.107"];
-
-        var query = SearchQueryBuilder.BuildStudiesQuery(1, 10, criteria);
-
-        StringAssert.Contains(query, "locationMeshTree=Z01.107", StringComparison.Ordinal);
-    }
-
-    [TestMethod]
     public void BuildStudiesQueryConditionsCommaJoinedAndEscaped()
     {
         var criteria = NewCriteria();
@@ -79,43 +68,6 @@ public sealed class SearchQueryBuilderTests
         var query = SearchQueryBuilder.BuildStudiesQuery(1, 10, criteria);
 
         StringAssert.Contains(query, "condition=Diabetes%20Mellitus%2CHypertension", StringComparison.Ordinal);
-    }
-
-    [TestMethod]
-    public void BuildStudiesQueryCountryStateCityAllIncluded()
-    {
-        var criteria = NewCriteria();
-        criteria.Countries = ["United States"];
-        criteria.States = ["California"];
-        criteria.Cities = ["San Francisco"];
-
-        var query = SearchQueryBuilder.BuildStudiesQuery(1, 10, criteria);
-
-        StringAssert.Contains(query, "country=United%20States", StringComparison.Ordinal);
-        StringAssert.Contains(query, "state=California", StringComparison.Ordinal);
-        StringAssert.Contains(query, "city=San%20Francisco", StringComparison.Ordinal);
-    }
-
-    [TestMethod]
-    public void BuildStudiesQueryEmptyFirstCityOmitsCity()
-    {
-        var criteria = NewCriteria();
-        criteria.Cities = [""];
-
-        var query = SearchQueryBuilder.BuildStudiesQuery(1, 10, criteria);
-
-        Assert.IsFalse(query.Contains("city=", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
-    public void BuildStudiesQueryFacilitiesCommaJoined()
-    {
-        var criteria = NewCriteria();
-        criteria.Facilities = ["Stanford", "UCSF"];
-
-        var query = SearchQueryBuilder.BuildStudiesQuery(1, 10, criteria);
-
-        StringAssert.Contains(query, "facility=Stanford%2CUCSF", StringComparison.Ordinal);
     }
 
     [TestMethod]
@@ -152,12 +104,7 @@ public sealed class SearchQueryBuilderTests
         criteria.Statuses = ["RECRUITING"];
         criteria.Phases = ["PHASE2"];
         criteria.MeshTreePrefixes = ["C04"];
-        criteria.LocationMeshTreePrefixes = ["Z01"];
         criteria.Conditions = ["Melanoma"];
-        criteria.Countries = ["US"];
-        criteria.States = ["NY"];
-        criteria.Cities = ["New York"];
-        criteria.Facilities = ["MSK"];
         criteria.EnrollmentMin = 10;
         criteria.EnrollmentMax = 20;
         criteria.StartDateFrom = new DateTime(2021, 3, 1);
@@ -167,8 +114,7 @@ public sealed class SearchQueryBuilderTests
 
         Assert.AreEqual(
             "page=3&pageSize=25&keyword=cancer&status=RECRUITING&phase=PHASE2" +
-            "&meshTree=C04&condition=Melanoma&locationMeshTree=Z01&country=US" +
-            "&state=NY&city=New%20York&facility=MSK&enrollmentMin=10&enrollmentMax=20" +
+            "&meshTree=C04&condition=Melanoma&enrollmentMin=10&enrollmentMax=20" +
             "&startDateFrom=2021-03-01&startDateTo=2022-04-02",
             query);
     }

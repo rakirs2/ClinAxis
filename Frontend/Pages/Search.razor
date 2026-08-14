@@ -113,137 +113,6 @@
             </div>
         </div>
 
-        <div class="row mb-2">
-            <div class="col-md-12">
-                <label class="form-label">Location Mode</label>
-                <div>
-                    <label class="me-3">
-                        <input type="radio" name="locationMode" checked="@_useMeshLocation" @onchange="() => SwitchLocationMode(true)" />
-                        MeSH Geography (normalized)
-                    </label>
-                    <label>
-                        <input type="radio" name="locationMode" checked="@(!_useMeshLocation)" @onchange="() => SwitchLocationMode(false)" />
-                        Raw Locations (distinct DB values)
-                    </label>
-                </div>
-            </div>
-        </div>
-
-        @if (_useMeshLocation)
-        {
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Country (MeSH)</label>
-                    <select id="meshCountrySelect" class="form-select" @onchange="HandleMeshCountryChange">
-                        <option value="">-- Select Country --</option>
-                        @foreach (var loc in availableMeshCountries)
-                        {
-                            <option value="@loc.treeNumber">@loc.name</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">State (MeSH)</label>
-                    <select id="meshStateSelect" class="form-select" @onchange="HandleMeshStateChange" disabled="@(_selectedMeshCountry == null)">
-                        <option value="">-- Select State --</option>
-                        @foreach (var loc in availableMeshStates)
-                        {
-                            <option value="@loc.treeNumber">@loc.name</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">City</label>
-                    <select id="meshCitySelect" class="form-select" @onchange="HandleMeshCityChange" disabled="@(_selectedMeshState == null)">
-                        <option value="">-- Select City --</option>
-                        @foreach (var city in availableCities.OrderBy(c => c))
-                        {
-                            <option value="@city">@city</option>
-                        }
-                    </select>
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-12">
-                    <label class="form-label">Facility</label>
-                    @if (availableFacilities.Count == 0)
-                    {
-                        <p class="text-muted"><small>Select city to see facilities</small></p>
-                    }
-                    else
-                    {
-                        <div class="filter-checkboxes" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-                            @foreach (var facility in availableFacilities.OrderBy(f => f))
-                            {
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" id="facility_@facility" 
-                                           @onchange="@((ChangeEventArgs e) => ToggleFacility(facility, (bool)e.Value!))" />
-                                    <label class="form-check-label" for="facility_@facility">@facility</label>
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Country</label>
-                    <select class="form-select" @onchange="HandleRawCountryChange">
-                        <option value="">-- Select Country --</option>
-                        @foreach (var c in availableRawCountries.OrderBy(c => c))
-                        {
-                            <option value="@c">@c</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">State</label>
-                    <select class="form-select" @onchange="HandleRawStateChange" disabled="@(string.IsNullOrEmpty(_selectedRawCountry))">
-                        <option value="">-- Select State --</option>
-                        @foreach (var s in availableRawStates.OrderBy(s => s))
-                        {
-                            <option value="@s">@s</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">City</label>
-                    <select class="form-select" @onchange="HandleRawCityChange" disabled="@(string.IsNullOrEmpty(_selectedRawState))">
-                        <option value="">-- Select City --</option>
-                        @foreach (var city in availableRawCities.OrderBy(c => c))
-                        {
-                            <option value="@city">@city</option>
-                        }
-                    </select>
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-12">
-                    <label class="form-label">Facility</label>
-                    @if (availableRawFacilities.Count == 0)
-                    {
-                        <p class="text-muted"><small>Select city to see facilities</small></p>
-                    }
-                    else
-                    {
-                        <div class="filter-checkboxes" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-                            @foreach (var facility in availableRawFacilities.OrderBy(f => f))
-                            {
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" id="rawfacility_@facility" 
-                                           @onchange="@((ChangeEventArgs e) => ToggleRawFacility(facility, (bool)e.Value!))" />
-                                    <label class="form-check-label" for="rawfacility_@facility">@facility</label>
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-
         <div class="row mb-3">
             <div class="col-md-4">
                 <label class="form-label">Enrollment Min</label>
@@ -368,28 +237,6 @@ else if (searchExecuted && studies is not null)
     private List<string> statuses = new() { "RECRUITING", "ACTIVE", "COMPLETED", "WITHDRAWN", "SUSPENDED", "TERMINATED", "UNKNOWN" };
     private List<string> phases = new() { "EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA" };
     private List<MeshTreeNode> meshTreeRoots = new();
-    private bool _useMeshLocation = true;
-
-    // MeSH location mode
-    private List<LocationMeshNode> availableMeshCountries = new();
-    private List<LocationMeshNode> availableMeshStates = new();
-    private string? _selectedMeshCountry;
-    private string? _selectedMeshState;
-
-    // Raw location mode
-    private List<string> availableRawCountries = new();
-    private List<string> availableRawStates = new();
-    private List<string> availableRawCities = new();
-    private List<string> availableRawFacilities = new();
-    private string? _selectedRawCountry;
-    private string? _selectedRawState;
-    private string? _selectedRawCity;
-    private List<string> _selectedRawFacilities = new();
-
-    // Shared city/facility (MeSH mode uses these too)
-    private List<string> availableCities = new();
-    private List<string> availableFacilities = new();
-    private string? selectedCity;
 
     // Date filter bindings
     private DateTime? startDateFrom;
@@ -440,7 +287,8 @@ else if (searchExecuted && studies is not null)
         criteria = urlCriteria;
         currentPage = urlPage;
 
-        await Task.WhenAll(LoadMeshTree(null), LoadAllConditions(), LoadMeshCountries());
+        await LoadAllConditions();
+        _ = LoadMeshTree(null);
 
         if (HasActiveFilters(urlCriteria) || urlPage > 1)
         {
@@ -455,11 +303,6 @@ else if (searchExecuted && studies is not null)
             || c.Phases.Count > 0
             || c.Conditions.Count > 0
             || c.MeshTreePrefixes.Count > 0
-            || c.LocationMeshTreePrefixes.Count > 0
-            || c.Countries is { Count: > 0 }
-            || c.States is { Count: > 0 }
-            || c.Cities is { Length: > 0 }
-            || c.Facilities is { Count: > 0 }
             || c.EnrollmentMin.HasValue
             || c.EnrollmentMax.HasValue
             || c.StartDateFrom.HasValue
@@ -569,6 +412,7 @@ else if (searchExecuted && studies is not null)
         finally
         {
             loadingMeshTree = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -615,296 +459,6 @@ else if (searchExecuted && studies is not null)
         await SearchStudies();
     }
 
-    private async Task SwitchLocationMode(bool useMesh)
-    {
-        _useMeshLocation = useMesh;
-        _selectedMeshCountry = null;
-        _selectedMeshState = null;
-        _selectedRawCountry = null;
-        _selectedRawState = null;
-        _selectedRawCity = null;
-        _selectedRawFacilities.Clear();
-        selectedCity = null;
-        availableMeshCountries.Clear();
-        availableMeshStates.Clear();
-        availableRawCountries.Clear();
-        availableRawStates.Clear();
-        availableRawCities.Clear();
-        availableRawFacilities.Clear();
-        availableCities.Clear();
-        availableFacilities.Clear();
-        criteria.LocationMeshTreePrefixes.Clear();
-        criteria.Countries = null;
-        criteria.States = null;
-        criteria.Cities = Array.Empty<string>();
-        criteria.Facilities = null;
-
-        if (_useMeshLocation)
-        {
-            await LoadMeshCountries();
-        }
-        else
-        {
-            await LoadRawCountries();
-        }
-
-        await SearchStudies();
-    }
-
-    private async Task LoadMeshCountries()
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<MeshTreeResponse>("/api/mesh-tree?branch=Z&depth=1");
-            availableMeshCountries = response?.nodes?.Select(n => new LocationMeshNode { treeNumber = n.TreeNumber, name = n.Name }).ToList() ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load countries: {ex.Message}";
-        }
-    }
-
-    private async Task HandleMeshCountryChange(ChangeEventArgs e)
-    {
-        _selectedMeshCountry = e.Value?.ToString();
-        _selectedMeshState = null;
-        selectedCity = null;
-        availableMeshStates.Clear();
-        availableCities.Clear();
-        availableFacilities.Clear();
-
-        if (!string.IsNullOrEmpty(_selectedMeshCountry))
-        {
-            await LoadMeshStates(_selectedMeshCountry);
-        }
-
-        criteria.LocationMeshTreePrefixes = string.IsNullOrEmpty(_selectedMeshCountry) ? new() : new() { _selectedMeshCountry };
-
-        await SearchStudies();
-    }
-
-    private async Task LoadMeshStates(string treeNumber)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<MeshTreeResponse>($"/api/mesh-tree?branch={Uri.EscapeDataString(treeNumber)}&depth=1");
-            availableMeshStates = response?.nodes?.Select(n => new LocationMeshNode { treeNumber = n.TreeNumber, name = n.Name }).ToList() ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load states: {ex.Message}";
-        }
-    }
-
-    private async Task HandleMeshStateChange(ChangeEventArgs e)
-    {
-        _selectedMeshState = e.Value?.ToString();
-        selectedCity = null;
-        availableCities.Clear();
-        availableFacilities.Clear();
-
-        if (!string.IsNullOrEmpty(_selectedMeshState) && !string.IsNullOrEmpty(_selectedMeshCountry))
-        {
-            await LoadCitiesByState(MeshCountryName() ?? "", MeshStateName() ?? "");
-        }
-
-        criteria.LocationMeshTreePrefixes = _selectedMeshCountry is not null ? new() { _selectedMeshCountry } : new();
-        if (!string.IsNullOrEmpty(_selectedMeshState))
-        {
-            criteria.LocationMeshTreePrefixes.Add(_selectedMeshState);
-        }
-
-        await SearchStudies();
-    }
-
-    private async Task HandleMeshCityChange(ChangeEventArgs e)
-    {
-        selectedCity = e.Value?.ToString();
-        availableFacilities.Clear();
-
-        if (!string.IsNullOrEmpty(selectedCity) && !string.IsNullOrEmpty(_selectedMeshCountry) && !string.IsNullOrEmpty(_selectedMeshState))
-        {
-            await LoadFacilitiesByCity(MeshCountryName() ?? "", MeshStateName() ?? "", selectedCity);
-        }
-
-        criteria.Cities = string.IsNullOrEmpty(selectedCity) ? Array.Empty<string>() : new[] { selectedCity };
-
-        await SearchStudies();
-    }
-
-    /// <summary>MeSH descriptor name ("United States") — the /api/distinct-locations
-    /// cascade matches canonical normalized values, not Z-tree numbers.</summary>
-    private string? MeshCountryName()
-    {
-        return availableMeshCountries.FirstOrDefault(c => c.treeNumber == _selectedMeshCountry)?.name;
-    }
-
-    private string? MeshStateName()
-    {
-        return availableMeshStates.FirstOrDefault(s => s.treeNumber == _selectedMeshState)?.name;
-    }
-
-    private async Task LoadRawCountries()
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>("/api/distinct-locations");
-            availableRawCountries = response?.countries ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load countries: {ex.Message}";
-        }
-    }
-
-    private async Task HandleRawCountryChange(ChangeEventArgs e)
-    {
-        _selectedRawCountry = e.Value?.ToString();
-        _selectedRawState = null;
-        _selectedRawCity = null;
-        _selectedRawFacilities.Clear();
-        availableRawStates.Clear();
-        availableRawCities.Clear();
-        availableRawFacilities.Clear();
-        criteria.Countries = string.IsNullOrEmpty(_selectedRawCountry) ? null : new List<string> { _selectedRawCountry };
-        criteria.States = null;
-        criteria.Cities = Array.Empty<string>();
-        criteria.Facilities = null;
-
-        if (!string.IsNullOrEmpty(_selectedRawCountry))
-        {
-            await LoadRawStates(_selectedRawCountry);
-        }
-
-        await SearchStudies();
-    }
-
-    private async Task LoadRawStates(string country)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>($"/api/distinct-locations?country={Uri.EscapeDataString(country)}");
-            availableRawStates = response?.states ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load states: {ex.Message}";
-        }
-    }
-
-    private async Task HandleRawStateChange(ChangeEventArgs e)
-    {
-        _selectedRawState = e.Value?.ToString();
-        _selectedRawCity = null;
-        _selectedRawFacilities.Clear();
-        availableRawCities.Clear();
-        availableRawFacilities.Clear();
-        criteria.States = string.IsNullOrEmpty(_selectedRawState) ? null : new List<string> { _selectedRawState };
-        criteria.Cities = Array.Empty<string>();
-        criteria.Facilities = null;
-
-        if (!string.IsNullOrEmpty(_selectedRawState) && !string.IsNullOrEmpty(_selectedRawCountry))
-        {
-            await LoadRawCities(_selectedRawCountry, _selectedRawState);
-        }
-
-        await SearchStudies();
-    }
-
-    private async Task LoadRawCities(string country, string state)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>(
-                $"/api/distinct-locations?country={Uri.EscapeDataString(country)}&state={Uri.EscapeDataString(state)}");
-            availableRawCities = response?.cities ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load cities: {ex.Message}";
-        }
-    }
-
-    private async Task HandleRawCityChange(ChangeEventArgs e)
-    {
-        _selectedRawCity = e.Value?.ToString();
-        availableRawFacilities.Clear();
-        criteria.Cities = string.IsNullOrEmpty(_selectedRawCity) ? Array.Empty<string>() : new[] { _selectedRawCity };
-        criteria.Facilities = null;
-
-        if (!string.IsNullOrEmpty(_selectedRawCity) && !string.IsNullOrEmpty(_selectedRawCountry) && !string.IsNullOrEmpty(_selectedRawState))
-        {
-            await LoadRawFacilities(_selectedRawCountry, _selectedRawState, _selectedRawCity);
-        }
-
-        await SearchStudies();
-    }
-
-    private async Task LoadRawFacilities(string country, string state, string city)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>(
-                $"/api/distinct-locations?country={Uri.EscapeDataString(country)}&state={Uri.EscapeDataString(state)}&city={Uri.EscapeDataString(city)}");
-            availableRawFacilities = response?.facilities ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load facilities: {ex.Message}";
-        }
-    }
-
-    private async Task ToggleRawFacility(string facility, bool isChecked)
-    {
-        if (isChecked)
-        {
-            if (!_selectedRawFacilities.Contains(facility))
-                _selectedRawFacilities.Add(facility);
-        }
-        else
-        {
-            _selectedRawFacilities.Remove(facility);
-        }
-        criteria.Facilities = _selectedRawFacilities.Count > 0 ? _selectedRawFacilities.ToList() : null;
-        await SearchStudies();
-    }
-
-    private async Task LoadCitiesByState(string country, string state)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>(
-                $"/api/distinct-locations?country={Uri.EscapeDataString(country)}&state={Uri.EscapeDataString(state)}");
-            availableCities = response?.cities ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load cities: {ex.Message}";
-        }
-    }
-
-    private async Task LoadFacilitiesByCity(string countryTn, string stateTn, string city)
-    {
-        try
-        {
-            HttpClient client = HttpClientFactory.CreateClient("DataApi");
-            var response = await client.GetFromJsonAsync<LocationsResponse>(
-                $"/api/distinct-locations?country={Uri.EscapeDataString(countryTn)}&state={Uri.EscapeDataString(stateTn)}&city={Uri.EscapeDataString(city)}");
-            availableFacilities = response?.facilities ?? new();
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to load facilities: {ex.Message}";
-        }
-    }
-
     private async Task ToggleStatus(string status, bool isChecked)
     {
         if (isChecked)
@@ -929,21 +483,6 @@ else if (searchExecuted && studies is not null)
         else
         {
             criteria.Phases.Remove(phase);
-        }
-        await SearchStudies();
-    }
-
-    private async Task ToggleFacility(string facility, bool isChecked)
-    {
-        criteria.Facilities ??= new List<string>();
-        if (isChecked)
-        {
-            if (!criteria.Facilities.Contains(facility))
-                criteria.Facilities.Add(facility);
-        }
-        else
-        {
-            criteria.Facilities.Remove(facility);
         }
         await SearchStudies();
     }
@@ -1000,39 +539,16 @@ else if (searchExecuted && studies is not null)
     private async Task ResetFilters()
     {
         criteria = new();
-        _selectedMeshCountry = null;
-        _selectedMeshState = null;
-        _selectedRawCountry = null;
-        _selectedRawState = null;
-        _selectedRawCity = null;
-        _selectedRawFacilities.Clear();
-        selectedCity = null;
         selectedBranch = null;
         conditionSearchText = "";
         filteredConditions.Clear();
         startDateFrom = null;
         startDateTo = null;
-        availableMeshStates.Clear();
-        availableCities.Clear();
-        availableFacilities.Clear();
-        availableRawCountries.Clear();
-        availableRawStates.Clear();
-        availableRawCities.Clear();
-        availableRawFacilities.Clear();
         studies = null;
         searchExecuted = false;
         error = null;
         await JS.InvokeVoidAsync("meshTree.clear", "meshTreeContainer");
         await LoadMeshTree(null);
-
-        if (_useMeshLocation)
-        {
-            await LoadMeshCountries();
-        }
-        else
-        {
-            await LoadRawCountries();
-        }
 
         NavigationManager.NavigateTo("/", replace: true);
     }
@@ -1064,16 +580,6 @@ else if (searchExecuted && studies is not null)
         public List<string>? phases { get; set; }
         public int? enrollmentCount { get; set; }
     }
-
-    private class LocationsResponse
-    {
-        public List<string>? countries { get; set; }
-        public List<string>? states { get; set; }
-        public List<string>? cities { get; set; }
-        public List<string>? facilities { get; set; }
-    }
-
-    private class LocationMeshNode { public string treeNumber { get; set; } = ""; public string name { get; set; } = ""; }
 
     private class MeshTreeResponse { public string? branch { get; set; } public List<MeshTreeNode>? nodes { get; set; } }
 

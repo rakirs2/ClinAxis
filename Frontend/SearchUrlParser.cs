@@ -42,21 +42,6 @@ internal static class SearchUrlParser
                 case "meshTree":
                     criteria.MeshTreePrefixes = SplitCsv(value);
                     break;
-                case "locationMeshTree":
-                    criteria.LocationMeshTreePrefixes = SplitCsv(value);
-                    break;
-                case "country":
-                    criteria.Countries = SplitCsv(value);
-                    break;
-                case "state":
-                    criteria.States = SplitCsv(value);
-                    break;
-                case "city":
-                    criteria.Cities = SplitCsv(value).ToArray();
-                    break;
-                case "facility":
-                    criteria.Facilities = SplitCsv(value);
-                    break;
                 case "enrollmentMin":
                     criteria.EnrollmentMin = TryParseInt(value);
                     break;

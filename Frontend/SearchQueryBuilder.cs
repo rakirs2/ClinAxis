@@ -25,27 +25,6 @@ internal static class SearchQueryBuilder
         if (criteria.Conditions.Count > 0)
             queryParams.Add($"condition={Uri.EscapeDataString(string.Join(",", criteria.Conditions))}");
 
-        if (criteria.LocationMeshTreePrefixes.Count > 0)
-            queryParams.Add($"locationMeshTree={Uri.EscapeDataString(string.Join(",", criteria.LocationMeshTreePrefixes))}");
-
-        if (criteria.Countries is { Count: > 0 })
-            queryParams.Add($"country={Uri.EscapeDataString(string.Join(",", criteria.Countries))}");
-
-        if (criteria.States is { Count: > 0 })
-            queryParams.Add($"state={Uri.EscapeDataString(string.Join(",", criteria.States))}");
-
-        if (criteria.Cities is { Length: > 0 })
-        {
-            var cities = criteria.Cities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
-            if (cities.Count > 0)
-            {
-                queryParams.Add($"city={Uri.EscapeDataString(string.Join(",", cities))}");
-            }
-        }
-
-        if (criteria.Facilities is { Count: > 0 })
-            queryParams.Add($"facility={Uri.EscapeDataString(string.Join(",", criteria.Facilities))}");
-
         if (criteria.EnrollmentMin.HasValue)
             queryParams.Add($"enrollmentMin={criteria.EnrollmentMin}");
 
