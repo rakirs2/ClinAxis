@@ -33,7 +33,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          lfs: true
+          lfs: false
+
+      - name: Restore Git LFS cache
+        id: lfs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Fetch Git LFS assets
+        run: git lfs pull && git lfs checkout
+
+      - name: Save Git LFS cache
+        if: github.ref == 'refs/heads/main' && steps.lfs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
+
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'

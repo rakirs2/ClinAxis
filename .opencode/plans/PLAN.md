@@ -1048,3 +1048,17 @@ repeatedly before its first batch completed.
   5001. This preserves Blazor Server SignalR on the same HTTPS origin.
 - Watchdog checks use the public HTTPS routes so certificate, Caddy, Frontend,
   and DataApi failures are observable together.
+
+---
+
+# Git LFS CI cost reduction
+
+## Decision
+
+- Keep LFS enabled only for workflows that build or test model-dependent code.
+- Checkout pointer files first, restore `.git/lfs/objects` from the GitHub
+  Actions cache, then fetch only missing objects with `git lfs pull`.
+- Save the cache only from trusted `main` runs so pull requests cannot write to
+  the shared cache scope.
+- Watchdog and recovery workflows do not need repository assets and remain
+  LFS-free.
