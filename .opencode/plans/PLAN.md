@@ -1033,3 +1033,32 @@ repeatedly before its first batch completed.
 - The first validation command ran from the parent worktree after creating the
   new worktree, so the new worktree had no assets files. The correction is to
   run restore/build with the new worktree as the working directory.
+
+---
+
+# P7 Caddy public-domain deployment
+
+## Decision
+
+- Use Caddy as a Docker Compose service instead of installing a host-level
+  package. This follows the repository's Docker deployment standard and keeps
+  TLS state in persistent Docker volumes.
+- Caddy serves `clinaxis.org` and `www.clinaxis.org`, proxies `/api/*` to
+  DataApi on port 5003, and proxies all other paths to the Frontend on port
+  5001. This preserves Blazor Server SignalR on the same HTTPS origin.
+- Watchdog checks use the public HTTPS routes so certificate, Caddy, Frontend,
+  and DataApi failures are observable together.
+
+---
+
+# Git LFS CI cost reduction
+
+## Decision
+
+- Keep LFS enabled only for workflows that build or test model-dependent code.
+- Checkout pointer files first, restore `.git/lfs/objects` from the GitHub
+  Actions cache, then fetch only missing objects with `git lfs pull`.
+- Save the cache only from trusted `main` runs so pull requests cannot write to
+  the shared cache scope.
+- Watchdog and recovery workflows do not need repository assets and remain
+  LFS-free.

@@ -67,47 +67,33 @@ Integration tests connect to a real PostgreSQL via Testcontainers and real Clini
 
 ## Deployment to Production
 
-Services deploy independently to a single DigitalOcean Droplet via GitHub Actions:
+Services deploy to a single DigitalOcean Droplet via the Docker deployment workflow.
 
-### Automatic Deployment
+### Docker Deployment
 
-Push code changes to `main` and GitHub Actions automatically deploys only the changed service:
+Trigger `.github/workflows/deploy-docker.yml` manually from **Actions**. The workflow
+builds and pushes the DataApi, Frontend, and IngestionApp images, applies migrations,
+then starts all services under `/opt/clinicaltrialdata/`.
 
-- **DataApi** changes (`DataApi/**`) → `deploy-dataapi.yml` runs
-- **Frontend** changes (`Frontend/**`) → `deploy-frontend.yml` runs  
-- **IngestionApp** changes (`IngestionApp/**` or `Scrapers/**`) → `deploy-ingestion.yml` runs
+Caddy runs alongside the application containers with host networking. It terminates
+TLS for `https://clinaxis.org` and `https://www.clinaxis.org`, proxies `/api/*` to
+DataApi, and proxies the Frontend and Blazor Server SignalR traffic to port 5001.
+Certificate state is retained in Docker volumes so Caddy can renew certificates
+automatically.
 
-Each workflow:
-1. Builds the service with `dotnet publish --self-contained -r linux-x64`
-2. Generates a migration bundle via `dotnet ef migrations bundle --self-contained -r linux-x64`
-3. SSHes to the droplet using GitHub Secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`)
-4. Deploys binaries to `/opt/clinicaltrialdata/{service}/`
-5. Copies the migration bundle to `/opt/clinicaltrialdata/efbundle`
-6. Stops all services
-7. Applies pending migrations via `./efbundle --connection "$PROD_DB_CONNECTION"`
-8. Restarts services
-9. Validates health before completing
-
-### Manual Deployment
-
-Trigger deployment manually via GitHub UI:
-- Go to **Actions** → select **Deploy DataApi** (or Frontend/IngestionApp)
-- Click **Run workflow** → **Run workflow**
-
-### Systemd Services on Droplet
+### Droplet Services
 
 ```bash
-sudo systemctl restart clinicaltrialdata-api      # DataApi
-sudo systemctl restart clinicaltrialdata-frontend # Frontend
-sudo systemctl restart clinicaltrialdata-ingestion # IngestionApp
-sudo systemctl status clinicaltrialdata-*         # Check all
-sudo journalctl -u clinicaltrialdata-api -f       # View logs
+sudo docker compose --env-file /opt/clinicaltrialdata/.env \
+  -f /opt/clinicaltrialdata/docker-compose.yml ps
+sudo docker logs clinicaltrialdata-caddy --tail 200
+sudo docker logs clinicaltrialdata-api --tail 200
 ```
 
 ### Health Checks
 
-- **DataApi**: `GET /health` → `200 OK` with `{"status":"healthy"}`
-- **Frontend**: Any `200` response on `GET /` indicates health
+- **Public Frontend**: `GET https://clinaxis.org/health` → `200 OK`
+- **Public DataApi**: `GET https://clinaxis.org/api/data-source-state` → `200 OK`
 - **IngestionApp**: Background service, no health endpoint
 
 For details on the deployment architecture, see `docs/scraper_architecture.md` → "Architecture Decisions" section.

@@ -68,6 +68,8 @@ DATA_SOURCE_BACKFILL_STUCK="$WORK_DIR/data-source-backfill-stuck.json"
 EVENT_QUEUE_NO_CHUNKS="$WORK_DIR/event-queue-no-chunks.json"
 EVENT_QUEUE_CHUNKS_ACTIVE="$WORK_DIR/event-queue-chunks-active.json"
 SCRAPER_PROGRESS="$WORK_DIR/scraper-progress.json"
+FRONTEND_HEALTH_OK="$WORK_DIR/frontend-health-ok.json"
+FRONTEND_HEALTH_BAD="$WORK_DIR/frontend-health-bad.json"
 
 printf '{"deadLetterCount": 3, "pendingCount": 5, "failureRate": 0.02}' > "$EVENT_QUEUE_OK"
 printf '{"deadLetterCount": 176, "pendingCount": 0, "failureRate": 0.9}' > "$EVENT_QUEUE_DLQ"
@@ -96,6 +98,8 @@ cat > "$DATA_SOURCE_BACKFILL_STUCK" <<EOF
   "backfillStatus": "in-progress", "backfillRemainingStudies": 300000, "backfillStartedUtc": "$stuck_since"}]
 EOF
 printf '{"totalAvailable": 600000, "totalInDb": 37477, "percentScraped": 6.2}' > "$SCRAPER_PROGRESS"
+printf '{"status": "Healthy", "application": "Frontend"}' > "$FRONTEND_HEALTH_OK"
+printf '{"status": "Unhealthy", "application": "Frontend"}' > "$FRONTEND_HEALTH_BAD"
 
 # --- pure check functions ---
 
@@ -125,14 +129,32 @@ assert_clean "$(check_backfill_stuck "$DATA_SOURCE_BACKFILL_STUCK" "$EVENT_QUEUE
 assert_finding "backfill: sweep in-progress but no chunk events active (remaining=300000)" \
   "$(check_backfill_stuck "$DATA_SOURCE_BACKFILL_STUCK" "$EVENT_QUEUE_NO_CHUNKS")"
 
+echo "== check_frontend_health =="
+assert_clean "$(check_frontend_health "$FRONTEND_HEALTH_OK")"
+assert_finding "frontend: status=Unhealthy" "$(check_frontend_health "$FRONTEND_HEALTH_BAD")"
+
 echo "== full script: healthy =="
-output=$("$SCRIPT_DIR/health-check.sh" --event-queue "$EVENT_QUEUE_OK" --data-source "$DATA_SOURCE_OK")
+output=$("$SCRIPT_DIR/health-check.sh" --event-queue "$EVENT_QUEUE_OK" --data-source "$DATA_SOURCE_OK" \
+  --frontend-health "$FRONTEND_HEALTH_OK")
 if [[ $? -ne 0 ]]; then
   fail "healthy run should exit 0"
 else
   pass
 fi
 assert_finding "OK: all watchdog checks passed" "$output"
+
+echo "== full script: frontend unavailable =="
+set +e
+output=$("$SCRIPT_DIR/health-check.sh" --event-queue "$EVENT_QUEUE_OK" --data-source "$DATA_SOURCE_OK" \
+  --frontend-health "$WORK_DIR/does-not-exist.json" 2>/dev/null)
+rc=$?
+set -e
+if [[ $rc -ne 1 ]]; then
+  fail "frontend failure run should exit 1 (got $rc)"
+else
+  pass
+fi
+assert_finding "frontend: endpoint payload missing" "$output"
 
 echo "== full script: DLQ alert =="
 set +e

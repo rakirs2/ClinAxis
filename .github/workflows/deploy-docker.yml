@@ -25,6 +25,7 @@ env:
   IMAGE_API: rakirs2/clinicaltrialdata-api
   IMAGE_FRONTEND: rakirs2/clinicaltrialdata-frontend
   IMAGE_INGESTION: rakirs2/clinicaltrialdata-ingestion
+  PUBLIC_DOMAIN: clinaxis.org
 
 jobs:
   deploy:
@@ -32,7 +33,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          lfs: true
+          lfs: false
+
+      - name: Restore Git LFS cache
+        id: lfs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Fetch Git LFS assets
+        run: git lfs pull && git lfs checkout
+
+      - name: Save Git LFS cache
+        if: github.ref == 'refs/heads/main' && steps.lfs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
+
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
@@ -133,6 +154,7 @@ jobs:
           echo "--- Copy docker-compose.yml (with production image tags) ---"
           sed "s|:latest|:${{ inputs.tag }}|g" docker-compose.yml > /tmp/docker-compose.prod.yml
           copy /tmp/docker-compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$R/docker-compose.yml"
+          copy Caddyfile "$DEPLOY_USER@$DEPLOY_HOST:$R/Caddyfile"
 
           echo "--- Write .env file ---"
           printf "POSTGRES_CONNECTION_STRING=%s\nINGESTION_STUDY_LIMIT=0\n" \
@@ -162,18 +184,37 @@ jobs:
           echo "--- Start Docker containers ---"
           remote "cd $R && sudo docker compose --env-file $R/.env up -d --wait --wait-timeout 60"
 
-          echo "--- Health check ---"
-          remote "for i in \$(seq 1 10); do
-            code=\$(curl -s -o /dev/null -w '%{http_code}' \
-              --max-time 30 http://localhost:5003/health 2>/dev/null || echo '000')
-            if [ \"\$code\" = \"200\" ]; then
-              echo 'Docker deploy healthy'; break
-            fi
-            if [ \"\$i\" = \"10\" ]; then
-              echo 'FATAL: Docker deploy health check failed'; exit 1
-            fi
-            sleep 3
+          echo "--- Internal health checks ---"
+          remote "for port in 5003 5001; do
+            for i in \$(seq 1 10); do
+              code=\$(curl -s -o /dev/null -w '%{http_code}' \
+                --max-time 30 http://localhost:\$port/health 2>/dev/null || echo '000')
+              if [ \"\$code\" = \"200\" ]; then
+                echo \"Internal port \$port healthy\"; break
+              fi
+              if [ \"\$i\" = \"10\" ]; then
+                echo \"FATAL: internal port \$port health check failed\"; exit 1
+              fi
+              sleep 3
+            done
           done"
+
+          echo "--- Public HTTPS health checks ---"
+          for host in "$PUBLIC_DOMAIN" "www.$PUBLIC_DOMAIN"; do
+            for i in $(seq 1 20); do
+              if curl -fsS --max-time 30 "https://$host/health" >/dev/null; then
+                echo "Public HTTPS healthy: $host"
+                break
+              fi
+              if [ "$i" = "20" ]; then
+                echo "FATAL: public HTTPS health check failed: $host"
+                exit 1
+              fi
+              sleep 3
+            done
+          done
+          curl -fsS --max-time 30 "https://$PUBLIC_DOMAIN/api/data-source-state" >/dev/null
+          echo "Public DataApi routing healthy: $PUBLIC_DOMAIN/api/data-source-state"
 
           echo "--- Validate pipeline scrape ---"
           # The ingestion loop may legitimately remain syncing while it drains a

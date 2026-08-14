@@ -1,6 +1,8 @@
 name: .NET CI
 
 on:
+  push:
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -28,7 +30,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          lfs: true
+          lfs: false
+
+      - name: Restore Git LFS cache
+        id: lfs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
+          restore-keys: |
+            lfs-${{ runner.os }}-
+
+      - name: Fetch Git LFS assets
+        run: git lfs pull && git lfs checkout
+
+      - name: Save Git LFS cache
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.lfs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
