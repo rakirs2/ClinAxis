@@ -15,7 +15,7 @@ Two parallel pipelines for normalizing ClinicalTrials.gov conditions to MeSH ter
 
 Maps raw CT.gov conditions and keywords to MeSH 2026 descriptors using
 `sentence-transformers/all-MiniLM-L6-v2` sentence embeddings with cosine
-similarity. This is the production MVP embedding bundle.
+similarity. This is the production embedding bundle.
 
 ### Steps
 

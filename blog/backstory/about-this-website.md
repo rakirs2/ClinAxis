@@ -15,13 +15,13 @@ First and foremost, I do not have any experience in Clinical Trials. My sister, 
 
 This blog is just a running list of my technical thoughts as I developed this-- mostly to give myself (and the agent I'm using) some background into the context, story trials etc. of things as they get done.
 
-## MVP
+## Product Direction
 A user searchable tool in order to find the "Best" PI based off a given set of contraints.
 
 ## Constraints
 1. Try to avoid reinvetning the wheel
 1. Minimal resource consumption
-1. Speed to MVP is the most important at this time
+1. Speed to the initial release was the most important constraint
 1. No manual coding -- everything done via some sort of AI.
 
 ## Future directions

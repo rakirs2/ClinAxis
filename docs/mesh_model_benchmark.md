@@ -12,7 +12,7 @@ for inference and the MeSH scan. Warm measurements reuse the matcher cache.
 Quality checks use the locally captured condition and keyword label files.
 
 The former BioBERT resource bundle is the baseline. MiniLM-L6-v2 is now the
-selected MVP resource bundle; the decision favors throughput over exact
+selected production resource bundle; the decision favors throughput over exact
 agreement with the previous embedding model.
 
 ## Performance
@@ -50,7 +50,7 @@ thresholds.
 ### INT8 BioBERT
 
 Dynamic INT8 quantization is easy to deploy, but the measured speedup is well
-below the 50% MVP target. On the 364-term comparison it changed acceptance for
+below the 50% throughput target. On the 364-term comparison it changed acceptance for
 6 terms and the top CUI for 8 terms. It is not the preferred next step.
 
 ### DistilBERT Sentence-Transformer
@@ -60,17 +60,17 @@ higher after threshold calibration. However, keyword recall did not improve,
 and it does not meet the 50% speed target. It remains a valid fallback if
 domain-specific quality is preferred over maximum throughput.
 
-### MiniLM-L6-v2, Selected for MVP
+### MiniLM-L6-v2, Selected for Production
 
 MiniLM meets the speed target by a wide margin and produced the strongest
 keyword recall in this local sample. It also preserved condition F1 relative to
 BioBERT after lowering the threshold to `0.55`. Its generic model training and
-changed MeSH top-CUI choices are accepted as an MVP tradeoff; the mapping drift
-should be monitored through the DataQuality review path.
+changed MeSH top-CUI choices are accepted as a production throughput tradeoff;
+the mapping drift should be monitored through the DataQuality review path.
 
 ## Decision
 
-Use MiniLM-L6-v2 for the MVP production resource bundle.
+Use MiniLM-L6-v2 for the production resource bundle.
 
 Follow-up work can include:
 

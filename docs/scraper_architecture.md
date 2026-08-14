@@ -447,13 +447,13 @@ None. All API fields must be persisted.
 
 1. **Acronym expansion (issue #355):** whole-keyword acronyms (`MI`, `CVA`, `DKA`, `PE`, `DVT`, `ARDS`, `MRSA`, `AF`, `HF`, …) are expanded to their canonical medical term *before* the length and blocklist rules. The expanded term is what is persisted (`study_keywords`) and evaluated against MeSH. Both raw and expanded forms are recorded in `rejected_terms`, so acceptance is analyzable.
 2. **Design-descriptor allowlist (issue #343):** trial-design/phase descriptors (randomised controlled trial, pilot study, open label, …) bypass the junk blocklist.
-3. **MeSH gate (issue #343):** structural rejections (short/odd tokens) that match a MeSH descriptor at ≥ 0.55 are kept. The MVP matcher uses uncased `sentence-transformers/all-MiniLM-L6-v2` embeddings (384 dimensions) with normalized vectors. The threshold was calibrated on the available labeled conditions and keyword samples; generic junk remains subject to the blocklist and is not rescued solely by similarity.
+3. **MeSH gate (issue #343):** structural rejections (short/odd tokens) that match a MeSH descriptor at ≥ 0.55 are kept. The production matcher uses uncased `sentence-transformers/all-MiniLM-L6-v2` embeddings (384 dimensions) with normalized vectors. The threshold was calibrated on the available labeled conditions and keyword samples; generic junk remains subject to the blocklist and is not rescued solely by similarity.
 
 **Rationale:** The CT.gov keyword field is a mixture of genuine condition descriptors and study-design noise. Filtering only by a static blocklist silently dropped valid acronyms and design terms; the layered acceptance keeps the junk out while preserving real signal. Acronym expansion is stored (not just matched) so keyword search and aggregation operate on canonical terms; the raw form remains reconstructible from the expansion map.
 
 **Single matcher (P4 step ⑤, PR #444):** the embedding matcher is the single matcher gating acceptance — the rule-based Side A (`IsValidConditionSimple`, `side_a_valid`) was removed after the A/B sampling read path (PR #440) showed the gate was already embedding-only (`Accepted => SideBMatched`). `rejected_terms` now records only embedding outcomes (`side_b_matched`, `side_b_mesh_term`, `side_b_similarity`, `accepted`), and the DataQuality Keyword Gate tab surfaces the similarity-band distribution for false-reject-rate sampling.
 
-**Intentionally ignored (documented):** keywords are only processed when the record has `overallOfficials` (pre-existing `if (!incomplete)` skip). The MVP MiniLM tokenizer is uncased, so query casing is normalized and case variants share memo-cache entries.
+**Intentionally ignored (documented):** keywords are only processed when the record has `overallOfficials` (pre-existing `if (!incomplete)` skip). The production MiniLM tokenizer is uncased, so query casing is normalized and case variants share memo-cache entries.
 
 ### 7.8 Location Normalization (issue #380)
 
