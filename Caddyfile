@@ -1,0 +1,16 @@
+{
+	admin off
+}
+
+clinaxis.org, www.clinaxis.org {
+	encode gzip
+
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:5003
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:5001
+	}
+}

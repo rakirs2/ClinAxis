@@ -24,6 +24,7 @@ Usage: health-check.sh [options]
   --event-queue FILE        JSON payload of /api/event-queue/stats (required)
   --data-source FILE        JSON payload of /api/data-source-state (required)
   --scraper-progress FILE   JSON payload of /api/scraper-progress (optional; included in alert body)
+  --frontend-health FILE    JSON payload of /health (optional; must report Healthy)
   --alert-file FILE         write the alert body to FILE (default: stdout)
   --dlq-threshold N         dead-letter alert threshold (default: 10)
   --stale-hours N           max age of lastSyncTimestamp in hours (default: 6)
@@ -165,11 +166,28 @@ for s in states:
 PYEOF
 }
 
+check_frontend_health() {
+  python3 - "$1" <<'PYEOF'
+import json, sys
+
+try:
+    payload = json.load(open(sys.argv[1]))
+except (OSError, ValueError, json.JSONDecodeError):
+    print("frontend: payload unparseable")
+    sys.exit(0)
+
+status = payload.get('status')
+if status != 'Healthy':
+    print(f"frontend: status={status or 'missing'}")
+PYEOF
+}
+
 main() {
   local ALERT_FILE=""
   local EVENT_QUEUE_JSON=""
   local DATA_SOURCE_JSON=""
   local SCRAPER_PROGRESS_JSON=""
+  local FRONTEND_HEALTH_JSON=""
   local -a FAILURES=()
 
   while [[ $# -gt 0 ]]; do
@@ -177,6 +195,7 @@ main() {
       --event-queue) EVENT_QUEUE_JSON="${2:-}"; shift 2 ;;
       --data-source) DATA_SOURCE_JSON="${2:-}"; shift 2 ;;
       --scraper-progress) SCRAPER_PROGRESS_JSON="${2:-}"; shift 2 ;;
+      --frontend-health) FRONTEND_HEALTH_JSON="${2:-}"; shift 2 ;;
       --alert-file) ALERT_FILE="${2:-}"; shift 2 ;;
       --dlq-threshold) WATCHDOG_DLQ_THRESHOLD="${2:-}"; shift 2 ;;
       --stale-hours) WATCHDOG_STALE_HOURS="${2:-}"; shift 2 ;;
@@ -215,6 +234,14 @@ main() {
     FAILURES+=("data-source: endpoint payload missing (fetch failed?)")
   fi
 
+  if [[ -n "$FRONTEND_HEALTH_JSON" ]]; then
+    if [[ -f "$FRONTEND_HEALTH_JSON" ]]; then
+      collect check_frontend_health "$FRONTEND_HEALTH_JSON"
+    else
+      FAILURES+=("frontend: endpoint payload missing (fetch failed?)")
+    fi
+  fi
+
   build_body() {
     local checked_at
     checked_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -247,6 +274,13 @@ main() {
         echo "**/api/scraper-progress**"
         echo '```json'
         cat "$SCRAPER_PROGRESS_JSON"
+        echo '```'
+      fi
+      if [[ -n "$FRONTEND_HEALTH_JSON" && -f "$FRONTEND_HEALTH_JSON" ]]; then
+        echo ""
+        echo "**/health**"
+        echo '```json'
+        cat "$FRONTEND_HEALTH_JSON"
         echo '```'
       fi
     }

@@ -159,14 +159,15 @@ Key triage fields in each JSON log line: `EventId`, `PersonName` (lookup failure
 ## Watchdog Alerts (stall/DLQ)
 
 The **Watchdog** workflow (`.github/workflows/watchdog.yml`) runs every 3 hours (and
-`workflow_dispatch` for manual runs). It SSHes to the droplet (via the `DEPLOY_*` secrets)
-and evaluates the DataApi endpoints:
+`workflow_dispatch` for manual runs). It evaluates the public HTTPS endpoints at
+`https://clinaxis.org`:
 
 | Check | Endpoint | Alert condition (default) |
 |-------|----------|---------------------------|
 | Dead-letter queue | `/api/event-queue/stats` | `deadLetterCount` > 10 |
 | Stale sync | `/api/data-source-state` | `lastSyncTimestamp` older than 48h |
 | Stuck status | `/api/data-source-state` | status != `idle` for more than 6h |
+| Frontend/TLS availability | `/health` | endpoint unavailable or not `Healthy` |
 
 **How alerts are triggered:** when any check fails (or an endpoint is unreachable — e.g.
 the droplet/SSH is down), the workflow opens a GitHub issue labeled `watchdog` with the

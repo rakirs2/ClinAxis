@@ -19,33 +19,19 @@ jobs:
       - name: Fetch instance health endpoints
         id: fetch
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PUBLIC_BASE_URL: https://clinaxis.org
         run: |
           set -euo pipefail
 
-          SSH_KEY_FILE=$(mktemp)
-          echo "$DEPLOY_SSH_KEY" > "$SSH_KEY_FILE"
-          chmod 600 "$SSH_KEY_FILE"
-
-          remote() {
-            ssh -i "$SSH_KEY_FILE" -o ConnectTimeout=15 -o ServerAliveInterval=15 \
-              -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no \
-              "$DEPLOY_USER@$DEPLOY_HOST" "$@"
-          }
-
           mkdir -p /tmp/watchdog
-          remote 'curl -sf --max-time 30 http://localhost:5003/api/event-queue/stats' \
-            > /tmp/watchdog/event-queue.json || echo "event-queue" >> /tmp/watchdog/failures
-          remote 'curl -sf --max-time 30 http://localhost:5003/api/data-source-state' \
-            > /tmp/watchdog/data-source.json || echo "data-source" >> /tmp/watchdog/failures
-          remote 'curl -sf --max-time 30 http://localhost:5003/api/scraper-progress' \
-            > /tmp/watchdog/scraper-progress.json || echo "scraper-progress" >> /tmp/watchdog/failures
-
-          if [[ -f /tmp/watchdog/failures ]]; then
-            echo "Fetch failed for: $(tr '\n' ' ' < /tmp/watchdog/failures)"
-          fi
+          curl -sf --max-time 30 "$PUBLIC_BASE_URL/api/event-queue/stats" \
+            > /tmp/watchdog/event-queue.json || true
+          curl -sf --max-time 30 "$PUBLIC_BASE_URL/api/data-source-state" \
+            > /tmp/watchdog/data-source.json || true
+          curl -sf --max-time 30 "$PUBLIC_BASE_URL/api/scraper-progress" \
+            > /tmp/watchdog/scraper-progress.json || true
+          curl -sf --max-time 30 "$PUBLIC_BASE_URL/health" \
+            > /tmp/watchdog/frontend-health.json || true
 
       - name: Evaluate thresholds
         id: evaluate
@@ -59,6 +45,7 @@ jobs:
             --event-queue /tmp/watchdog/event-queue.json \
             --data-source /tmp/watchdog/data-source.json \
             --scraper-progress /tmp/watchdog/scraper-progress.json \
+            --frontend-health /tmp/watchdog/frontend-health.json \
             --alert-file /tmp/watchdog/alert.md; then
             echo "ALERT=0" >> "$GITHUB_ENV"
           else

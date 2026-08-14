@@ -1,6 +1,7 @@
 using System.Reflection;
 using Frontend;
 using Frontend.Components;
+using Microsoft.AspNetCore.HttpOverrides;
 
 WebApplication CreateApp()
 {
@@ -8,6 +9,7 @@ WebApplication CreateApp()
     builder.WebHost.UseUrls("http://0.0.0.0:5001");
 
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+    builder.Services.Configure<ForwardedHeadersOptions>(ProxyConfiguration.ConfigureForwardedHeaders);
     builder.Services.AddSignalR(options =>
     {
         options.MaximumReceiveMessageSize = 256 * 1024;
@@ -22,6 +24,7 @@ WebApplication CreateApp()
 
     WebApplication app = builder.Build();
 
+    app.UseForwardedHeaders();
     app.UseAntiforgery();
     app.UseStaticFiles();
 

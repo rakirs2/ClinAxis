@@ -2,7 +2,7 @@
 
 Source of truth for the MVP scope and build order. Tracking issue: #382.
 
-_Last synced with merged PRs through #423 (2026-08-07). P6 Phase 1 (rule-based) shipped — P1 code fixes are merged, but production recovery and a completed full run remain open. P7 is the public-domain release gate._
+_Last synced with merged PRs through #423 (2026-08-07). P6 Phase 1 (rule-based) shipped — P1 code fixes are merged, but production recovery and a completed full run remain open. P7 public-domain routing is implemented pending production deployment._
 
 ## Principles
 
@@ -52,8 +52,8 @@ _Last synced with merged PRs through #423 (2026-08-07). P6 Phase 1 (rule-based) 
 ### P7 — Public domain deployment
 
 - **Definition of done:** purchased domain resolves to the droplet; `https://<domain>` serves the Frontend; TLS is valid and auto-renewing; Blazor Server SignalR, cookies, and DataApi calls work without mixed-content errors; deploy and watchdog health checks pass.
-- **Current state:** production is reachable through the droplet IP and application port; #346 covers domain purchase and DNS; #347 covers domain deployment. TLS termination remains undecided (Cloudflare proxy, Caddy, or Kestrel/certbot are the documented options), and deploy checks currently target localhost endpoints.
-- **PR order:** ① #346 domain/DNS ② choose the TLS approach ③ configure edge/reverse-proxy routing ④ update application URL, cookie, redirect, deploy, and watchdog settings ⑤ validate HTTPS, SignalR, cookies, API calls, and rollback.
+- **Current state:** `clinaxis.org` and `www.clinaxis.org` resolve to the droplet; Caddy provides automatic TLS and reverse-proxy routing; deploy and watchdog checks validate the public HTTPS endpoints. Production HTTPS validation remains a post-merge deployment step.
+- **PR order:** ① #346 domain/DNS → complete ② Caddy TLS approach and edge routing ③ update forwarded scheme, deploy, and watchdog settings ④ validate HTTPS, SignalR, cookies, API calls, and rollback.
 
 ## Build order
 

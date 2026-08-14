@@ -47,3 +47,22 @@ services:
     depends_on:
       data-api:
         condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: clinicaltrialdata-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      data-api:
+        condition: service_started
+      frontend:
+        condition: service_started
+
+volumes:
+  caddy_data:
+  caddy_config:
