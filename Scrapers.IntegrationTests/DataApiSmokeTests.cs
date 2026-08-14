@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -66,33 +65,12 @@ public sealed class DataApiSmokeTests
 
         var found = data.EnumerateArray().Any(s => s.GetProperty("nctId").GetString() == "NCT00000002");
         Assert.IsTrue(found, "Seeded Pregabalin study should appear in search results");
+
+        using HttpResponseMessage unfilteredResponse = await _client.GetAsync("/api/studies?page=1&pageSize=50");
+        unfilteredResponse.EnsureSuccessStatusCode();
+        using var unfilteredDoc = JsonDocument.Parse(await unfilteredResponse.Content.ReadAsStringAsync());
+        Assert.IsTrue(unfilteredDoc.RootElement.GetProperty("data").GetArrayLength() > 0,
+            "Unfiltered homepage search should return seeded studies");
     }
 
-    [TestMethod]
-    [TestCategory("Integration")]
-    public async Task InvestigatorFinder_ReturnsScoredResults()
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/investigator-finder")
-        {
-            Content = new StringContent(
-                """{"treePrefixes": ["C14.907"]}""",
-                Encoding.UTF8,
-                "application/json")
-        };
-
-        using HttpResponseMessage response = await _client.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-
-        Assert.IsTrue(doc.RootElement.TryGetProperty("totalCandidates", out JsonElement totalCandidates));
-        Assert.IsTrue(totalCandidates.GetInt32() > 0, "Hypertension prefix should match seeded studies");
-
-        JsonElement investigators = doc.RootElement.GetProperty("investigators");
-        Assert.IsTrue(investigators.GetArrayLength() > 0, "Should return ranked investigators");
-
-        var found = investigators.EnumerateArray().Any(i =>
-            i.GetProperty("name").GetString() == "Dr. David Williams, MD" &&
-            i.GetProperty("uuid").GetString() == SeedData.Person9.Id.ToString());
-        Assert.IsTrue(found, "PI of the seeded hypertension study should be ranked");
-    }
 }

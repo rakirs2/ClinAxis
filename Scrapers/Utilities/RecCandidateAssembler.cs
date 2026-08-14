@@ -12,7 +12,7 @@ namespace Scrapers.Utilities
     /// </summary>
     internal static class RecCandidateAssembler
     {
-        /// <summary>Person-level scalars (mirrors the investigator-finder candidate row).</summary>
+        /// <summary>Person-level scalars used by the Best-PI candidate row.</summary>
         public readonly record struct CandidateScalars(
             Guid Uuid,
             string? Name,

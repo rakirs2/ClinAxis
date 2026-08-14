@@ -17,7 +17,7 @@ namespace Scrapers.Utilities
     ///   present; missing factors abstain and the surviving weights renormalize (the
     ///   NpiCandidateScorer/RecEngineSignals abstain idiom — missing data never drags a score
     ///   toward zero).
-    /// - Experience: min(1, studyCount/20) (cap mirrors the investigator-finder relevance).
+    /// - Experience: min(1, studyCount/20).
     /// - Completion: the 0..1 completion rate from RecEngineSignals directly.
     /// - Condition fit: |requested ∩ candidate categories| / |requested|; no requested
     ///   categories (request with no condition/therapy) abstains.

@@ -100,11 +100,10 @@ For details on the deployment architecture, see `docs/scraper_architecture.md` �
 
 ## Advanced Search
 
-Search studies across 7 dimensions: keyword, status, phase, conditions, locations (country/state/city/facility), enrollment range, and start date range. Filters combine with AND logic (all must match), supporting complex queries like "RECRUITING + PHASE2 + Hypertension studies in the USA with 100-500 participants."
+Search studies across 6 dimensions: keyword, status, phase, conditions, enrollment range, and start date range. Filters combine with AND logic (all must match), supporting complex queries like "RECRUITING + PHASE2 + Hypertension studies with 100-500 participants."
 
 API endpoints for building custom search UIs:
 - `GET /api/distinct-conditions` — List all conditions
-- `GET /api/distinct-locations` — List countries, states, cities, facilities
 - `GET /api/studies?keyword=&status=&phase=&condition=&country=&enrollmentMin=&enrollmentMax=&startDateFrom=` — Search with filters
 
 See `DataApi/Program.cs` for implementation details. Frontend UI code in `Frontend/Pages/Search.razor`.
