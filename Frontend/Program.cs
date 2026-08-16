@@ -15,7 +15,7 @@ WebApplication CreateApp()
         options.MaximumReceiveMessageSize = 256 * 1024;
     });
 
-    var dataApiBaseUrl = builder.Configuration["DataApi:BaseUrl"] ?? "http://localhost:5003";
+    var dataApiBaseUrl = DataApiConfiguration.ResolveBaseUrl(builder.Configuration["DataApi:BaseUrl"]);
     builder.Services.AddHttpClient("DataApi", client => client.BaseAddress = new Uri(dataApiBaseUrl));
     builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(dataApiBaseUrl) });
 
