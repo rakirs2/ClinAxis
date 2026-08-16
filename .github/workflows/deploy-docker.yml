@@ -128,6 +128,22 @@ jobs:
           echo "--- Create deploy dir ---"
           remote "mkdir -p $R"
 
+          echo "--- Verify PostgreSQL cluster ---"
+          remote "sudo systemctl start postgresql@16-main.service 2>/dev/null || true
+            for i in \$(seq 1 15); do
+              if pg_isready -h 127.0.0.1 -p 5432 -t 3 >/dev/null 2>&1; then
+                echo 'PostgreSQL 16/main is accepting connections'
+                exit 0
+              fi
+              sleep 2
+            done
+            echo 'FATAL: PostgreSQL 16/main is not accepting connections' >&2
+            sudo systemctl status postgresql@16-main.service --no-pager || true
+            sudo systemctl status postgresql.service --no-pager || true
+            sudo pg_lsclusters || true
+            sudo ss -ltnp | grep ':5432' || true
+            exit 1"
+
           echo "--- Stop and remove any leftover containers ---"
           remote "cd $R && sudo docker compose --env-file $R/.env down --remove-orphans 2>/dev/null || true"
           remote "sudo docker rm -f \$(sudo docker ps -aq) 2>/dev/null || true"
@@ -182,7 +198,15 @@ jobs:
           fi
 
           echo "--- Start Docker containers ---"
-          remote "cd $R && sudo docker compose --env-file $R/.env up -d --wait --wait-timeout 60"
+          remote "cd $R && sudo docker compose --env-file $R/.env up -d --wait --wait-timeout 60 || {
+            echo '--- DataApi container logs ---' >&2
+            sudo docker logs --tail 300 clinicaltrialdata-api 2>&1 || true
+            echo '--- DataApi health state ---' >&2
+            sudo docker inspect --format '{{json .State.Health}}' clinicaltrialdata-api 2>&1 || true
+            echo '--- Docker Compose status ---' >&2
+            sudo docker compose --env-file $R/.env ps 2>&1 || true
+            exit 1
+          }"
 
           echo "--- Internal health checks ---"
           remote "for port in 5003 5001; do
