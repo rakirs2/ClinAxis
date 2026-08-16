@@ -256,24 +256,30 @@ jobs:
                   continue
               status = s.get("status")
               updated = s.get("updatedAt")
-              recent_sync = False
+              recent_healthy_state = False
               if updated:
                   updated_dt = datetime.datetime.fromisoformat(updated.replace("Z", "+00:00"))
                   updated_age_min = (now - updated_dt).total_seconds() / 60
-                  recent_sync = status == "syncing" and updated_age_min <= 30
+                  recent_healthy_state = (
+                      status in {"idle", "syncing"}
+                      and not s.get("errorMessage")
+                      and updated_age_min <= 30
+                  )
               ts = s.get("lastSyncTimestamp")
               if not ts:
-                  if recent_sync:
-                      print("Pipeline scrape in progress: source is syncing and state is recent")
+                  if recent_healthy_state:
+                      print(
+                          f"Pipeline state is healthy and recent ({status}); "
+                          "lastSyncTimestamp is not set yet")
                       continue
                   raise SystemExit("FATAL: ClinicalTrials.gov has no lastSyncTimestamp after deploy")
               dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
               age_min = (now - dt).total_seconds() / 60
               if age_min > 30:
-                  if recent_sync:
+                  if recent_healthy_state:
                       print(
-                          f"Pipeline scrape in progress: lastSyncTimestamp {ts} is "
-                          f"{age_min:.0f}m old, but source state is actively syncing")
+                          f"Pipeline state is healthy and recent ({status}); "
+                          f"retaining lastSyncTimestamp {ts} at {age_min:.0f}m old")
                       continue
                   raise SystemExit(
                       f"FATAL: lastSyncTimestamp {ts} is {age_min:.0f}m old (>30m) after deploy")

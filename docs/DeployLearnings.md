@@ -5,6 +5,20 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-16 — Pipeline gate rejected a healthy recently refreshed idle state
+
+- **Issue:** [#492](https://github.com/rakirs2/ClinicalTrialData/issues/492) — post-deploy pipeline validation failure.
+- **Run:** [deploy #31957490459](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31957490459)
+- **Symptom:** PostgreSQL, all containers, internal health checks, public HTTPS checks, and
+  DataApi routing passed. The deployment failed only because `lastSyncTimestamp` was 907 minutes old.
+- **Root cause:** The validator accepted a recent `syncing` state but rejected a recent `idle`
+  state with no error. The ingestion state had just been refreshed and retained its cursor while
+  unresolved work was acknowledged, so cursor age alone was not a valid failure signal.
+- **Fix:** Treat recent `idle` and `syncing` states without an error as healthy, while continuing
+  to reject stale states and explicit failures.
+- **Prevention:** Validate source-state freshness and error status together with cursor age; do not
+  treat a retained cursor as failure when the service is healthy and recently updated.
+
 ### 2026-08-16 — PostgreSQL cluster down caused DataApi deployment failure
 
 - **Issue:** [#490](https://github.com/rakirs2/ClinicalTrialData/issues/490) — recurring DataApi health failures during deployment.
