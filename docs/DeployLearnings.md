@@ -5,6 +5,22 @@ fix or investigate a deploy issue, linking to the relevant GitHub issue and run.
 
 ## Entries
 
+### 2026-08-16 — PostgreSQL cluster down caused DataApi deployment failure
+
+- **Issue:** [#490](https://github.com/rakirs2/ClinicalTrialData/issues/490) — recurring DataApi health failures during deployment.
+- **Run:** [deploy #31955085119](https://github.com/rakirs2/ClinicalTrialData/actions/runs/31955085119)
+- **Symptom:** All images built successfully, but `docker compose up --wait` reported
+  `container clinicaltrialdata-api is unhealthy`. DataApi startup failed repeatedly with
+  `Failed to connect to 127.0.0.1:5432` and PostgreSQL `SocketException (111): Connection refused`.
+- **Root cause:** The host `postgresql.service` umbrella unit was `active (exited)` while
+  the PostgreSQL 16 `main` cluster was down. The deployment had no database preflight and
+  replaced application containers before detecting the unavailable database.
+- **Fix:** Restore the `16/main` cluster, then make deployment start and verify the cluster
+  before replacing containers. On compose startup failure, emit DataApi logs, health state,
+  and compose status for diagnosis.
+- **Prevention:** Treat the PostgreSQL cluster, not only the umbrella systemd unit, as a
+  deployment prerequisite; retain actionable container diagnostics on startup failure.
+
 ### 2026-08-12 — Legacy discovery event blocked bounded scraper recovery
 
 - **Issue:** [#472](https://github.com/rakirs2/ClinicalTrialData/issues/472) — post-MiniLM watchdog verification reported a stale and stuck scraper.
