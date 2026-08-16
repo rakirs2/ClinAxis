@@ -6,12 +6,13 @@ category: backstory
 pinned: true
 ---
 
-First and foremost, I do not have any experience in Clinical Trials. My sister, however, does. She has extensive experinece with navigating and running them. According to her, one of the largest problems in this space is just coordination and finding the right people. The incentives, for the most part, are not there. As a first major project after my time at MSFT and learning some things in Comp Bio, I wanted to 
+First and foremost, I do not have any experience in clinical trials. According to my sister, one of the largest problems in this space is just coordination and finding the right people. The incentives, for the most part, are not there. As a first major project after my time at MSFT and learning some things in Comp Bio, I wanted to
 
 1. Create something that she could potentially use immediately. 
 1. Play with real world data
 1. Experiment with searches/patterns and filtering
 1. Test out the current limitations of what can and can't be done with "Vibe Coding" in order to see what my impression of it is.
+1. Create some data I can start practicing modeling with.
 
 This blog is just a running list of my technical thoughts as I developed this-- mostly to give myself (and the agent I'm using) some background into the context, story trials etc. of things as they get done.
 
@@ -19,8 +20,8 @@ This blog is just a running list of my technical thoughts as I developed this-- 
 A user searchable tool in order to find the "Best" PI based off a given set of contraints.
 
 ## Constraints
-1. Try to avoid reinvetning the wheel
-1. Minimal resource consumption
+1. Try to avoid reinventing the wheel
+1. Minimal resource consumption (right now, this is 2gb ram, 50 gb storage)
 1. Speed to MVP is the most important at this time
 1. No manual coding -- everything done via some sort of AI.
 
