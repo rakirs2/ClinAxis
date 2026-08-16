@@ -1062,3 +1062,30 @@ repeatedly before its first batch completed.
   the shared cache scope.
 - Watchdog and recovery workflows do not need repository assets and remain
   LFS-free.
+
+---
+
+# CI path filtering and production DataApi connectivity
+
+## Decision
+
+- Skip the automatic .NET CI workflow when every changed path is documentation
+  or blog content. Mixed code and documentation changes still run CI.
+- Keep Docker deployment manual-only; `deploy-docker.yml` remains
+  `workflow_dispatch`-only.
+- Use IPv4 loopback (`127.0.0.1:5003`) for the host-network frontend to reach
+  DataApi, avoiding the production `localhost:5003` connection-refused path.
+- Gate the frontend and ingestion services on the DataApi health check rather
+  than only on the DataApi process having started.
+
+## Verification
+
+- `bash scripts/validate-workflows.sh` passed.
+- `docker compose config --quiet` passed; local validation reported only the
+  expected unset `POSTGRES_CONNECTION_STRING` warning.
+- `dotnet build --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet build -c Release --no-restore` passed with 0 warnings and 0 errors.
+- `dotnet test --no-build` passed: 674 tests.
+- `dotnet test -c Release --no-build` passed: 674 tests.
+- The first Debug run had one transient `MeshTreeStoreTests` failure; the
+  targeted test rerun and subsequent full Debug run passed.

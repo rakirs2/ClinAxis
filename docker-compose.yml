@@ -27,10 +27,10 @@ services:
     network_mode: host
     mem_limit: 192m
     environment:
-      - DataApi__BaseUrl=http://localhost:5003
+      - DataApi__BaseUrl=http://127.0.0.1:5003
     depends_on:
       data-api:
-        condition: service_started
+        condition: service_healthy
 
   ingestion:
     build:
@@ -46,7 +46,7 @@ services:
       - INGESTION_STUDY_LIMIT=${INGESTION_STUDY_LIMIT:-0}
     depends_on:
       data-api:
-        condition: service_started
+        condition: service_healthy
 
   caddy:
     image: caddy:2-alpine

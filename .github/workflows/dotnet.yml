@@ -3,8 +3,18 @@ name: .NET CI
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - "blog/**"
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - "blog/**"
 
 jobs:
   unit-and-db-tests:
