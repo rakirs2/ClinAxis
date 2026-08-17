@@ -37,7 +37,7 @@ jobs:
 
       - name: Restore Git LFS cache
         id: lfs-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .git/lfs/objects
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
@@ -49,7 +49,7 @@ jobs:
 
       - name: Save Git LFS cache
         if: github.ref == 'refs/heads/main' && steps.lfs-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .git/lfs/objects
           key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes', '**/*onnx*', '**/*.bin') }}
